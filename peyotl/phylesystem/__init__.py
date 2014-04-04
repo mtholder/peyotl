@@ -690,7 +690,7 @@ def Phylesystem(repos_dict=None,
                                         with_caching=with_caching,
                                         repo_nexml2json=repo_nexml2json,
                                         git_ssh=git_ssh,
-                                        pkey=pkey,      
+                                        pkey=pkey,
                                         git_action_class=git_action_class,
                                         mirror_info=mirror_info)
     return _THE_PHYLESYSTEM

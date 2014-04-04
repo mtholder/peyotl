@@ -57,8 +57,8 @@ def _pull_gh(git_action, branch_name):#
     try:
         git_env = git_action.env()
         # TIMING = api_utils.log_time_diff(_LOG, 'lock acquisition', TIMING)
-        git(git_action.gitdir, "fetch", git_action.repo_remote, _env=git_env)
-        git(git_action.gitdir, git_action.gitwd, "merge", git_action.repo_remote + '/' + branch_name, _env=git_env)
+        git(git_action.git_dir_arg, "fetch", git_action.repo_remote, _env=git_env)
+        git(git_action.git_dir_arg, git_action.gitwd, "merge", git_action.repo_remote + '/' + branch_name, _env=git_env)
         # TIMING = api_utils.log_time_diff(_LOG, 'git pull', TIMING)
     except Exception, e:
         # We can ignore this if the branch doesn't exist yet on the remote,
@@ -67,7 +67,7 @@ def _pull_gh(git_action, branch_name):#
         if "not something we can merge" not in e.message:
             # Attempt to abort a merge, in case of conflicts
             try:
-                git(git_action.gitdir, "merge", "--abort")
+                git(git_action.git_dir_arg, "merge", "--abort")
             except:
                 pass
             msg_f = "Could not pull or merge latest %s branch from %s ! Details: \n%s"
@@ -121,7 +121,7 @@ def commit_and_try_merge2master(git_action,
                 same_sha = merged_sha
             if b == same_sha:
                 try:
-                    new_sha = git_action.merge(branch_name, 'master')
+                    new_sha = git_action.merge(branch_name, 'master', auth_info)
                 except MergeException:
                     _LOG.error('MergeException in a "safe" merge !!!')
                     merge_needed = True
@@ -171,6 +171,9 @@ def merge_from_master(git_action, study_id, auth_info, parent_sha):
     """
     gh_user, author = get_user_author(auth_info)
     acquire_lock_raise(git_action, fail_msg="Could not acquire lock to merge study #{s}".format(s=study_id))
+    diff_that_patched = None
+    post_merge_diff = None
+    files_to_del = []
     try:
         git_action.checkout_master()
         written_fp = git_action.path_for_study(study_id)
@@ -179,9 +182,28 @@ def merge_from_master(git_action, study_id, auth_info, parent_sha):
         else:
             raise GitWorkflowError('Study "{}" does not exist on master'.format(study_id))
         branch = git_action.create_or_checkout_branch(gh_user, study_id, parent_sha)
-        new_sha = git_action.merge('master', branch)
+        try:
+            new_sha = git_action.merge('master', branch, auth_info)
+        except MergeException:
+            cmd = git_action.conflicted_merge('master',
+                                                  branch,
+                                                  study_id,
+                                                  auth_info)
+            new_sha = cmd['sha']
+            files_to_del = cmd['files_to_del']
+            diff_that_patched = cmd['diff_that_patched']
+            post_merge_diff = cmd['post_merge_diff']
     finally:
         git_action.release_lock()
+    for fp in files_to_del:
+        os.remove(fp)
+
+    edits_not_applied = {}
+    if diff_that_patched is not None:
+        edits_not_applied = diff_that_patched.unapplied_edits_as_ot_diff_dict()
+    post_merge_diff_dict = None
+    if post_merge_diff is not None:
+        post_merge_diff_dict = post_merge_diff.as_ot_diff_dict()
     # What other useful information should be returned on a successful write?
     return {
         "error": 0,
@@ -190,4 +212,6 @@ def merge_from_master(git_action, study_id, auth_info, parent_sha):
         "description": "Updated study #%s" % study_id,
         "sha":  new_sha,
         "merged_sha": master_file_blob_sha,
+        "edits_not_applied": edits_not_applied,
+        "post_merge_diff": post_merge_diff_dict
     }

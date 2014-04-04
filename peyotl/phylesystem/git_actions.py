@@ -42,8 +42,10 @@ def get_user_author(auth_info):
     username will be in the `login` value. It is used for WIP branch naming.
     the author string will be the name and email joined. This is used in commit messages.
     '''
-    return auth_info['login'], ("%s <%s>" % (auth_info['name'], auth_info['email']))
+    return auth_info['login'], get_author(auth_info)
 
+def get_author(auth_info):
+    return "{} <{}>".format(auth_info['name'], auth_info['email'])
 
 def get_filepath_for_namespaced_id(repo_dir, study_id):
     if len(study_id) < 4:
@@ -114,7 +116,7 @@ class GitAction(object):
         self.pkey = pkey
         
         if os.path.isdir("{}/.git".format(self.repo)):
-            self.gitdir = "--git-dir={}/.git".format(self.repo)
+            self.git_dir_arg = "--git-dir={}/.git".format(self.repo)
             self.gitwd = "--work-tree={}".format(self.repo)
         else: #EJM needs a test?
             raise ValueError('Repo "{repo}" is not a git repo'.format(repo=self.repo))
@@ -125,7 +127,7 @@ class GitAction(object):
     def lock(self):
         ''' for syntax:
         with git_action.lock():
-            git_action.checkout()
+            git_action.checkout('master')
         '''
         return RepoLock(self._lock)
 
@@ -134,6 +136,10 @@ class GitAction(object):
         '''
         return self.path_for_study_fn(self.repo, study_id)
 
+    def relative_path_for_study(self):
+        p = self.path_for_study('', study_id)
+        assert(p.startswith('/study'))
+        return p[1:]
 
     def env(self): #@TEMP could be ref to a const singleton.
         d = dict(os.environ)
@@ -158,27 +164,41 @@ class GitAction(object):
 
     def current_branch(self):
         "Return the current branch name"
-        branch_name = git(self.gitdir, self.gitwd, "symbolic-ref", "HEAD")
+        branch_name = git(self.git_dir_arg, self.gitwd, "symbolic-ref", "HEAD")
         return branch_name.replace('refs/heads/', '').strip()
 
     def checkout_master(self):
-        git(self.gitdir, self.gitwd, "checkout", "master")
+        git(self.git_dir_arg, self.gitwd, "checkout", "master")
+
+    def get_mrca_sha(self, branch_or_sha1, branch_or_sha2):
+        '''Takes two commit references (branch names or commit SHAs)
+        and returns the sha of their most recent common ancestor
+        '''
+        x = git(self.git_dir_arg, 'merge-base', branch_or_sha1, branch_or_sha2)
+        return x.strip()
+
+    def write_study_contents_for_commit(self, commit_sha, study_id, out_file):
+        v_arg = '{c}:{s}'.format(c=commit_sha, s=self.relative_path_for_study())
+        git(self.git_dir_arg, 'cat-file', '-p', v_arg, _out=out_file)
+
+    def _head_sha(self):
+        return git(self.git_dir_arg, self.gitwd, "rev-parse", "HEAD").strip()
 
     def get_master_sha(self):
-        x = git(self.gitdir, self.gitwd, "show-ref", "master", "--heads", "--hash")
+        x = git(self.git_dir_arg, self.gitwd, "show-ref", "master", "--heads", "--hash")
         return x.strip()
 
 
         # next we must look at local branch names for new studies
         # without --no-color we get terminal color codes in the branch output
-        branches = git(self.gitdir, self.gitwd, "branch", "--no-color")
-        branches = [ b.strip() for b in branches ]
-        for b in branches:
-            mo = re.match(".+_o(\d+)", b)
-            if mo:
-                dirs.append(int(mo.group(1)))
-        dirs.sort()
-        return dirs[-1]
+        #branches = git(self.git_dir_arg, self.gitwd, "branch", "--no-color")
+        #branches = [ b.strip() for b in branches ]
+        #for b in branches:
+        #    mo = re.match(".+_o(\d+)", b)
+        #    if mo:
+        #        dirs.append(int(mo.group(1)))
+        #dirs.sort()
+        #return dirs[-1]
 
     def return_study(self, study_id, branch='master', commit_sha=None, return_WIP_map=False): 
         """Return the 
@@ -210,14 +230,14 @@ class GitAction(object):
     def branch_exists(self, branch):
         """Returns true or false depending on if a branch exists"""
         try:
-            git(self.gitdir, self.gitwd, "rev-parse", branch)
+            git(self.git_dir_arg, self.gitwd, "rev-parse", branch)
         except sh.ErrorReturnCode:
             return False
         return True
 
     def find_WIP_branches(self, study_id):
         pat = re.compile(r'.*_study_{i}_[0-9]+'.format(i=study_id))
-        head_shas = git(self.gitdir, self.gitwd, "show-ref", "--heads")
+        head_shas = git(self.git_dir_arg, self.gitwd, "show-ref", "--heads")
         ret = {}
         #_LOG.debug('find_WIP_branches head_shas = "{}"'.format(head_shas.split('\n')))
         for lin in head_shas.split('\n'):
@@ -232,7 +252,7 @@ class GitAction(object):
         return ret
 
     def _find_head_sha(self, frag, parent_sha):
-        head_shas = git(self.gitdir, self.gitwd, "show-ref", "--heads")
+        head_shas = git(self.git_dir_arg, self.gitwd, "show-ref", "--heads")
         for lin in head_shas.split('\n'):
             #_LOG.debug("lin = '{l}'".format(l=lin))
             if lin.startswith(parent_sha):
@@ -244,7 +264,7 @@ class GitAction(object):
                         return branch
         return None
     def checkout(self, branch):
-        git(self.gitdir, self.gitwd, "checkout", branch)
+        git(self.git_dir_arg, self.gitwd, "checkout", branch)
 
     def create_or_checkout_branch(self, gh_user, study_id, parent_sha, force_branch_name=False):
         if force_branch_name:
@@ -252,7 +272,7 @@ class GitAction(object):
             branch = "{ghu}_study_{rid}".format(ghu=gh_user, rid=study_id)
             if not self.branch_exists(branch):
                 try:
-                    git(self.gitdir, self.gitwd, "branch", branch, parent_sha)
+                    git(self.git_dir_arg, self.gitwd, "branch", branch, parent_sha)
                     _LOG.debug('Created branch "{b}" with parent "{a}"'.format(b=branch, a=parent_sha))
                 except:
                     raise ValueError('parent sha not in git repo')
@@ -270,7 +290,7 @@ class GitAction(object):
                 i += 1
             _LOG.debug('lowest non existing branch =' + branch)
             try:
-                git(self.gitdir, self.gitwd, "branch", branch, parent_sha)
+                git(self.git_dir_arg, self.gitwd, "branch", branch, parent_sha)
                 _LOG.debug('Created branch "{b}" with parent "{a}"'.format(b=branch, a=parent_sha))
             except:
                 raise ValueError('parent sha not in git repo')
@@ -280,10 +300,10 @@ class GitAction(object):
 
     def fetch(self, remote='origin'):
         '''fetch from a remote'''
-        git(self.gitdir, "fetch", remote)
+        git(self.git_dir_arg, "fetch", remote)
     
     def push(self, branch, remote):
-        git(self.gitdir, 'push', remote, branch, _env=self.env())
+        git(self.git_dir_arg, 'push', remote, branch, _env=self.env())
 
     #@TEMP TODO. Args should be gh_user, study_id, parent_sha, author but 
     #   currently using the # of args as a hack to detect whether the
@@ -310,22 +330,21 @@ class GitAction(object):
         if not os.path.isdir(study_dir):
             # branch already exists locally with study removed
             # so just return the commit SHA
-            return git(self.gitdir, self.gitwd, "rev-parse", "HEAD").strip(), branch
-        git(self.gitdir, self.gitwd, "rm", "-rf", study_dir)
-        git(self.gitdir, self.gitwd, "commit", author=author, message="Delete Study #%s via OpenTree API" % study_id)
-        new_sha = git(self.gitdir, self.gitwd, "rev-parse", "HEAD")
-        return new_sha.strip(), branch
+            return self._head_sha(), branch
+        git(self.git_dir_arg, self.gitwd, "rm", "-rf", study_dir)
+        git(self.git_dir_arg, self.gitwd, "commit", author=author, message="Delete Study #%s via OpenTree API" % study_id)
+        return self._head_sha(), branch
         
 
     def reset_hard(self):
         try:
-            git(self.gitdir, self.gitwd, 'reset', '--hard')
+            git(self.git_dir_arg, self.gitwd, 'reset', '--hard')
         except:
             _LOG.exception('"git reset --hard" failed.')
 
     def get_blob_sha_for_file(self, filepath, branch='HEAD'):
         try:
-            r = git(self.gitdir, self.gitwd, 'ls-tree', branch, filepath)
+            r = git(self.git_dir_arg, self.gitwd, 'ls-tree', branch, filepath)
             #_LOG.debug('ls-tree said "{}"'.format(r))
             line = r.strip()
             ls = line.split()
@@ -336,55 +355,6 @@ class GitAction(object):
         except:
             _LOG.exception('git ls-tree failed')
             raise
-
-    #@TEMP TODO: remove this form...
-    def write_study(self, study_id, file_content, branch, author):
-        """Given a study_id, temporary filename of content, branch and auth_info
-        
-        Deprecated but needed until we merge api local-dep to master...
-
-        """
-        parent_sha = None
-        #@TODO. DANGER super-ugly hack to get gh_user 
-        #   only doing this function is going away very soon. @KILL with merge of local-dep
-        gh_user = branch.split('_study_')[0]
-        fc = tempfile.NamedTemporaryFile()
-        if isinstance(file_content, str) or isinstance(file_content, unicode):
-            fc.write(file_content)
-        else:
-            write_as_json(file_content, fc)
-        fc.flush()
-        try:
-            study_filepath = self.path_for_study(study_id)
-            study_dir = os.path.split(study_filepath)[0]
-            if parent_sha is None:
-                self.checkout_master()
-                parent_sha = self.get_master_sha()
-            branch = self.create_or_checkout_branch(gh_user, study_id, parent_sha, force_branch_name=True)
-            # create a study directory if this is a new study EJM- what if it isn't?
-            if not os.path.isdir(study_dir):
-                os.makedirs(study_dir)
-            shutil.copy(fc.name, study_filepath)
-            git(self.gitdir, self.gitwd, "add", study_filepath)
-            try:
-                git(self.gitdir, self.gitwd,  "commit", author=author, message="Update Study #%s via OpenTree API" % study_id)
-            except Exception, e:
-                # We can ignore this if no changes are new,
-                # otherwise raise a 400
-                if "nothing to commit" in e.message:#@EJM is this dangerous?
-                    pass
-                else:
-                    _LOG.exception('"git commit" failed')
-                    self.reset_hard()
-                    raise
-            new_sha = git(self.gitdir, self.gitwd,  "rev-parse", "HEAD")
-        except Exception, e:
-            _LOG.exception('write_study exception')
-            raise GitWorkflowError("Could not write to study #%s ! Details: \n%s" % (study_id, e.message))
-        finally:
-            fc.close()
-        return new_sha
-
 
     def write_study_from_tmpfile(self, study_id, tmpfi, parent_sha, auth_info):
         """Given a study_id, temporary filename of content, branch and auth_info
@@ -406,13 +376,30 @@ class GitAction(object):
         else:
             prev_file_sha = None
         shutil.copy(tmpfi.name, study_filepath)
-        git(self.gitdir, self.gitwd, "add", study_filepath)
+        commit_sha = self._add_and_commit_from_working_dir(study_id, author, study_filepath)
+        _LOG.debug('Committed study "{i}" to branch "{b}" commit SHA: "{s}"'.format(i=study_id, b=branch, s=commit_sha))
+        return {'commit_sha': commit_sha,
+                'prev_file_sha': prev_file_sha,
+                'branch': branch,
+               }
+
+    def _add_and_commit_from_working_dir(self, study_id=None, author=None, study_filepath=None):
+        if study_id and (not study_filepath):
+            study_filepath = self.path_for_study(study_id)
+        if study_filepath:
+            git(self.git_dir_arg, self.gitwd, "add", study_filepath)
         try:
-            git(self.gitdir,
-                self.gitwd, 
-                "commit",
-                author=author,
-                message="Update Study #%s via OpenTree API" % study_id)
+            m = "Update Study #%s via OpenTree API" % study_id
+            if study_filepath:
+                if author:
+                    git(self.git_dir_arg, self.gitwd, "commit", author=author, message=m)
+                else:
+                    git(self.git_dir_arg, self.gitwd, "commit", message=m)
+            else:
+                if author:
+                    git(self.git_dir_arg, self.gitwd, "commit", "-a", author=author, message=m)
+                else:
+                    git(self.git_dir_arg, self.gitwd, "commit", "-a", message=m)
         except Exception, e:
             # We can ignore this if no changes are new,
             # otherwise raise a 400
@@ -422,14 +409,9 @@ class GitAction(object):
                 _LOG.exception('"git commit" failed')
                 self.reset_hard()
                 raise
-        new_sha = git(self.gitdir, self.gitwd,  "rev-parse", "HEAD")
-        _LOG.debug('Committed study "{i}" to branch "{b}" commit SHA: "{s}"'.format(i=study_id, b=branch, s=new_sha.strip()))
-        return {'commit_sha': new_sha.strip(),
-                'branch': branch,
-                'prev_file_sha': prev_file_sha,
-               }
+        return self._head_sha()
 
-    def merge(self, branch, destination="master"):
+    def merge(self, branch, destination="master", auth_info=None):
         """
         Merge the the given WIP branch to master (or destination, if specified)
 
@@ -442,18 +424,108 @@ class GitAction(object):
         current_branch = self.current_branch()
         if current_branch != destination:
             _LOG.debug('checking out ' + destination)
-            git(self.gitdir, self.gitwd, "checkout", destination)
+            git(self.git_dir_arg, self.gitwd, "checkout", destination)
+        author = None
+        if auth_info:
+            author = get_author(auth_info)
         try:
-            git(self.gitdir, self.gitwd, "merge", branch)
+            git(self.git_dir_arg, self.gitwd, "merge", "--no-commit", branch)
+            self._add_and_commit_from_working_dir(author=author)
         except sh.ErrorReturnCode:
             _LOG.exception('merge failed')
             # attempt to reset things so other operations can continue
-            git(self.gitdir, self.gitwd, "merge", "--abort")
+            git(self.git_dir_arg, self.gitwd, "merge", "--abort")
             # raise an MergeException so that caller will know that the merge failed
             raise MergeException()
+        return self._head_sha()
 
-        new_sha = git(self.gitdir, self.gitwd, "rev-parse", "HEAD")
-        return new_sha.strip()
+    def conflicted_merge(self, branch, destination, study_id, auth_info):
+        '''Attempts to use NexsonDiffs to resolve a conflict 
+        between different versions of the file for `study_id`
+        between `branch` and `destination`
+        Commits to `destination` if successful.
 
+        #TODO this holds the lock too long...
+        '''
+        current_branch = self.current_branch()
+        if current_branch != destination:
+            _LOG.debug('checking out ' + destination)
+            git(self.git_dir_arg, self.gitwd, "checkout", destination)
+        try:
+            git(self.git_dir_arg, self.gitwd, "merge", branch)
+            return {'diff_that_patched': None,
+                    'post_merge_diff': None,
+                    'files_to_del': [],
+                    'sha': self._head_sha(),
+            }
+        except:
+            pass
+        mrca_sha = self.get_master_sha(branch, destination)
+        study_filepath = self.path_for_study(study_id)
+        author = get_author(auth_info)
+        mfn, mfo, sfo, sfn, dfo, dfn = None, None, None, None, None, None
+        try:
+            mfo, mfn = _create_tempfile_utf8(suffix='{i}-mrca.json'.format(i=study_id))
+            self.write_study_contents_for_commit(mrca_sha, study_id, mfo)
+            mfo.close()
+            sfo, sfn = _create_tempfile_utf8(suffix='{i}-src.json'.format(i=study_id))
+            self.write_study_contents_for_commit(branch, study_id, sfo)
+            sfo.close()
+            dfo, dfn = _create_tempfile_utf8(suffix='{i}-dest.json'.format(i=study_id))
+            self.write_study_contents_for_commit(destination, study_id, dfo)
+            dfo.close()
+            shutil.copy(sfn, study_filepath) # start with the content in the source
+            edits_on_dest = NexsonDiff(mfn, dfn) # construct differences made by this curator (diff between mrca and dest branch)
+            edits_on_dest.patch_modified_file(study_filepath) # apply the curator's edits to the base
+            self._add_and_commit_from_working_dir(study_id, author, study_filepath) # commit the result
+            diffs_from_dest_par = NexsonDiff(dfn, study_filepath) # figure out how the dest differs from what was just committed.
+        except:
+            try:
+                if mfo is not None:
+                    mfo.close()
+            except:
+                pass
+            try:
+                if mfn is not None:
+                    os.remove(mfn)
+            except:
+                pass
+            try:
+                if sfo is not None:
+                    sfo.close()
+            except:
+                pass
+            try:
+                if sfn is not None:
+                    os.remove(sfn)
+            except:
+                pass
+            try:
+                if dfo is not None:
+                    dfo.close()
+            except:
+                pass
+            try:
+                if dfn is not None:
+                    os.remove(dfn)
+            except:
+                pass
+            raise
+        return {'diff_that_patched': edits_on_dest,
+                'post_merge_diff': diffs_from_dest_par,
+                'files_to_del': [mfn, sfn, dfn],
+                'sha': self._head_sha(),
+        }
+        
     def delete_branch(self, branch):
-        git(self.gitdir, self.gitwd, 'branch', '-d', branch)
+        git(self.git_dir_arg, self.gitwd, 'branch', '-d', branch)
+
+def _create_tempfile_utf8(suffix):
+    '''Creates (using mkstemp) a temporary file with the
+    given suffix. 
+    returns an open (for writing) file object with the utf-8 encoding codec.
+    and the filepath
+    '''
+    fd, fn = tempfile.mkstemp(suffix=suffix)
+    os.close(fd)
+    return codecs.open(fn, 'w', encoding='utf-8'), fn
