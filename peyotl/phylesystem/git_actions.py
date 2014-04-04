@@ -7,6 +7,7 @@ import codecs
 from peyotl import get_logger
 import shutil
 from peyotl.nexson_syntax import write_as_json
+from peyotl.nexson_diff import NexsonDiff
 import tempfile #@TEMPORARY for deprecated write_study
 _LOG = get_logger(__name__)
 class MergeException(Exception):
@@ -136,8 +137,8 @@ class GitAction(object):
         '''
         return self.path_for_study_fn(self.repo, study_id)
 
-    def relative_path_for_study(self):
-        p = self.path_for_study('', study_id)
+    def relative_path_for_study(self, study_id):
+        p = self.path_for_study_fn('', study_id)
         assert(p.startswith('/study'))
         return p[1:]
 
@@ -178,7 +179,7 @@ class GitAction(object):
         return x.strip()
 
     def write_study_contents_for_commit(self, commit_sha, study_id, out_file):
-        v_arg = '{c}:{s}'.format(c=commit_sha, s=self.relative_path_for_study())
+        v_arg = '{c}:{s}'.format(c=commit_sha, s=self.relative_path_for_study(study_id))
         git(self.git_dir_arg, 'cat-file', '-p', v_arg, _out=out_file)
 
     def _head_sha(self):
@@ -440,7 +441,7 @@ class GitAction(object):
         return self._head_sha()
 
     def conflicted_merge(self, branch, destination, study_id, auth_info):
-        '''Attempts to use NexsonDiffs to resolve a conflict 
+        '''Attempts to use NexsonDiff to resolve a conflict 
         between different versions of the file for `study_id`
         between `branch` and `destination`
         Commits to `destination` if successful.
@@ -460,7 +461,7 @@ class GitAction(object):
             }
         except:
             pass
-        mrca_sha = self.get_master_sha(branch, destination)
+        mrca_sha = self.get_mrca_sha(branch, destination)
         study_filepath = self.path_for_study(study_id)
         author = get_author(auth_info)
         mfn, mfo, sfo, sfn, dfo, dfn = None, None, None, None, None, None
@@ -510,6 +511,7 @@ class GitAction(object):
                     os.remove(dfn)
             except:
                 pass
+            self.reset_hard()
             raise
         return {'diff_that_patched': edits_on_dest,
                 'post_merge_diff': diffs_from_dest_par,
@@ -527,5 +529,6 @@ def _create_tempfile_utf8(suffix):
     and the filepath
     '''
     fd, fn = tempfile.mkstemp(suffix=suffix)
+    _LOG.debug('_create_tempfile_utf8 created: {}'.format(fn))
     os.close(fd)
     return codecs.open(fn, 'w', encoding='utf-8'), fn

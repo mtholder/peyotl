@@ -28,7 +28,7 @@ class NexsonDiff(object):
     def patch_modified_file(self, filepath_to_patch):
         assert(isinstance(filepath_to_patch, str) or isinstance(filepath_to_patch, unicode))
         base_blob = _get_blob(filepath_to_patch)
-        self.patch_modified_blob(self, base_blob)
+        self.patch_modified_blob(base_blob)
         write_as_json(base_blob, filepath_to_patch)
 
     def unapplied_edits_as_ot_diff_dict(self):

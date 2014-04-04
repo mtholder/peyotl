@@ -25,8 +25,13 @@ _AUTH = {
 }
 
 class TestPhylesystemC(unittest.TestCase):
-
-    def testConflicting(self):
+    def testExistingConflictResolve(self):
+        wip_sha = '8a64ecfbd7a49b3b9eb0bf0abfc0ce08c43c6256'
+        ga = phylesystem.create_git_action(_SID)
+        mblob = merge_from_master(ga, _SID, _AUTH, wip_sha)
+        self.assertEqual(mblob["error"], 0)
+        self.assertEqual(mblob["resource_id"], _SID)
+    def xtestConflicting(self):
         ga = phylesystem.create_git_action(_SID)
         ga.acquire_lock()
         try:
