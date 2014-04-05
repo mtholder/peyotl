@@ -80,6 +80,15 @@ def all_files(prefix):
             s.add(fp)
     return s
 
+def all_dirs(prefix):
+    d = os.path.join(TESTS_DATA_DIR, prefix)
+    s = set()
+    for p in os.listdir(d):
+        fp = os.path.join(d, p)
+        if os.path.isdir(fp):
+            s.add(fp)
+    return s
+
 
 def nexson_obj(filename):
     '''Returns a dict that is the deserialized nexson object
