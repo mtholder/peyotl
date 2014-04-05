@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 from peyotl.nexson_diff import NexsonDiff
+from peyotl.nexson_syntax import write_as_json
 from peyotl.test.support import pathmap
 from peyotl.utility import get_logger
 import unittest
@@ -39,10 +40,20 @@ class TestNexsonDiff(unittest.TestCase):
             expected = os.path.join(fn, 'expected-output.json')
             expected_blob = read_json(expected)
             output_blob = read_json(output)
-            msg = "Patch failed to produce expected outcome. Compare {o} and {e}".format(o=output, e=expected)
-            print eod.as_ot_diff_dict()
-            self.assertDictEqual(expected_blob, output_blob, msg    )
+            expected_unapplied = os.path.join(fn, 'expected-unapplied.json')
+            expected_diff_from_user = os.path.join(fn, 'expected-diff-from-user.json')
             e = eod.unapplied_edits_as_ot_diff_dict()
             d = dfdp.as_ot_diff_dict()
+            u = os.path.join(fn, 'unapplied.json')
+            eu = os.path.join(fn, 'expected-unapplied.json')
+            df = os.path.join(fn, 'diff-from-user.json')
+            edf = os.path.join(fn, 'expected-diff-from-user.json')
+            write_as_json(e, u)
+            write_as_json(d, df)
+            exp_e = read_json(eu)
+            exp_d = read_json(edf)
+            self.assertDictEqual(expected_blob, output_blob, "Patch failed to produce expected outcome. Compare {o} and {e}".format(o=output, e=expected))
+            self.assertDictEqual(exp_e, e, "Patch failed to produce expected unapplied. Compare {o} and {e}".format(o=u, e=eu))
+            self.assertDictEqual(expected_blob, output_blob, "Patch failed to produce expected diff. Compare {o} and {e}".format(o=df, e=edf))
 if __name__ == "__main__":
     unittest.main()
