@@ -87,6 +87,27 @@ def _to_ot_diff_dict(native_diff):
             r[dt] = x
     return r
 
+class NexsonContext(object):
+    def __init__(self, par=None, key_in_par=None):
+        self.par = par
+        self.key_in_par = key_in_par
+        self._as_ot_dict = None
+    def child(self, key_in_par):
+        return NexsonContext(par=self, key_in_par=key_in_par)
+    def as_ot_target(self):
+        if self._as_ot_dict is None:
+            if self.par is None:
+                if self.key_in_par is None:
+                    self._as_ot_dict = {'path': tuple()}
+                else:
+                    self._as_ot_dict = {'path': (self.key_in_par,)}
+            else:
+                assert(self.key_in_par is not None)
+                pl = [i for i in self.par.as_ot_target()['path']]
+                pl.append(self.key_in_par)
+                self._as_ot_dict = {'path': tuple(pl)}
+        return self._as_ot_dict
+
 class NexsonDiff(DictDiff):
     def __init__(self, anc, des):
         DictDiff.__init__(self)
@@ -153,25 +174,26 @@ class NexsonDiff(DictDiff):
         trees_diff = (self._handle_trees_diffs, {'treeById': tree_diff})
         nexml_diff = (self._handle_nexml_diffs, { 'otusById': otus_diff, 'treesById': trees_diff})
         skip = {'nexml': nexml_diff}
-        self._calculate_generic_diffs(a, d, skip)
+        context = NexsonContext()
+        self._calculate_generic_diffs(a, d, skip, context)
         self._unapplied_edits = None
 
-    def _handle_nexml_diffs(self, src, dest, skip_dict, context):
-        return True, context
-    def _handle_otu_diffs(self, src, dest, skip_dict, context):
-        return True, context
-    def _handle_otus_diffs(self, src, dest, skip_dict, context):
-        return True, context
-    def _handle_edge_diffs(self, src, dest, skip_dict, context):
-        return True, context
-    def _handle_node_diffs(self, src, dest, skip_dict, context):
-        return True, context
-    def _handle_tree_diffs(self, src, dest, skip_dict, context):
-        return True, context
-    def _handle_trees_diffs(self, src, dest, skip_dict, context):
-        return True, context
-    def _handle_trees_diffs(self, src, dest, skip_dict, context):
-        return True, context
+    def _handle_nexml_diffs(self, src, dest, skip_dict, context, key_in_par):
+        return True, None
+    def _handle_otu_diffs(self, src, dest, skip_dict, context, key_in_par):
+        return True, None
+    def _handle_otus_diffs(self, src, dest, skip_dict, context, key_in_par):
+        return True, None
+    def _handle_edge_diffs(self, src, dest, skip_dict, context, key_in_par):
+        return True, None
+    def _handle_node_diffs(self, src, dest, skip_dict, context, key_in_par):
+        return True, None
+    def _handle_tree_diffs(self, src, dest, skip_dict, context, key_in_par):
+        return True, None
+    def _handle_trees_diffs(self, src, dest, skip_dict, context, key_in_par):
+        return True, None
+    def _handle_trees_diffs(self, src, dest, skip_dict, context, key_in_par):
+        return True, None
     def add_addition(self, k, v, context=None):
         self._additions.append((k, v, context))
     def add_deletion(self, k, v, context=None):
@@ -179,7 +201,7 @@ class NexsonDiff(DictDiff):
     def add_modification(self, k, v, context=None):
         self._modifications.append((k, v, context))
 
-    def _calculate_generic_diffs(self, src, dest, skip_dict=None, context=None):
+    def _calculate_generic_diffs(self, src, dest, skip_dict, context):
         sk = set(src.keys())
         dk = set(dest.keys())
         if skip_dict is None:
@@ -189,16 +211,18 @@ class NexsonDiff(DictDiff):
             v = src[k]
             skip_tuple = skip_dict.get(k)
             sub_skip_dict = None
-            sub_context = context
+            sub_context = None
             if skip_tuple is not None:
                 func, sub_skip_dict = skip_tuple
-                do_generic_calc, sub_context = func(v, dest.get(k), sub_skip_dict, context=sub_context)
+                do_generic_calc, sub_context = func(v, dest.get(k), sub_skip_dict, context=context, key_in_par=k)
             if do_generic_calc:
                 if k in dk:
                     dv = dest[k]
                     if v != dv:
                         rec_call = None
                         if isinstance(v, dict) and isinstance(dv, dict):
+                            if sub_context is None:
+                                sub_context = context.child(k)
                             rec_call = self._calculate_generic_diffs(v, dv, skip_dict=sub_skip_dict, context=sub_context)
                         elif isinstance(v, list) and isinstance(dv, list):
                             rec_call = ListDiff.create(v, dv, wrap_dict_in_list=True)
@@ -207,6 +231,8 @@ class NexsonDiff(DictDiff):
                                 rec_call = ListDiff.create([v], dv, wrap_dict_in_list=True)
                             elif isinstance(dv, dict) or isinstance(v, list):
                                 rec_call = ListDiff.create(v, [dv], wrap_dict_in_list=True)
+                        if sub_context is None:
+                            sub_context = context.child(k)
                         if rec_call is not None:
                             self.add_modification(k, rec_call, context=sub_context)
                         else:
@@ -218,11 +244,12 @@ class NexsonDiff(DictDiff):
             do_generic_calc = True
             skip_tuple = skip_dict.get(k)
             sub_skip_dict = None
-            sub_context = context
             if skip_tuple is not None:
                 func, sub_skip_dict = skip_tuple
-                do_generic_calc, sub_context = func(v, dest.get(k), sub_skip_dict)
+                do_generic_calc, sub_context = func(v, dest.get(k), sub_skip_dict, context=context, key_in_par=k)
             if do_generic_calc:
+                if sub_context is None:
+                    sub_context = context.child(k)
                 self.add_addition(k, dest[k], context=sub_context)
         self.finish()
         return self
