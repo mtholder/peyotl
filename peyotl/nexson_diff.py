@@ -241,22 +241,49 @@ class NexsonDiff(DictDiff):
         des_otus = des_nexml['otusById']
         anc_trees = anc_nexml['treesById']
         des_trees = des_nexml['treesById']
+        self._retained_otus_id_set = set()
+        self._added_otus_id_map= {}
+        self._del_otus_id_set = set()
+        self._dest_otus_order = []
 
-        otu_diff = (self._handle_otu_diffs, None)
+        otu_diff = (self._normal_handling, None)
         otus_diff = (self._handle_otus_diffs, {'otuById': otu_diff})
         edge_diff = (self._handle_edge_diffs, None)
         node_diff = (self._handle_node_diffs, None)
         tree_diff = (self._handle_tree_diffs, {'edgeBySourceId': edge_diff, 'nodeById': node_diff})
         trees_diff = (self._handle_trees_diffs, {'treeById': tree_diff})
-        nexml_diff = (self._handle_nexml_diffs, { 'otusById': otus_diff, 'treesById': trees_diff})
+        nexml_diff = (self._handle_nexml_diffs, {'otusById': otus_diff,
+                                                 '^ot:otusElementOrder': (self._no_op_handling, None), 
+                                                 'treesById': trees_diff})
         skip = {'nexml': nexml_diff}
         context = NexsonContext()
         self._calculate_generic_diffs(a, d, skip, context)
         self._unapplied_edits = None
 
+    def _no_op_handling(self, src, dest, skip_dict, context, key_in_par):
+        return False, None
     def _handle_nexml_diffs(self, src, dest, skip_dict, context, key_in_par):
+        if (dest is None) or (src is None):
+            return True, None
+        sub_context = context.child(key_in_par)
+        src_otus_order = src.get('^ot:otusElementOrder', [])
+        src_otus_set = set(src_otus_order)
+        self._dest_otus_order = dest.get('^ot:otusElementOrder', [])
+        dest_otus_set = set(self._dest_otus_order)
+        dest_otus = dest.get('otusById', {})
+        for o in dest_otus_set:
+            if o in src_otus_set:
+                self._retained_otus_id_set.add(o)
+            else:
+                self._added_otus_id_map[o] = dest_otus[0]
+        for o in src_otus_set:
+            if not (o in self. _dest_otus_order):
+                self._del_otus_id_set.add(o)
+        self._calculate_generic_diffs(src, dest, skip_dict, sub_context)
+        return False, None
+
         return True, None
-    def _handle_otu_diffs(self, src, dest, skip_dict, context, key_in_par):
+    def _normal_handling(self, src, dest, skip_dict, context, key_in_par):
         return True, None
     def _handle_otus_diffs(self, src, dest, skip_dict, context, key_in_par):
         return True, None
