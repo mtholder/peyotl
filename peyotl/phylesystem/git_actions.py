@@ -384,13 +384,20 @@ class GitAction(object):
                 'branch': branch,
                }
 
-    def _add_and_commit_from_working_dir(self, study_id=None, author=None, study_filepath=None):
+    def _add_and_commit_from_working_dir(self,
+                                         study_id=None,
+                                         author=None,
+                                         study_filepath=None,
+                                         message_format='Update Study "{}" via OpenTree API'):
+        '''Performs a commit of a study `message_format` should have one unnamed placeholder
+        for the study_id.
+        '''
         if study_id and (not study_filepath):
             study_filepath = self.path_for_study(study_id)
         if study_filepath:
             git(self.git_dir_arg, self.gitwd, "add", study_filepath)
         try:
-            m = "Update Study #%s via OpenTree API" % study_id
+            m = message_format.format(study_id)
             if study_filepath:
                 if author:
                     git(self.git_dir_arg, self.gitwd, "commit", author=author, message=m)
@@ -431,7 +438,7 @@ class GitAction(object):
             author = get_author(auth_info)
         try:
             git(self.git_dir_arg, self.gitwd, "merge", "--no-commit", branch)
-            self._add_and_commit_from_working_dir(author=author)
+            self._add_and_commit_from_working_dir(author=author, message_format='Automated merge of study "{}" via OpenTree API')
         except sh.ErrorReturnCode:
             _LOG.exception('merge failed')
             # attempt to reset things so other operations can continue
@@ -478,7 +485,10 @@ class GitAction(object):
             shutil.copy(sfn, study_filepath) # start with the content in the source
             edits_on_dest = NexsonDiff(mfn, dfn) # construct differences made by this curator (diff between mrca and dest branch)
             edits_on_dest.patch_modified_file(study_filepath) # apply the curator's edits to the base
-            self._add_and_commit_from_working_dir(study_id, author, study_filepath) # commit the result
+            self._add_and_commit_from_working_dir(study_id,
+                                                  author,
+                                                  study_filepath,
+                                                  message_format='Merge of study "{}" using data-structure-aware difftools via OpenTree API') # commit the result
             diffs_from_dest_par = NexsonDiff(dfn, study_filepath) # figure out how the dest differs from what was just committed.
         except:
             try:

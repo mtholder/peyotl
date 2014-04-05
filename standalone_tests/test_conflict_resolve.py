@@ -25,13 +25,13 @@ _AUTH = {
 }
 
 class TestPhylesystemC(unittest.TestCase):
-    def testExistingConflictResolve(self):
+    def xtestExistingConflictResolve(self):
         wip_sha = '8a64ecfbd7a49b3b9eb0bf0abfc0ce08c43c6256'
         ga = phylesystem.create_git_action(_SID)
         mblob = merge_from_master(ga, _SID, _AUTH, wip_sha)
         self.assertEqual(mblob["error"], 0)
         self.assertEqual(mblob["resource_id"], _SID)
-    def xtestConflicting(self):
+    def testConflicting(self):
         ga = phylesystem.create_git_action(_SID)
         ga.acquire_lock()
         try:
@@ -77,14 +77,14 @@ class TestPhylesystemC(unittest.TestCase):
         ac += 1
         acurr_obj['nexml']["^acount"] = ac
         v5b = commit_and_try_merge2master(ga, acurr_obj, _SID, _AUTH, mblob['sha'])
-        self.assertNotEqual(v3b['sha'], v5b['sha'])
+        self.assertNotEqual(v2b['sha'], v5b['sha'])
         self.assertTrue(v5b['merge_needed'])
         
         # add a 7th commit onto commit 6. This should merge to master because we don't give it the secret arg.
         ac += 1
         acurr_obj['nexml']["^zcount"] = ac
         v6b = commit_and_try_merge2master(ga, acurr_obj, _SID, _AUTH, v5b['sha'], merged_sha=mblob['merged_sha'])
-        self.assertNotEqual(v3b['sha'], v6b['sha'])
+        self.assertNotEqual(v2b['sha'], v6b['sha'])
         self.assertEqual(v6b['sha'], ga.get_master_sha()) # not locked!
         self.assertFalse(v6b['merge_needed'])
         self.assertEqual(v6b['branch_name'], 'master')
