@@ -315,6 +315,8 @@ class NexsonDiff(DictDiff):
                             else:
                                 self.add_modification(dv, context=sub_context)
                 else:
+                    if sub_context is None:
+                        sub_context = context.child(k)
                     self.add_deletion(context=sub_context)
         add_keys = dk - sk
         for k in add_keys:
