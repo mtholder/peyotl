@@ -223,7 +223,7 @@ class NexsonDiff(DictDiff):
                         if isinstance(v, dict) and isinstance(dv, dict):
                             if sub_context is None:
                                 sub_context = context.child(k)
-                            rec_call = self._calculate_generic_diffs(v, dv, skip_dict=sub_skip_dict, context=sub_context)
+                            self._calculate_generic_diffs(v, dv, skip_dict=sub_skip_dict, context=sub_context)
                         elif isinstance(v, list) and isinstance(dv, list):
                             rec_call = ListDiff.create(v, dv, wrap_dict_in_list=True)
                         else:
