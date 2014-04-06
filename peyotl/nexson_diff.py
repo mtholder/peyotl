@@ -23,6 +23,16 @@ def _get_blob(src):
         raise ValueError('NexsonDiff objects can only operate on NexSON version 1.2. Found version = "{}"'.format(v))
     return b
 
+def new_diff_summary(in_tree=False):
+    d = {'additions': [],
+            'deletions': [],
+            'modifications': [],
+    }
+    if in_tree:
+        d['rerootings'] = []
+    return d
+
+
 def _list_patch_modified_blob(nexson_diff, base_blob, dels, adds, mods):
     for v, c in mods:
         nexson_diff._unapplied_edits['modifications'].append((v, c))
@@ -228,17 +238,11 @@ class NexsonDiff(DictDiff):
 
     def get_diff_dict(self)     :
         if self._diff is None:
-            self._diff = {
-                'additions': self._nontree_additions,
-                'deletions': self._nontree_deletions,
-                'modifications': self._nontree_modifications,
-                'tree': {
-                    'additions': self._tree_additions,
-                    'deletions': self._tree_deletions,
-                    'modifications': self._tree_modifications,
-                    'rerootings': self._rerootings,
-                },
-            }
+            self._diff = {'tree':{}}
+            for k in OT_DIFF_TYPE_LIST:
+                self._diff[k] = self._nontree_diff[k]
+                self._diff['tree'][k] = self._tree_diff[k]
+            self._diff['tree']['rerootings'] = self._tree_diff['rerootings']
         return self._diff
     diff_dict = property(get_diff_dict)
     def unapplied_edits_as_ot_diff_dict(self):
@@ -249,12 +253,43 @@ class NexsonDiff(DictDiff):
     def as_ot_diff_dict(self):
         return _to_ot_diff_dict(self.diff_dict)
 
+    def has_differences(self):
+        d = self.diff_dict
+        t = self.diff_dict.get('tree', {})
+        for k in OT_DIFF_TYPE_LIST:
+            if d.get(k) or t.get(k):
+                return True
+        if t.get('rerootings'):
+            return True
+        return False
+
+    def _clear_patch_related_data(self):
+        self._unapplied_nontree_edits = new_diff_summary()
+        self._unapplied_tree_edits = new_diff_summary(in_tree=True)
+        self._redundant_nontree_edits = {}
+        self._redundant_tree_edits = new_diff_summary(in_tree=True)
+        
+    def _clear_diff_related_data(self):
+        self._nontree_diff = new_diff_summary()
+        self._tree_diff = new_diff_summary(in_tree=True)
+        self.activate_nontree_diffs()
+        self._diff = None
+        self._retained_otus_id_set = set()
+        self._added_otus_id_map = {}
+        self._del_otus_id_set = set()
+        self._dest_otus_order = []
+        # the following is not mutable, so it could go in __init__
+        otus_diff = (self._handle_otus_diffs, None)
+        trees_diff = (self._handle_trees_diffs, None)
+        nexml_diff = (self._handle_nexml_diffs, {'otusById': otus_diff,
+                                                 '^ot:otusElementOrder': self.no_op_t, 
+                                                 '^ot:treesElementOrder': self.no_op_t, 
+                                                 'treesById': trees_diff})
+        self.top_skip_dict = {'nexml': nexml_diff}
+        
+        
     def patch_modified_blob(self, base_blob):
-        self._unapplied_edits = {}
-        self._redundant_edits = {}
-        for dt in OT_DIFF_TYPE_LIST:
-            self._unapplied_edits[dt] = []
-            self._redundant_edits[dt] = []
+        self._clear_patch_related_data()
         _dict_patch_modified_blob(self, base_blob, self._deletions, self._additions, self._modifications)
 
     def _calculate_diff(self):
@@ -262,33 +297,13 @@ class NexsonDiff(DictDiff):
         Recurses through dict and lists.
         
         '''
-        self._nontree_additions = []
-        self._nontree_deletions = []
-        self._nontree_modifications = []
-        self._tree_additions = []
-        self._tree_deletions = []
-        self._tree_modifications = []
-        self._rerootings = []
-        self.activate_nontree_diffs()
-        self._diff = None
+        self._clear_patch_related_data()
+        self._clear_diff_related_data()
         a = self.anc_blob
         d = self.des_blob
-        self._retained_otus_id_set = set()
-        self._added_otus_id_map = {}
-        self._del_otus_id_set = set()
-        self._dest_otus_order = []
-
-        otus_diff = (self._handle_otus_diffs, None)
-        trees_diff = (self._handle_trees_diffs, None)
-        nexml_diff = (self._handle_nexml_diffs, {'otusById': otus_diff,
-                                                 '^ot:otusElementOrder': self.no_op_t, 
-                                                 '^ot:treesElementOrder': self.no_op_t, 
-                                                 'treesById': trees_diff})
-        skip = {'nexml': nexml_diff}
         context = NexsonContext()
-        self._calculate_generic_diffs(a, d, skip, context)
+        self._calculate_generic_diffs(a, d, self.top_skip_dict, context)
         self.finish()
-        self._unapplied_edits = None
 
     def _process_ordering_pair(self,
                                order_key,
@@ -312,7 +327,6 @@ class NexsonDiff(DictDiff):
 
     def _normal_handling(self, src, dest, skip_dict, context, key_in_par):
         return True, None
-    
 
     def _handle_otus_diffs(self, src, dest, skip_dict, context, key_in_par):
         sub_context = context.child(key_in_par)
@@ -490,24 +504,26 @@ class NexsonDiff(DictDiff):
 
     def add_rerooting(self, del_nd_edge, add_nd_edge, context):
         self._rerootings.append((del_nd_edge, add_nd_edge, context))
+
     def activate_tree_diffs(self):
-        self._additions = self._tree_additions
-        self._deletions = self._tree_deletions 
-        self._modifications = self._tree_modifications
+        self.curr_diff_dict = self._tree_diff
+        self.curr_unapplied_dict = self._unapplied_tree_edits
+        self.curr_redundant_dict = self._redundant_tree_edits
+
 
     def activate_nontree_diffs(self):
-        self._additions = self._nontree_additions
-        self._deletions = self._nontree_deletions 
-        self._modifications = self._nontree_modifications
-        
+        self.curr_diff_dict = self._nontree_diff
+        self.curr_unapplied_dict = self._unapplied_nontree_edits
+        self.curr_redundant_dict = self._redundant_nontree_edits
+
     def add_addition(self, v, context):
-        self._additions.append((v, context))
+        self.curr_diff_dict['additions'].append((v, context))
 
     def add_deletion(self, context):
-        self._deletions.append(context)
+        self.curr_diff_dict['deletions'].append(context)
 
     def add_modification(self, v, context):
-        self._modifications.append((v, context))
+        self.curr_diff_dict['modifications'].append((v, context))
 
     def _calculate_generic_diffs(self, src, dest, skip_dict, context):
         sk = set(src.keys())
