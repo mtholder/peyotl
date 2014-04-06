@@ -117,14 +117,14 @@ def _process_order_list_and_dict(order_key, by_id_key, src, dest):
             'added_id_map': add_id_map,
             'deleted_id_set': del_id_set}
 
-class NexsonContext(object):
+class NexsonDiffAddress(object):
     def __init__(self, par=None, key_in_par=None):
         self.par = par
         self.key_in_par = key_in_par
         self._as_ot_dict = None
         self._mb_cache = {}
     def child(self, key_in_par):
-        return NexsonContext(par=self, key_in_par=key_in_par)
+        return NexsonDiffAddress(par=self, key_in_par=key_in_par)
     def as_ot_target(self):
         if self._as_ot_dict is None:
             if self.par is None:
@@ -301,7 +301,7 @@ class NexsonDiff(DictDiff):
         self._clear_diff_related_data()
         a = self.anc_blob
         d = self.des_blob
-        context = NexsonContext()
+        context = NexsonDiffAddress()
         self._calculate_generic_diffs(a, d, self.top_skip_dict, context)
         self.finish()
 
