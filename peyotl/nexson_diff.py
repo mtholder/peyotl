@@ -78,7 +78,7 @@ def _to_ot_diff_dict(native_diff):
         for v, c in kvc_list:
             y = {'value': v}
             if c is not None:
-                y['refersTo'] = c.as_ot_target()
+                y.update(c.as_ot_target())
             x.append(y)
         if kvc_list:
             r[dt] = x
@@ -89,7 +89,7 @@ def _to_ot_diff_dict(native_diff):
     for c in kvc_list:
         y = {}
         if c is not None:
-            y['refersTo'] = c.as_ot_target()
+            y.update(c.as_ot_target())
         x.append(y)
     if kvc_list:
         r[dt] = x
@@ -129,14 +129,14 @@ class NexsonContext(object):
         if self._as_ot_dict is None:
             if self.par is None:
                 if self.key_in_par is None:
-                    self._as_ot_dict = {'path': tuple()}
+                    self._as_ot_dict = {'address': tuple()}
                 else:
-                    self._as_ot_dict = {'path': (self.key_in_par,)}
+                    self._as_ot_dict = {'address': (self.key_in_par,)}
             else:
                 assert(self.key_in_par is not None)
-                pl = [i for i in self.par.as_ot_target()['path']]
+                pl = [i for i in self.par.as_ot_target()['address']]
                 pl.append(self.key_in_par)
-                self._as_ot_dict = {'path': tuple(pl)}
+                self._as_ot_dict = {'address': tuple(pl)}
         return self._as_ot_dict
 
     def _find_par_el_in_mod_blob(self, blob):
