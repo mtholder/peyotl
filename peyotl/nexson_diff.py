@@ -8,7 +8,9 @@ from peyotl.struct_diff import DictDiff, ListDiff
 from peyotl.utility import get_logger
 import itertools
 import json
+
 _LOG = get_logger(__name__)
+
 def _get_blob(src):
     if isinstance(src, str) or isinstance(src, unicode):
         b = read_as_json(src)
@@ -24,9 +26,9 @@ def _get_blob(src):
 def _list_patch_modified_blob(nexson_diff, base_blob, dels, adds, mods):
     for v, c in mods:
         nexson_diff._unapplied_edits['modifications'].append((v, c))
-    for c in self._deletions:
+    for c in dels:
         nexson_diff._unapplied_edits['deletions'].append(c)
-    for v, c in self._additions:
+    for v, c in adds:
         nexson_diff._unapplied_edits['additions'].append((v, c))
     return True
 
@@ -83,6 +85,28 @@ def _to_ot_diff_dict(native_diff):
         r[dt] = x
     return r
 
+def _process_order_list_and_dict(order_key, by_id_key, src, dest):
+    src_order = src.get(order_key, [])
+    src_set = set(src_order)
+    dest_order = dest.get(order_key, [])
+    dest_set = set(dest_order)
+    dest_otus = dest.get(by_id_key, {})
+    ret_id_set = set()
+    add_id_map = {}
+    del_id_set = set()
+    for o in dest_set:
+        if o in src_set:
+            ret_id_set.add(o)
+        else:
+            add_id_map[o] = dest_otus[o]
+    for o in src_set:
+        if not (o in dest_order):
+            del_id_set.add(o)
+    return {'dest_order': dest_order,
+            'retained_id_set': ret_id_set,
+            'added_id_map': add_id_map,
+            'deleted_id_set': del_id_set}
+
 class NexsonContext(object):
     def __init__(self, par=None, key_in_par=None):
         self.par = par
@@ -120,7 +144,7 @@ class NexsonContext(object):
             assert(isinstance(par_target, dict))
             target = par_target.get(self.key_in_par)
             if target is not None:
-               self._mb_cache[ib] = target
+                self._mb_cache[ib] = target
         return target
 
 
@@ -131,7 +155,7 @@ class NexsonContext(object):
             return False
         assert(isinstance(par_target, dict))
         if self.key_in_par in par_target:
-            del target[self.key_in_par]
+            del par_target[self.key_in_par]
             self._mb_cache = {}
             return True
         nexson_diff._redundant_edits['deletions'].append(self)
@@ -153,7 +177,7 @@ class NexsonContext(object):
                     container = nexson_diff._redundant_edits['modifications']
                 else:
                     container = nexson_diff._redundant_edits['additions']
-                container.append(self)
+                container.append((value, self))
                 return True, True
             return False, True
         assert(not isinstance(value, DictDiff))
@@ -175,11 +199,11 @@ class NexsonContext(object):
                 par_target[self.key_in_par] = target
             return _list_patch_modified_blob(nexson_diff, target, value._deletions, value._additions, value._modifications)
         if par_target.get(self.key_in_par) == value:
-            if t in really_adds:
+            if was_add:
                 container = nexson_diff._redundant_edits['additions']
             else:
                 container = nexson_diff._redundant_edits['modifications']
-            container.append(t)
+            container.append((value, self))
         else:
             par_target[self.key_in_par] = value
         return True
@@ -249,14 +273,8 @@ class NexsonDiff(DictDiff):
         self._diff = None
         a = self.anc_blob
         d = self.des_blob
-        anc_nexml = a['nexml']
-        des_nexml = d['nexml']
-        anc_otus = anc_nexml['otusById']
-        des_otus = des_nexml['otusById']
-        anc_trees = anc_nexml['treesById']
-        des_trees = des_nexml['treesById']
         self._retained_otus_id_set = set()
-        self._added_otus_id_map= {}
+        self._added_otus_id_map = {}
         self._del_otus_id_set = set()
         self._dest_otus_order = []
 
@@ -272,28 +290,6 @@ class NexsonDiff(DictDiff):
         self.finish()
         self._unapplied_edits = None
 
-    def _process_order_list_and_dict(self, order_key, by_id_key, src, dest):
-        src_order = src.get(order_key, [])
-        src_set = set(src_order)
-        dest_order = dest.get(order_key, [])
-        dest_set = set(dest_order)
-        dest_otus = dest.get(by_id_key, {})
-        ret_id_set = set()
-        add_id_map = {}
-        del_id_set = set()
-        for o in dest_set:
-            if o in src_set:
-                ret_id_set.add(o)
-            else:
-                add_id_map[o] = dest_otus[o]
-        for o in src_set:
-            if not (o in dest_order):
-                del_id_set.add(o)
-        return {'dest_order': dest_order,
-                'retained_id_set': ret_id_set,
-                'added_id_map': add_id_map,
-                'deleted_id_set': del_id_set}
-
     def _process_ordering_pair(self,
                                order_key,
                                by_id_key,
@@ -303,7 +299,7 @@ class NexsonDiff(DictDiff):
                                dest):
         d = {} if (dest is None) else dest
         s = {} if (src is None) else src
-        r = self._process_order_list_and_dict(order_key, by_id_key, s, d)
+        r = _process_order_list_and_dict(order_key, by_id_key, s, d)
         storage_container[storage_key] = r
 
     def _no_op_handling(self, src, dest, skip_dict, context, key_in_par):
@@ -314,7 +310,6 @@ class NexsonDiff(DictDiff):
         self._process_ordering_pair('^ot:treesElementOrder', 'treesById', '_trees_order', self.__dict__, src, dest)
         return True, None
 
-        return True, None
     def _normal_handling(self, src, dest, skip_dict, context, key_in_par):
         return True, None
     
@@ -414,7 +409,7 @@ class NexsonDiff(DictDiff):
                             self._calculate_generic_diffs(s_node, d_node, None, n_context)
                     else:
                         assert(deleted_node is None)
-                        deleted_node = (nid, s_nodes)
+                        deleted_node = (nid, s_node)
                     #    n_context = sub_context.child(nid)
                     #    self.add_deletion(n_context)
                 if d_root not in s_node_id_set:

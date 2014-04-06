@@ -11,8 +11,6 @@ from peyotl.phylesystem.git_actions import MergeException, \
                                            get_user_author, \
                                            GitWorkflowError
 from peyotl.utility import get_logger
-from locket import LockError
-from sh import git
 import traceback
 import json
 import os

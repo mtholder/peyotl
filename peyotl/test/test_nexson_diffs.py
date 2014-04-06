@@ -27,7 +27,6 @@ def read_json(fp):
 class TestNexsonDiff(unittest.TestCase):
 
     def testExpectedMerge(self):
-        msg = ''
         for fn in pathmap.all_dirs(os.path.join('nexson', 'diff')):
             mrca_file = os.path.join(fn, 'mrca.json')
             user_version = os.path.join(fn, 'by-user.json')
@@ -40,8 +39,6 @@ class TestNexsonDiff(unittest.TestCase):
             expected = os.path.join(fn, 'expected-output.json')
             expected_blob = read_json(expected)
             output_blob = read_json(output)
-            expected_unapplied = os.path.join(fn, 'expected-unapplied.json')
-            expected_diff_from_user = os.path.join(fn, 'expected-diff-from-user.json')
             e = eod.unapplied_edits_as_ot_diff_dict()
             d = dfdp.as_ot_diff_dict()
             u = os.path.join(fn, 'unapplied.json')
@@ -54,6 +51,6 @@ class TestNexsonDiff(unittest.TestCase):
             exp_d = read_json(edf)
             self.assertDictEqual(expected_blob, output_blob, "Patch failed to produce expected outcome. Compare {o} and {e}".format(o=output, e=expected))
             self.assertDictEqual(exp_e, e, "Patch failed to produce expected unapplied. Compare {o} and {e}".format(o=u, e=eu))
-            self.assertDictEqual(expected_blob, output_blob, "Patch failed to produce expected diff. Compare {o} and {e}".format(o=df, e=edf))
+            self.assertDictEqual(exp_d, d, "Patch failed to produce expected diff. Compare {o} and {e}".format(o=df, e=edf))
 if __name__ == "__main__":
     unittest.main()

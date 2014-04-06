@@ -12,7 +12,7 @@ repodir = phylesystem.get_repos()[reponame]
 
 class TestCreate(unittest.TestCase):
     def testWriteStudy(self):
-        gd = GitAction(repodir)
+        GitAction(repodir)
         
 if __name__ == "__main__":
     unittest.main()

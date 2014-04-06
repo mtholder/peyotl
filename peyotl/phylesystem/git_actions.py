@@ -6,7 +6,6 @@ import locket
 import codecs
 from peyotl import get_logger
 import shutil
-from peyotl.nexson_syntax import write_as_json
 from peyotl.nexson_diff import NexsonDiff
 import tempfile #@TEMPORARY for deprecated write_study
 _LOG = get_logger(__name__)

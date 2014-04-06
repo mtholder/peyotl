@@ -118,9 +118,7 @@ def _move_otu_at_label_properties(obj):
     if not isinstance(ogl, list):
         ogl = [ogl]
     for og in ogl:
-        od = {}
         for otu in og['otu']:
-            oi = otu['@id']
             ol = find_val_literal_meta_first(otu, 'ot:originalLabel', SYNTAX_VERSION)
             assert(ol is not None)
             label_att = otu.get('@label')
