@@ -328,3 +328,14 @@ def get_empty_nexson(vers='1.2.1'):
             },
         }
     }
+
+def edge_by_source_to_edge_dict(edge_by_source):
+    '''Takes a dictionary with keys as source nodes and
+    values are dictionaries of edge_id to edge object
+
+    Returns a dictionary of all edge_ids to edge objects.
+    '''
+    ed = {}
+    for v in edge_by_source.values():
+        ed.update(v)
+    return ed

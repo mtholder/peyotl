@@ -2,7 +2,8 @@
 from peyotl.nexson_syntax import detect_nexson_version, \
                                  read_as_json, \
                                  write_as_json, \
-                                 _is_by_id_hbf
+                                 _is_by_id_hbf, \
+                                 edge_by_source_to_edge_dict
 from peyotl.struct_diff import DictDiff, ListDiff
 from peyotl.utility import get_logger
 import itertools
@@ -191,6 +192,7 @@ class NexsonDiff(DictDiff):
         self.des_blob = _get_blob(des)
         self._unapplied_edits = {}
         self._redundant_edits = {}
+        self.no_op_t = (self._no_op_handling, None)
         self._calculate_diff()
         self._diff = None
 
@@ -200,11 +202,18 @@ class NexsonDiff(DictDiff):
         self.patch_modified_blob(base_blob)
         write_as_json(base_blob, filepath_to_patch)
 
-    def get_diff_dict(self):
+    def get_diff_dict(self)     :
         if self._diff is None:
-            self._diff = { 'additions': self._additions,
-                           'deletions': self._deletions,
-                           'modifications': self._modifications,
+            self._diff = {
+                'additions': self._nontree_additions,
+                'deletions': self._nontree_deletions,
+                'modifications': self._nontree_modifications,
+                'tree': {
+                    'additions': self._tree_additions,
+                    'deletions': self._tree_deletions,
+                    'modifications': self._tree_modifications,
+                    'rerootings': self._rerootings,
+                },
             }
         return self._diff
     diff_dict = property(get_diff_dict)
@@ -229,9 +238,14 @@ class NexsonDiff(DictDiff):
         Recurses through dict and lists.
         
         '''
-        self._additions = []
-        self._deletions = []
-        self._modifications = []
+        self._nontree_additions = []
+        self._nontree_deletions = []
+        self._nontree_modifications = []
+        self._tree_additions = []
+        self._tree_deletions = []
+        self._tree_modifications = []
+        self._rerootings = []
+        self.activate_nontree_diffs()
         self._diff = None
         a = self.anc_blob
         d = self.des_blob
@@ -246,61 +260,257 @@ class NexsonDiff(DictDiff):
         self._del_otus_id_set = set()
         self._dest_otus_order = []
 
-        otu_diff = (self._normal_handling, None)
-        otus_diff = (self._handle_otus_diffs, {'otuById': otu_diff})
-        edge_diff = (self._handle_edge_diffs, None)
-        node_diff = (self._handle_node_diffs, None)
-        tree_diff = (self._handle_tree_diffs, {'edgeBySourceId': edge_diff, 'nodeById': node_diff})
-        trees_diff = (self._handle_trees_diffs, {'treeById': tree_diff})
+        otus_diff = (self._handle_otus_diffs, None)
+        trees_diff = (self._handle_trees_diffs, None)
         nexml_diff = (self._handle_nexml_diffs, {'otusById': otus_diff,
-                                                 '^ot:otusElementOrder': (self._no_op_handling, None), 
+                                                 '^ot:otusElementOrder': self.no_op_t, 
+                                                 '^ot:treesElementOrder': self.no_op_t, 
                                                  'treesById': trees_diff})
         skip = {'nexml': nexml_diff}
         context = NexsonContext()
         self._calculate_generic_diffs(a, d, skip, context)
+        self.finish()
         self._unapplied_edits = None
+
+    def _process_order_list_and_dict(self, order_key, by_id_key, src, dest):
+        src_order = src.get(order_key, [])
+        src_set = set(src_order)
+        dest_order = dest.get(order_key, [])
+        dest_set = set(dest_order)
+        dest_otus = dest.get(by_id_key, {})
+        ret_id_set = set()
+        add_id_map = {}
+        del_id_set = set()
+        for o in dest_set:
+            if o in src_set:
+                ret_id_set.add(o)
+            else:
+                add_id_map[o] = dest_otus[o]
+        for o in src_set:
+            if not (o in dest_order):
+                del_id_set.add(o)
+        return {'dest_order': dest_order,
+                'retained_id_set': ret_id_set,
+                'added_id_map': add_id_map,
+                'deleted_id_set': del_id_set}
+
+    def _process_ordering_pair(self,
+                               order_key,
+                               by_id_key,
+                               storage_key,
+                               storage_container,
+                               src,
+                               dest):
+        d = {} if (dest is None) else dest
+        s = {} if (src is None) else src
+        r = self._process_order_list_and_dict(order_key, by_id_key, s, d)
+        storage_container[storage_key] = r
 
     def _no_op_handling(self, src, dest, skip_dict, context, key_in_par):
         return False, None
+
     def _handle_nexml_diffs(self, src, dest, skip_dict, context, key_in_par):
-        if (dest is None) or (src is None):
-            return True, None
-        sub_context = context.child(key_in_par)
-        src_otus_order = src.get('^ot:otusElementOrder', [])
-        src_otus_set = set(src_otus_order)
-        self._dest_otus_order = dest.get('^ot:otusElementOrder', [])
-        dest_otus_set = set(self._dest_otus_order)
-        dest_otus = dest.get('otusById', {})
-        for o in dest_otus_set:
-            if o in src_otus_set:
-                self._retained_otus_id_set.add(o)
-            else:
-                self._added_otus_id_map[o] = dest_otus[0]
-        for o in src_otus_set:
-            if not (o in self. _dest_otus_order):
-                self._del_otus_id_set.add(o)
-        self._calculate_generic_diffs(src, dest, skip_dict, sub_context)
-        return False, None
+        self._process_ordering_pair('^ot:otusElementOrder', 'otusById', '_otus_order', self.__dict__, src, dest)
+        self._process_ordering_pair('^ot:treesElementOrder', 'treesById', '_trees_order', self.__dict__, src, dest)
+        return True, None
 
         return True, None
     def _normal_handling(self, src, dest, skip_dict, context, key_in_par):
         return True, None
+    
+
     def _handle_otus_diffs(self, src, dest, skip_dict, context, key_in_par):
-        return True, None
-    def _handle_edge_diffs(self, src, dest, skip_dict, context, key_in_par):
-        return True, None
-    def _handle_node_diffs(self, src, dest, skip_dict, context, key_in_par):
-        return True, None
+        sub_context = context.child(key_in_par)
+        for otus_id, s_otus in src.items():
+            otusid_context = sub_context.child(otus_id)
+            d_otus = dest.get(otus_id)
+            if d_otus is not None:
+                assert(d_otus.keys() == ['otuById'])
+                assert(s_otus.keys() == ['otuById'])
+                obi_context = otusid_context.child('otuById')
+                s_obi = s_otus['otuById']
+                d_obi = d_otus['otuById']
+                self._calculate_generic_diffs(s_obi, d_obi, None, obi_context)
+        return False, None
+    
     def _handle_tree_diffs(self, src, dest, skip_dict, context, key_in_par):
-        return True, None
+        sk_d = {'edgeBySourceId': self.no_op_t,
+                'nodeById': self.no_op_t,
+                '^ot:rootNodeId': self.no_op_t}
+        sub_context = context.child(key_in_par)
+        for tree_id, s_tree in src.items():
+            tid_context = sub_context.child(tree_id)
+            d_tree = dest.get(tree_id)
+            if d_tree is not None:
+                self._calculate_generic_diffs(s_tree, d_tree, sk_d, tid_context)
+                self._calc_tree_structure_diff(s_tree, d_tree, tid_context)
+        return False, None
+    
     def _handle_trees_diffs(self, src, dest, skip_dict, context, key_in_par):
-        return True, None
-    def _handle_trees_diffs(self, src, dest, skip_dict, context, key_in_par):
-        return True, None
+        trees_skip_d = {'^ot:treeElementOrder': self.no_op_t, 
+                        'treeById': (self._handle_tree_diffs, None)}
+        sub_context = context.child(key_in_par)
+        trees_id_dict = {}
+        self._trees_by_id_dict = trees_id_dict
+        for trees_id, s_trees in src.items():
+            tsid_context = sub_context.child(trees_id)
+            d_trees = dest.get(trees_id)
+            if d_trees is not None:
+                tree_id_dict = {}
+                trees_id_dict[trees_id] = tree_id_dict
+                self._process_ordering_pair('^ot:treeElementOrder',
+                                            'treeById',
+                                            '_tree_order',
+                                            tree_id_dict,
+                                            s_trees,
+                                            d_trees)
+                self._calculate_generic_diffs(s_trees, d_trees, trees_skip_d, tsid_context)
+        return False, None
+
+    def _calc_tree_structure_diff(self, s_tree, d_tree, context):
+        edge_skip = {'@source': self.no_op_t, '@target': self.no_op_t}
+        s_edges_bsid = s_tree['edgeBySourceId']
+        d_edges_bsid = d_tree['edgeBySourceId']
+        s_node_bid = s_tree['nodeById']
+        d_node_bid = d_tree['nodeById']
+        s_root = s_tree['^ot:rootNodeId']
+        d_root = d_tree['^ot:rootNodeId']
+        roots_equal = (s_root == d_root)
+        nodes_equal = (s_node_bid == d_node_bid)
+        edges_equal = (s_edges_bsid == d_edges_bsid)
+        if roots_equal and nodes_equal and edges_equal:
+            return
+
+        s_node_id_set = set(s_node_bid.keys())
+        d_node_id_set = set(d_node_bid.keys())
+        
+        node_number_except = False
+        s_extra_node_id = s_node_id_set - d_node_id_set
+        if s_extra_node_id:
+            if (len(s_extra_node_id) > 1) or (s_extra_node_id.pop() != s_root):
+                node_number_except = True
+        d_extra_node_id = d_node_id_set - s_node_id_set
+        if d_extra_node_id:
+            if (len(d_extra_node_id) > 1) or (d_extra_node_id.pop() == d_root):
+                node_number_except = True
+        #TODO: do we need more flexible diffs. In normal curation, there can 
+        #   only be one node getting added (the root)
+        if node_number_except:
+            raise ValueError('At most one node and one edge can be added to a tree')
+        
+        self.activate_tree_diffs()
+        try:
+            deleted_node = None
+            added_node = None
+            deleted_edge = None
+            added_edge = None
+            if not nodes_equal:
+                sub_context = context.child('nodeById')
+                for nid, s_node in s_node_bid.items():
+                    d_node = d_node_bid.get(nid)
+                    if d_node is not None:
+                        if d_node != s_node:
+                            n_context = sub_context.child(nid)
+                            self._calculate_generic_diffs(s_node, d_node, None, n_context)
+                    else:
+                        assert(deleted_node is None)
+                        deleted_node = (nid, s_nodes)
+                    #    n_context = sub_context.child(nid)
+                    #    self.add_deletion(n_context)
+                if d_root not in s_node_id_set:
+                    added_node = (d_root, d_node_bid.get(d_root))
+                #    d_node = d_node_bid.get(d_root)
+                #    n_context = sub_context.child(d_root)
+                #    self.add_addition(d_node, n_context)
+            if not edges_equal:
+                sub_context = context.child('edgeBySourceId')
+                s_edges = edge_by_source_to_edge_dict(s_edges_bsid)
+                d_edges = edge_by_source_to_edge_dict(d_edges_bsid)
+                lde = len(d_edges)
+                lse = len(s_edges)
+
+                for eid, s_edge in s_edges.items():
+                    d_edge = d_edges.get(eid)
+                    if d_edge is None:
+                        assert(deleted_edge is None)
+                        deleted_edge = (eid, s_edge)
+                    else:
+                        if d_edge != s_edge:
+                            e_context = sub_context.child(eid)
+                            if (len(s_edge) > 3) or (len(d_edge) > 3) \
+                                or ('@length' not in s_edge) \
+                                or ('@length' not in d_edge):
+                                self._calculate_generic_diffs(s_node, d_node, edge_skip, e_context)
+                            elif s_edge['@length'] != d_edge['@length']:
+                                self.add_modification(d_edge['@length'], e_context)
+                            s_s, s_t = s_edge['@source'], s_edge['@target']
+                            d_s, d_t = d_edge['@source'], d_edge['@target']
+                            if ((s_s == d_s) and (s_t == d_t)) or ((s_s == d_t) and (s_t == d_s)):
+                                pass
+                            else:
+                                raise_except = True
+                                if deleted_node and deleted_node[0] == s_s:
+                                    opp_nd = None
+                                    if s_t == d_s:
+                                        opp_nd = d_t
+                                    elif s_t == d_t:
+                                        opp_nd = d_s
+                                    if opp_nd:
+                                        s_root_edges = s_edges_bsid[s_s]
+                                        for se in s_root_edges.values():
+                                            if se['@target'] == opp_nd:
+                                                raise_except = False
+                                                break
+                                elif added_node and added_node[0] == d_s:
+                                    opp_nd = None
+                                    if d_t == s_s:
+                                        opp_nd = s_t
+                                    elif d_t == s_t:
+                                        opp_nd = s_s
+                                    if opp_nd:
+                                        d_root_edges = d_edges_bsid[d_s]
+                                        for de in d_root_edges.values():
+                                            if de['@target'] == opp_nd:
+                                                raise_except = False
+                                                break
+                                if raise_except:
+                                    msgf = 'Tree structure altered "{ds}"->"{dt}" not found in "{ss}"->"{st}"'
+                                    msg = msgf.format(ds=d_s, dt=d_t, ss=s_s, st=s_t)
+                                    raise ValueError(msg)
+
+                if lde - lse > 0:
+                    s_eid_set = set(s_edges.keys())
+                    d_eid_set = set(d_edges.keys())
+                    extra_eid_set = d_eid_set - s_eid_set
+                    if lde - lse > 1:
+                        msgf = 'More than one extra edge in the destination tree: "{}"'
+                        msg = msgf.format('", "'.join(i for i in extra_eid_set))
+                        raise ValueError(msg)
+                    aeid = extra_eid_set.pop()
+                    ae = d_edges[aeid]
+                    added_edge = (aeid, ae)
+                self.add_rerooting((deleted_node, deleted_edge), (added_node, added_edge), context)
+        finally:
+            self.activate_nontree_diffs()
+
+    def add_rerooting(self, del_nd_edge, add_nd_edge, context):
+        self._rerootings.append((del_nd_edge, add_nd_edge, context))
+    def activate_tree_diffs(self):
+        self._additions = self._tree_additions
+        self._deletions = self._tree_deletions 
+        self._modifications = self._tree_modifications
+
+    def activate_nontree_diffs(self):
+        self._additions = self._nontree_additions
+        self._deletions = self._nontree_deletions 
+        self._modifications = self._nontree_modifications
+        
     def add_addition(self, v, context):
         self._additions.append((v, context))
+
     def add_deletion(self, context):
         self._deletions.append(context)
+
     def add_modification(self, v, context):
         self._modifications.append((v, context))
 
@@ -309,7 +519,14 @@ class NexsonDiff(DictDiff):
         dk = set(dest.keys())
         if skip_dict is None:
             skip_dict = {}
+        sk.update(dk)
         for k in sk:
+            self._calc_diff_for_key(k, src, dest, skip_dict, context)
+        return self
+
+    def _calc_diff_for_key(self, k, src, dest, skip_dict, context):
+        sub_context = None
+        if k in src:
             do_generic_calc = True
             v = src[k]
             skip_tuple = skip_dict.get(k)
@@ -319,7 +536,7 @@ class NexsonDiff(DictDiff):
                 func, sub_skip_dict = skip_tuple
                 do_generic_calc, sub_context = func(v, dest.get(k), sub_skip_dict, context=context, key_in_par=k)
             if do_generic_calc:
-                if k in dk:
+                if k in dest:
                     dv = dest[k]
                     if v != dv:
                         rec_call = None
@@ -345,8 +562,7 @@ class NexsonDiff(DictDiff):
                     if sub_context is None:
                         sub_context = context.child(k)
                     self.add_deletion(context=sub_context)
-        add_keys = dk - sk
-        for k in add_keys:
+        elif k in dest:
             do_generic_calc = True
             skip_tuple = skip_dict.get(k)
             sub_skip_dict = None
@@ -357,5 +573,3 @@ class NexsonDiff(DictDiff):
                 if sub_context is None:
                     sub_context = context.child(k)
                 self.add_addition(dest[k], context=sub_context)
-        self.finish()
-        return self
