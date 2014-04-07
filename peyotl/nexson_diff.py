@@ -42,7 +42,10 @@ def _list_patch_modified_blob(nexson_diff, base_blob, dels, adds, mods):
         nexson_diff._unapplied_edits['additions'].append((v, c))
     return True
 
-def _dict_patch_modified_blob(nexson_diff, base_blob, dels, adds, mods):
+def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
+    dels = diff_dict['deletions']
+    adds = diff_dict['additions']
+    mods = diff_dict['modifications']
     for c in dels:
         c.try_apply_del_to_mod_blob(nexson_diff, base_blob)
     adds_to_mods = []
@@ -67,6 +70,8 @@ def _dict_patch_modified_blob(nexson_diff, base_blob, dels, adds, mods):
         added, is_mod = c.try_apply_add_to_mod_blob(nexson_diff, base_blob, v, True)
         if not added:
             nexson_diff._unapplied_edits['additions'].append(t)
+
+_tree_dict_patch_modified_blob = _dict_patch_modified_blob
 
 OT_DIFF_TYPE_LIST = ('additions', 'deletions', 'modifications')
 
@@ -219,13 +224,10 @@ class NexsonDiffAddress(object):
         return True
 
 
-class NexsonDiff(DictDiff):
+class NexsonDiff(object):
     def __init__(self, anc, des):
-        DictDiff.__init__(self)
         self.anc_blob = _get_blob(anc)
         self.des_blob = _get_blob(des)
-        self._unapplied_edits = {}
-        self._redundant_edits = {}
         self.no_op_t = (self._no_op_handling, None)
         self._calculate_diff()
         self._diff = None
@@ -266,8 +268,10 @@ class NexsonDiff(DictDiff):
     def _clear_patch_related_data(self):
         self._unapplied_nontree_edits = new_diff_summary()
         self._unapplied_tree_edits = new_diff_summary(in_tree=True)
-        self._redundant_nontree_edits = {}
+        self._redundant_nontree_edits = new_diff_summary()
         self._redundant_tree_edits = new_diff_summary(in_tree=True)
+        self._redundant_edits = self._redundant_nontree_edits
+        self._unapplied_edits = self._unapplied_nontree_edits
         
     def _clear_diff_related_data(self):
         self._nontree_diff = new_diff_summary()
@@ -290,7 +294,11 @@ class NexsonDiff(DictDiff):
         
     def patch_modified_blob(self, base_blob):
         self._clear_patch_related_data()
-        _dict_patch_modified_blob(self, base_blob, self._deletions, self._additions, self._modifications)
+        d = self.diff_dict
+        _dict_patch_modified_blob(self, base_blob, d)
+        self._redundant_edits = self._redundant_tree_edits
+        self._unapplied_edits = self._unapplied_tree_edits
+        _tree_dict_patch_modified_blob(self, base_blob, d['tree'])
 
     def _calculate_diff(self):
         '''Inefficient comparison of anc and des dicts.
@@ -303,7 +311,7 @@ class NexsonDiff(DictDiff):
         d = self.des_blob
         context = NexsonDiffAddress()
         self._calculate_generic_diffs(a, d, self.top_skip_dict, context)
-        self.finish()
+
 
     def _process_ordering_pair(self,
                                order_key,
