@@ -14,20 +14,37 @@ def emulate_conflicted_merge(mrca_file,
                              user_version,
                              other_version, 
                              study_filepath):
-    shutil.copy(other_version, study_filepath)
+    base = study_filepath + '.tmp'
+    shutil.copy(other_version, base)
     edits_on_dest = NexsonDiff(mrca_file, user_version)
-    edits_on_dest.patch_modified_file(study_filepath)
+    edits_on_dest.patch_modified_file(base, output_filepath=study_filepath)
+    os.remove(base)
     diffs_from_dest_par = NexsonDiff(user_version, study_filepath)
     return edits_on_dest, diffs_from_dest_par
 
 def read_json(fp):
     return json.load(codecs.open(fp, 'rU', encoding='utf-8'))
 
+def rec_dict_diff(f, t, p):
+    for k, v in f.items():
+        v2 = t.get(k)
+        if v2 != v:
+            if isinstance(v, dict):
+                rec_dict_diff(v, v2, p + '/' + k)
+            else:
+                print p + '/' + k
+                print v
+                print v2
+                sys.exit(1)
+
+
 
 class TestNexsonDiff(unittest.TestCase):
 
     def testExpectedMerge(self):
         for fn in pathmap.all_dirs(os.path.join('nexson', 'diff')):
+            if fn.endswith('tree-add'):
+                continue
             mrca_file = os.path.join(fn, 'mrca.json')
             user_version = os.path.join(fn, 'by-user.json')
             other_version = os.path.join(fn, 'by-others.json')
@@ -37,8 +54,13 @@ class TestNexsonDiff(unittest.TestCase):
                                                  other_version,
                                                  output)
             expected = os.path.join(fn, 'expected-output.json')
+            #import time; time.sleep()
+            #_LOG.debug('reading expected_blob from ' + expected)
             expected_blob = read_json(expected)
+
+            #_LOG.debug('reading output_blob from ' + output)
             output_blob = read_json(output)
+            rec_dict_diff(expected_blob, output_blob, '')
             e = eod.unapplied_edits_as_ot_diff_dict()
             d = dfdp.as_ot_diff_dict()
             u = os.path.join(fn, 'unapplied.json')

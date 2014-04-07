@@ -23,17 +23,34 @@ def _get_blob(src):
         raise ValueError('NexsonDiff objects can only operate on NexSON version 1.2. Found version = "{}"'.format(v))
     return b
 
+OT_DIFF_TYPE_LIST = ('additions', 'deletions', 'modifications')
+
 def new_diff_summary(in_tree=False):
-    d = {'additions': [],
-            'deletions': [],
-            'modifications': [],
-    }
-    if in_tree:
-        d['rerootings'] = []
+    d = {}
+    add_diff_fields(d, in_tree=in_tree)
     return d
+
+def add_diff_fields(d, in_tree=False):
+    for k in OT_DIFF_TYPE_LIST:
+        if k not in d:
+            d[k] = []
+    if in_tree:
+        if 'rerootings' not in d:
+            d['rerootings'] = []
+    else:
+        d['key-ordering'] = {}
+    return d
+
+def add_nested_diff_fields(d):
+    if 'tree' not in d:
+        d['tree'] = new_diff_summary(in_tree=True)
+    else:
+        add_diff_fields(d['tree'], in_tree=True)
+    add_diff_fields(d, False)
+
 def new_nested_diff_summary():
-    outer = new_diff_summary()
-    outer['tree'] = new_diff_summary(in_tree=True)
+    outer = {}
+    add_nested_diff_fields(outer)
     return outer, outer['tree']
 
 
@@ -46,6 +63,8 @@ def _list_patch_modified_blob(nexson_diff, base_blob, dels, adds, mods):
         nexson_diff._unapplied_edits['additions'].append((v, c))
     return True
 
+def _ordering_patch_modified_blob(nexson_diff, base_blob, ordering_dict):
+    pass
 def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
     dels = diff_dict['deletions']
     adds = diff_dict['additions']
@@ -77,7 +96,32 @@ def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
 
 _tree_dict_patch_modified_blob = _dict_patch_modified_blob
 
-OT_DIFF_TYPE_LIST = ('additions', 'deletions', 'modifications')
+def _ordering_to_ot_diff(od):
+    r = {}
+    for k, v in od.items():
+        if k == 'address':
+            x = v.as_ot_target()
+            r.update(x)
+        else:
+            if isinstance(v, set):
+                r[k] = list(v)
+            else:
+                r[k] = v
+    return r
+
+def _dict_of_ordering_to_ot_diff(od):
+    #_LOG.debug(od.keys())
+    nested_key = 'treeByGroupId'
+    r = {}
+    for k, v in od.items():
+        if k != nested_key:
+            r[k] = _ordering_to_ot_diff(v)
+        else:
+            n = {}
+            r[nested_key] = n
+            for k2, v2 in v.items():
+                n[k2] = _ordering_to_ot_diff(v2)
+    return r
 
 def _to_ot_diff_dict(native_diff):
     r = {}
@@ -102,12 +146,19 @@ def _to_ot_diff_dict(native_diff):
         x.append(y)
     if kvc_list:
         r[dt] = x
+
+    if 'key-ordering' in native_diff:
+        nk = native_diff['key-ordering']
+        if nk:
+            r['key-ordering'] = _dict_of_ordering_to_ot_diff(nk)
     return r
 
 def _process_order_list_and_dict(order_key, by_id_key, src, dest):
     src_order = src.get(order_key, [])
-    src_set = set(src_order)
     dest_order = dest.get(order_key, [])
+    if src_order == dest_order:
+        return {}
+    src_set = set(src_order)
     dest_set = set(dest_order)
     dest_otus = dest.get(by_id_key, {})
     ret_id_set = set()
@@ -132,8 +183,10 @@ class NexsonDiffAddress(object):
         self.key_in_par = key_in_par
         self._as_ot_dict = None
         self._mb_cache = {}
+
     def child(self, key_in_par):
         return NexsonDiffAddress(par=self, key_in_par=key_in_par)
+
     def as_ot_target(self):
         if self._as_ot_dict is None:
             if self.par is None:
@@ -239,6 +292,7 @@ class NexsonDiff(object):
             self._calculate_diff()
         else:
             self.diff_dict = patch
+            add_nested_diff_fields(patch)
 
     def patch_modified_file(self,
                             filepath_to_patch=None,
@@ -307,6 +361,7 @@ class NexsonDiff(object):
         self._redundant_edits = self._redundant_tree_edits
         self._unapplied_edits = self._unapplied_tree_edits
         _tree_dict_patch_modified_blob(self, base_blob, d['tree'])
+        _ordering_patch_modified_blob(self, base_blob, d['key-ordering'])
 
     def _calculate_diff(self):
         '''Inefficient comparison of anc and des dicts.
@@ -327,19 +382,38 @@ class NexsonDiff(object):
                                storage_key,
                                storage_container,
                                src,
-                               dest):
+                               dest,
+                               context):
         d = {} if (dest is None) else dest
         s = {} if (src is None) else src
         r = _process_order_list_and_dict(order_key, by_id_key, s, d)
-        storage_container[storage_key] = r
+        if r:
+            r['address'] = context
+            r['order_property'] = order_key
+            r['by_id_property'] = by_id_key
+            storage_container[storage_key] = r
 
     def _no_op_handling(self, src, dest, skip_dict, context, key_in_par):
         return False, None
 
     def _handle_nexml_diffs(self, src, dest, skip_dict, context, key_in_par):
-        self._process_ordering_pair('^ot:otusElementOrder', 'otusById', '_otus_order', self.__dict__, src, dest)
-        self._process_ordering_pair('^ot:treesElementOrder', 'treesById', '_trees_order', self.__dict__, src, dest)
-        return True, None
+        container = self._nontree_diff['key-ordering']
+        sc = context.child('nexml')
+        self._process_ordering_pair('^ot:otusElementOrder',
+                                    'otusById',
+                                    'otus',
+                                    container,
+                                    src,
+                                    dest,
+                                    sc)
+        self._process_ordering_pair('^ot:treesElementOrder',
+                                    'treesById',
+                                    'trees',
+                                    container,
+                                    src,
+                                    dest,
+                                    sc)
+        return True, sc
 
     def _normal_handling(self, src, dest, skip_dict, context, key_in_par):
         return True, None
@@ -376,20 +450,22 @@ class NexsonDiff(object):
                         'treeById': (self._handle_tree_diffs, None)}
         sub_context = context.child(key_in_par)
         trees_id_dict = {}
-        self._trees_by_id_dict = trees_id_dict
+        tbgi = self._nontree_diff['key-ordering'].setdefault('treeByGroupId', {})
+        #_LOG.debug(self._nontree_diff['key-ordering'].keys())
         for trees_id, s_trees in src.items():
             tsid_context = sub_context.child(trees_id)
             d_trees = dest.get(trees_id)
             if d_trees is not None:
-                tree_id_dict = {}
-                trees_id_dict[trees_id] = tree_id_dict
                 self._process_ordering_pair('^ot:treeElementOrder',
                                             'treeById',
-                                            '_tree_order',
-                                            tree_id_dict,
+                                            trees_id,
+                                            tbgi,
                                             s_trees,
-                                            d_trees)
+                                            d_trees,
+                                            tsid_context)
                 self._calculate_generic_diffs(s_trees, d_trees, trees_skip_d, tsid_context)
+            else:
+                self.add_deletion(context=tsid_context)
         return False, None
 
     def _calc_tree_structure_diff(self, s_tree, d_tree, context):
