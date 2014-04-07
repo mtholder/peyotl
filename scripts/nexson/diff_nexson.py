@@ -16,8 +16,8 @@ def _main():
     _HELP_MESSAGE = '''NexSON diff tool'''
     _EPILOG = '''UTF-8 encoding is used (for input and output).
 
-Environmental variables used:
-    NEXSON_INDENTATION_SETTING indentation in NexSON (default 0)
+The first file is treated as the ancestor file when designating
+changes as deletion vs additions.
 '''
     parser = argparse.ArgumentParser(description=_HELP_MESSAGE,
                                      formatter_class=argparse.RawDescriptionHelpFormatter,

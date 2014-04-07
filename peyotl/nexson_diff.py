@@ -31,6 +31,10 @@ def new_diff_summary(in_tree=False):
     if in_tree:
         d['rerootings'] = []
     return d
+def new_nested_diff_summary():
+    outer = new_diff_summary()
+    outer['tree'] = new_diff_summary(in_tree=True)
+    return outer, outer['tree']
 
 
 def _list_patch_modified_blob(nexson_diff, base_blob, dels, adds, mods):
@@ -225,28 +229,33 @@ class NexsonDiffAddress(object):
 
 
 class NexsonDiff(object):
-    def __init__(self, anc, des):
-        self.anc_blob = _get_blob(anc)
-        self.des_blob = _get_blob(des)
-        self.no_op_t = (self._no_op_handling, None)
-        self._calculate_diff()
-        self._diff = None
+    def __init__(self, anc=None, des=None, patch=None):
+        if patch is None:
+            if anc is None or des is None:
+                raise ValueError('if "patch" is not supplied, both "anc" and "des" must be supplied.')
+            self.anc_blob = _get_blob(anc)
+            self.des_blob = _get_blob(des)
+            self.no_op_t = (self._no_op_handling, None)
+            self._calculate_diff()
+        else:
+            self.diff_dict = patch
 
-    def patch_modified_file(self, filepath_to_patch):
-        assert(isinstance(filepath_to_patch, str) or isinstance(filepath_to_patch, unicode))
-        base_blob = _get_blob(filepath_to_patch)
-        self.patch_modified_blob(base_blob)
-        write_as_json(base_blob, filepath_to_patch)
+    def patch_modified_file(self,
+                            filepath_to_patch=None,
+                            input_nexson=None,
+                            output_filepath=None):
+        if input_nexson is None:
+            assert(isinstance(filepath_to_patch, str) or isinstance(filepath_to_patch, unicode))
+            input_nexson = _get_blob(filepath_to_patch)
+        else:
+            v = detect_nexson_version(input_nexson)
+            if not _is_by_id_hbf(v):
+                raise ValueError('NexsonDiff objects can only operate on NexSON version 1.2. Found version = "{}"'.format(v))
+        self.patch_modified_blob(input_nexson)
+        if output_filepath is None:
+            output_filepath = filepath_to_patch
+        write_as_json(input_nexson, output_filepath)
 
-    def get_diff_dict(self)     :
-        if self._diff is None:
-            self._diff = {'tree':{}}
-            for k in OT_DIFF_TYPE_LIST:
-                self._diff[k] = self._nontree_diff[k]
-                self._diff['tree'][k] = self._tree_diff[k]
-            self._diff['tree']['rerootings'] = self._tree_diff['rerootings']
-        return self._diff
-    diff_dict = property(get_diff_dict)
     def unapplied_edits_as_ot_diff_dict(self):
         if self._unapplied_edits is None:
             return {}
@@ -266,22 +275,21 @@ class NexsonDiff(object):
         return False
 
     def _clear_patch_related_data(self):
-        self._unapplied_nontree_edits = new_diff_summary()
-        self._unapplied_tree_edits = new_diff_summary(in_tree=True)
-        self._redundant_nontree_edits = new_diff_summary()
-        self._redundant_tree_edits = new_diff_summary(in_tree=True)
+        n, t = new_nested_diff_summary()
+        self._unapplied_nontree_edits = n
+        self._unapplied_tree_edits = t
+        
+        n, t = new_nested_diff_summary()
+        self._redundant_nontree_edits = n
+        self._redundant_tree_edits = t
+        
         self._redundant_edits = self._redundant_nontree_edits
         self._unapplied_edits = self._unapplied_nontree_edits
         
     def _clear_diff_related_data(self):
-        self._nontree_diff = new_diff_summary()
-        self._tree_diff = new_diff_summary(in_tree=True)
+        self._nontree_diff, self._tree_diff = new_nested_diff_summary()
+        self.diff_dict = self._nontree_diff
         self.activate_nontree_diffs()
-        self._diff = None
-        self._retained_otus_id_set = set()
-        self._added_otus_id_map = {}
-        self._del_otus_id_set = set()
-        self._dest_otus_order = []
         # the following is not mutable, so it could go in __init__
         otus_diff = (self._handle_otus_diffs, None)
         trees_diff = (self._handle_trees_diffs, None)
@@ -515,14 +523,9 @@ class NexsonDiff(object):
 
     def activate_tree_diffs(self):
         self.curr_diff_dict = self._tree_diff
-        self.curr_unapplied_dict = self._unapplied_tree_edits
-        self.curr_redundant_dict = self._redundant_tree_edits
-
 
     def activate_nontree_diffs(self):
         self.curr_diff_dict = self._nontree_diff
-        self.curr_unapplied_dict = self._unapplied_nontree_edits
-        self.curr_redundant_dict = self._redundant_nontree_edits
 
     def add_addition(self, v, context):
         self.curr_diff_dict['additions'].append((v, context))
