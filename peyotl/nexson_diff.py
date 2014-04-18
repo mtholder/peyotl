@@ -63,9 +63,140 @@ def _list_patch_modified_blob(nexson_diff, base_blob, dels, adds, mods):
         nexson_diff._unapplied_edits['additions'].append((v, c))
     return True
 
-def _ordering_patch_modified_blob(nexson_diff, base_blob, ordering_dict):
-    pass
+def _create_empty_ordered_edit(by_id_property, order_property, address):
+    return {'by_id_property': bip,
+            'deleted_id_set': set(),
+            'order_property': op,
+            'address': address,
+            'added_id_map': {},
+    }
 
+def _add_in_order(dest, new_items, full_list, set_contained):
+    prev = None
+    nsi = set(new_items)
+    for i in full_list:
+        if i in set_contained:
+            prev = i
+        elif i in nsi:
+            if prev is None:
+                dest.push(0, i)
+            else:
+                prev_ind = dest.index(prev)
+                dest.insert(prev_ind + 1, i)
+                prev = i
+def _register_ordered_edit_not_made(container,
+                                    edit_core,
+                                    by_id_property,
+                                    order_property,
+                                    address,
+                                    dest_order):
+    full_edit = _create_empty_ordered_edit(by_id_property, order_property, address)
+    rdis = edit_core.get('deleted_id_set')
+    if rdis:
+        full_edit['deleted_id_set'] = rdi
+    raim = edit_core.get('added_id_map')
+    if raim:
+        full_edit['added_id_map'] = raim
+    full_edit['dest_order'] = the_edit['dest_order']
+    uoe = container.setdefault('key-ordering', {})
+    utbgi = uoe.setdefault(known_order_key, {})
+    utbgi[group_id] = full_edit
+
+def _apply_tree_ordered_edit_to_tree_group(nexson_diff,
+                                           base_container,
+                                           the_edit,
+                                           known_order_key,
+                                           group_id):
+    #_LOG.debug('the_edit = ' + str(the_edit))
+    bip = the_edit['by_id_property']
+    assert(bip == 'treeById')
+    op = the_edit['order_property']
+    assert(op == '^ot:treeElementOrder')
+    dest_order = the_edit['dest_order']
+    orig_order_of_retained = the_edit['orig_order_of_retained']
+    red_ed = {}
+    unap_ed = {}
+
+    by_id_coll = base_container[bip]
+    order_coll = base_container[op]
+    base_set = set(order_coll)
+    added = set()
+    added_order = []
+    # do the deletion...
+    for k in the_edit.get('deleted_id_set', []):
+        if k not in base_container:
+            red_ed.setdefault('deleted_id_set', set()).add(k)
+        else:
+            del by_id_coll[k]
+            order_coll.remove(k)
+    for k, v in the_edit.get('added_id_map', {}).items():
+        if k in base_container:
+            unap_ed.setdefault('added_id_map', {})[k] = v
+        else:
+            by_id_coll[k] = v
+            added.add(k)
+            added_order.append(k)
+
+    #TODO: better ordering when both have changed?
+    orig_set = set(orig_order_of_retained)
+    edit_set = set(dest_order)
+    in_all_three = edit_set.intersection(base_set).intersection(orig_set)
+    orig_order_3 = [i for i in orig_order_of_retained if i in in_all_three]
+    base_order_3 = [i for i in order_coll if i in in_all_three]
+    edit_order_3 = [i for i in dest_order if i in in_all_three]
+    if (orig_order_3 == base_order_3) and(orig_order_3 != edit_order_3):
+        final_order = edit_order_3
+    else:
+        final_order = base_order_3
+    added_in_base = (set(order_coll)  - added) - in_all_three
+    if added_in_base:
+        added_in_base_order = [i for i in order_coll if i in added_in_base]
+        _add_in_order(final_order, added_in_base_order, order_coll, in_all_three)
+    if added:
+        _add_in_order(final_order, added_order, dest_order, in_all_three)
+    base_container[op] = final_order
+
+    if red_ed:
+        _register_ordered_edit_not_made(nexson_diff._redundant_edits,
+                                        red_ed,
+                                        bip,
+                                        op,
+                                        the_edit['address'],
+                                        the_edit['dest_order'])
+    if unap_ed:
+        _register_ordered_edit_not_made(nexson_diff._unapplied_edits,
+                                        unap_ed,
+                                        bip,
+                                        op,
+                                        the_edit['address'],
+                                        the_edit['dest_order'])
+
+_KNOWN_ORDERED_KEYS = frozenset(['treesById', 'trees', 'otus'])
+def _ordering_patch_modified_blob(nexson_diff, base_blob, ordering_dict):
+    #_LOG.debug('ordering dict = ' + str(ordering_dict))
+    for k in ordering_dict.keys():
+        assert k in _KNOWN_ORDERED_KEYS
+    base_nexml = base_blob['nexml']
+    tbgi = ordering_dict.get('treesById')
+    if tbgi is not None:
+        base_tree_by_group = base_nexml.get('treesById')
+        if base_tree_by_group is None:
+            #_LOG.debug('unapplied tree edit for lack of treesById')
+            nexson_diff._unapplied_edits.setdefault('key-ordering', {})['treesById'] = tbgi
+        else:
+            for group_id, tree_edit in tbgi.items():
+                tg = base_tree_by_group.get(group_id)
+                if tg is None:
+                    #_LOG.debug('unapplied tree edit for lack of group_id ' + group_id)
+                    uoe = nexson_diff._unapplied_edits.setdefault('key-ordering', {})
+                    utbgi = uoe.setdefault('treesById', {})
+                    utbgi[group_id] = tree_edit
+                    continue
+                _apply_tree_ordered_edit_to_tree_group(nexson_diff,
+                                                      tg,
+                                                      tree_edit,
+                                                      'treesById',
+                                                      group_id)
 def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
     dels = diff_dict['deletions']
     adds = diff_dict['additions']
@@ -112,7 +243,7 @@ def _ordering_to_ot_diff(od):
 
 def _dict_of_ordering_to_ot_diff(od):
     #_LOG.debug(od.keys())
-    nested_key = 'treeByGroupId'
+    nested_key = 'treesById'
     r = {}
     for k, v in od.items():
         if k != nested_key:
@@ -166,19 +297,24 @@ def _process_order_list_and_dict(order_key, by_id_key, src, dest):
     src_set = set(src_order)
     dest_set = set(dest_order)
     dest_otus = dest.get(by_id_key, {})
-    ret_id_set = set()
+    ret_set = set()
     add_id_map = {}
     del_id_set = set()
     for o in dest_set:
         if o in src_set:
-            ret_id_set.add(o)
+            ret_set.add(o)
         else:
             add_id_map[o] = dest_otus[o]
+    orig_id_order = []
+    for o in src_order:
+        if o in ret_set:
+            orig_id_order.append(o)
+
     for o in src_set:
         if not (o in dest_order):
             del_id_set.add(o)
     return {'dest_order': dest_order,
-            'retained_id_set': ret_id_set,
+            'orig_order_of_retained': orig_id_order,
             'added_id_map': add_id_map,
             'deleted_id_set': del_id_set}
 
@@ -409,6 +545,7 @@ class NexsonDiff(object):
             r['address'] = context
             r['order_property'] = order_key
             r['by_id_property'] = by_id_key
+            #_LOG.debug('storage_key = ' + storage_key)
             storage_container[storage_key] = r
 
     def _no_op_handling(self, src, dest, skip_dict, context, key_in_par):
@@ -468,7 +605,7 @@ class NexsonDiff(object):
                         'treeById': (self._handle_tree_diffs, None)}
         sub_context = context.child(key_in_par)
         trees_id_dict = {}
-        tbgi = self._nontree_diff['key-ordering'].setdefault('treeByGroupId', {})
+        tbgi = self._nontree_diff['key-ordering'].setdefault('treesById', {})
         #_LOG.debug(self._nontree_diff['key-ordering'].keys())
         for trees_id, s_trees in src.items():
             tsid_context = sub_context.child(trees_id)
