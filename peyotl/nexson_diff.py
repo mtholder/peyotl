@@ -65,6 +65,7 @@ def _list_patch_modified_blob(nexson_diff, base_blob, dels, adds, mods):
 
 def _ordering_patch_modified_blob(nexson_diff, base_blob, ordering_dict):
     pass
+
 def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
     dels = diff_dict['deletions']
     adds = diff_dict['additions']
@@ -146,7 +147,11 @@ def _to_ot_diff_dict(native_diff):
         x.append(y)
     if kvc_list:
         r[dt] = x
-
+    x = native_diff.get('tree')
+    if x:
+        todd = _to_ot_diff_dict(x)
+        if todd:
+            r['tree'] = todd
     if 'key-ordering' in native_diff:
         nk = native_diff['key-ordering']
         if nk:
@@ -298,6 +303,13 @@ class NexsonDiff(object):
                             filepath_to_patch=None,
                             input_nexson=None,
                             output_filepath=None):
+        '''Take a NexSON (via filepath_to_patch or input_nexson dict) and applies
+        the diffs (stored in the `self` object) to that NexSON and then
+        writes the output to a file. output_filepath 
+        if output_filepath is `None` then filepath_to_patch will be used as the 
+        output_filepath.
+        NexsonDiff.patch_modified_blob does the patch
+        '''
         if input_nexson is None:
             assert(isinstance(filepath_to_patch, str) or isinstance(filepath_to_patch, unicode))
             input_nexson = _get_blob(filepath_to_patch)
@@ -355,6 +367,12 @@ class NexsonDiff(object):
         
         
     def patch_modified_blob(self, base_blob):
+        '''Applies the diff stored in `self` to the NexSON dict `base_blob`
+        self._redundant_edits and self._unapplied_edits will be reset so that 
+        they reflect the edits that were not applied (either because the edits
+        were already found in `base_blob` [_redundnant_edits or because the
+        appropriate operations could not be performed on the base_blob dict)
+        '''
         self._clear_patch_related_data()
         d = self.diff_dict
         _dict_patch_modified_blob(self, base_blob, d)

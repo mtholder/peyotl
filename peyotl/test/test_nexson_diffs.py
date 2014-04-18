@@ -7,6 +7,7 @@ import unittest
 import shutil
 import codecs
 import json
+import sys
 import os
 _LOG = get_logger(__name__)
 
@@ -29,13 +30,11 @@ def rec_dict_diff(f, t, p):
     for k, v in f.items():
         v2 = t.get(k)
         if v2 != v:
-            if isinstance(v, dict):
+            if isinstance(v, dict) and isinstance(v2, dict):
                 rec_dict_diff(v, v2, p + '/' + k)
             else:
-                print p + '/' + k
-                print v
-                print v2
-                sys.exit(1)
+                _LOG.debug('expected {p}/{k} = "{v}"'.format(p=p, k=k, v=v))
+                _LOG.debug('obtained {p}/{k} = "{v}"'.format(p=p, k=k, v=v2))
 
 
 
@@ -43,7 +42,7 @@ class TestNexsonDiff(unittest.TestCase):
 
     def testExpectedMerge(self):
         for fn in pathmap.all_dirs(os.path.join('nexson', 'diff')):
-            if fn.endswith('tree-add'):
+            if not fn.endswith('tree-add'):
                 continue
             mrca_file = os.path.join(fn, 'mrca.json')
             user_version = os.path.join(fn, 'by-user.json')
@@ -55,10 +54,10 @@ class TestNexsonDiff(unittest.TestCase):
                                                  output)
             expected = os.path.join(fn, 'expected-output.json')
             #import time; time.sleep()
-            #_LOG.debug('reading expected_blob from ' + expected)
+            _LOG.debug('reading expected_blob from ' + expected)
             expected_blob = read_json(expected)
 
-            #_LOG.debug('reading output_blob from ' + output)
+            _LOG.debug('reading output_blob from ' + output)
             output_blob = read_json(output)
             rec_dict_diff(expected_blob, output_blob, '')
             e = eod.unapplied_edits_as_ot_diff_dict()
