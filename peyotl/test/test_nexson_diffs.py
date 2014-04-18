@@ -42,8 +42,6 @@ class TestNexsonDiff(unittest.TestCase):
 
     def testExpectedMerge(self):
         for fn in pathmap.all_dirs(os.path.join('nexson', 'diff')):
-            if not fn.endswith('tree-add'):
-                continue
             mrca_file = os.path.join(fn, 'mrca.json')
             user_version = os.path.join(fn, 'by-user.json')
             other_version = os.path.join(fn, 'by-others.json')
@@ -54,14 +52,14 @@ class TestNexsonDiff(unittest.TestCase):
                                                  output)
             expected = os.path.join(fn, 'expected-output.json')
             #import time; time.sleep()
-            _LOG.debug('reading expected_blob from ' + expected)
+            #_LOG.debug('reading expected_blob from ' + expected)
             expected_blob = read_json(expected)
-
-            _LOG.debug('reading output_blob from ' + output)
+            #_LOG.debug('reading output_blob from ' + output)
             output_blob = read_json(output)
             rec_dict_diff(expected_blob, output_blob, '')
             e = eod.unapplied_edits_as_ot_diff_dict()
-            d = dfdp.as_ot_diff_dict()
+            e = json.loads(json.dumps(e, encoding='utf-8'), encoding='utf-8')
+            d = json.loads(json.dumps(dfdp.as_ot_diff_dict(), encoding='utf-8'), encoding='utf-8')
             u = os.path.join(fn, 'unapplied.json')
             eu = os.path.join(fn, 'expected-unapplied.json')
             df = os.path.join(fn, 'diff-from-user.json')
@@ -72,6 +70,7 @@ class TestNexsonDiff(unittest.TestCase):
             exp_d = read_json(edf)
             self.assertDictEqual(expected_blob, output_blob, "Patch failed to produce expected outcome. Compare {o} and {e}".format(o=output, e=expected))
             self.assertDictEqual(exp_e, e, "Patch failed to produce expected unapplied. Compare {o} and {e}".format(o=u, e=eu))
+            rec_dict_diff(exp_d, d, '')
             self.assertDictEqual(exp_d, d, "Patch failed to produce expected diff. Compare {o} and {e}".format(o=df, e=edf))
 if __name__ == "__main__":
     unittest.main()

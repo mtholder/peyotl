@@ -318,6 +318,14 @@ def _process_order_list_and_dict(order_key, by_id_key, src, dest):
             'added_id_map': add_id_map,
             'deleted_id_set': del_id_set}
 
+
+_SET_LIKE_PROPERTIES = frozenset([
+    '^ot:curatorName',
+    '^ot:tag',
+    '^ot:candidateTreeForSynthesis',
+    '^skos:altLabel',
+    '^ot:dataDeposit'])
+
 class NexsonDiffAddress(object):
     def __init__(self, par=None, key_in_par=None):
         self.par = par
@@ -385,18 +393,30 @@ class NexsonDiffAddress(object):
             return False, False
         assert(isinstance(par_target, dict))
         if self.key_in_par in par_target:
-            if par_target[self.key_in_par] == value:
+            pv = par_target[self.key_in_par]
+            if pv == value:
                 if was_mod:
                     container = nexson_diff._redundant_edits['modifications']
                 else:
                     container = nexson_diff._redundant_edits['additions']
                 container.append((value, self))
                 return True, True
+            if self.key_in_par in _SET_LIKE_PROPERTIES:
+                if not isinstance(value, list):
+                    value = [value]
+                if not isinstance(pv, list):
+                    pv = [pv]
+                all_v = set(value).union(set(pv))
+                all_v_l = list(all_v)
+                all_v_l.sort()
+                par_target[self.key_in_par] = all_v_l
+                self._mb_cache = {id(blob): all_v_l}
+                return True, True
             return False, True
         assert(not isinstance(value, DictDiff))
         assert(not isinstance(value, ListDiff))
         par_target[self.key_in_par] = value
-        self._mb_cache = {id(blob): par_target[self.key_in_par]}
+        self._mb_cache = {id(blob): value}
         return True, True
 
     def try_apply_mod_to_mod_blob(self, nexson_diff, blob, value, was_add):
@@ -418,7 +438,20 @@ class NexsonDiffAddress(object):
                 container = nexson_diff._redundant_edits['modifications']
             container.append((value, self))
         else:
-            par_target[self.key_in_par] = value
+            if self.key_in_par in _SET_LIKE_PROPERTIES:
+                pv = par_target.get(self.key_in_par, [])
+                if not isinstance(value, list):
+                    value = [value]
+                if not isinstance(pv, list):
+                    pv = [pv]
+                all_v = set(value).union(set(pv))
+                all_v_l = list(all_v)
+                all_v_l.sort()
+                par_target[self.key_in_par] = all_v_l
+                self._mb_cache = {id(blob): all_v_l}
+            else:
+                par_target[self.key_in_par] = value
+                self._mb_cache = {id(blob): value}
         return True
 
 
@@ -814,7 +847,10 @@ class NexsonDiff(object):
                 else:
                     if sub_context is None:
                         sub_context = context.child(k)
-                    self.add_deletion(context=sub_context)
+                    if k in _SET_LIKE_PROPERTIES:
+                        self.add_modification([], context=sub_context)
+                    else:
+                        self.add_deletion(context=sub_context)
         elif k in dest:
             do_generic_calc = True
             skip_tuple = skip_dict.get(k)
