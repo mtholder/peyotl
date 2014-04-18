@@ -288,9 +288,9 @@ def add_resource_meta(obj, rel, href, version):
         _add_value_to_dict_bf(obj, k, {'@href': href})
 
 
-def get_empty_nexson(vers='1.2.1'):
+def get_empty_nexson(vers='1.2.1', include_cc0=False):
     assert(vers == '1.2.1')
-    return {
+    nexson = {
         'nexml': {
         '@about': '#study', 
         '@generator': 'Open Tree API',
@@ -306,7 +306,6 @@ def get_empty_nexson(vers='1.2.1'):
             'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
             'xhtml': 'http://www.w3.org/1999/xhtml/vocab#'
         },
-        '^xhtml:license': {'@href': 'http://creativecommons.org/publicdomain/zero/1.0/'},
         '^ot:otusElementOrder': [
             'otus1',
         ],
@@ -327,6 +326,10 @@ def get_empty_nexson(vers='1.2.1'):
             },
         }
     }
+    # N.B. We no longer require the CC0 waiver, so we should not assume it's here
+    if include_cc0:
+        nexson['nexml']['^xhtml:license'] = {'@href': 'http://creativecommons.org/publicdomain/zero/1.0/'}
+    return nexson
 
 def edge_by_source_to_edge_dict(edge_by_source):
     '''Takes a dictionary with keys as source nodes and
