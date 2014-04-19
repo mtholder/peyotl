@@ -1,0 +1,17 @@
+{
+"key-ordering": {
+"treesById": {}
+}, 
+"modifications": [
+{
+"address": [
+"nexml", 
+"^ot:tag"
+], 
+"value": [
+"by others", 
+"by user"
+]
+}
+]
+}
