@@ -41,7 +41,7 @@ class TestNexsonDiff(unittest.TestCase):
     def testExpectedMerge(self):
         for fn in pathmap.all_dirs(os.path.join('nexson', 'diff')):
             if not fn.endswith('tree-del'):
-                continue
+                pass# continue
             mrca_file = os.path.join(fn, 'mrca.json')
             user_version = os.path.join(fn, 'by-user.json')
             other_version = os.path.join(fn, 'by-others.json')

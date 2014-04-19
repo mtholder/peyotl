@@ -103,8 +103,12 @@ def _register_ordered_edit_not_made(container,
     if d_o is not None:
         full_edit['dest_order'] = d_o
     uoe = container.setdefault('key-ordering', {})
-    utbgi = uoe.setdefault(known_order_key, {})
-    utbgi[group_id] = full_edit
+    
+    if full_edit is None:
+        uoe.setdefault(known_order_key, full_edit)
+    else:
+        utbgi = uoe.setdefault(known_order_key, {})
+        utbgi[group_id] = full_edit
 
 def _apply_ordered_edit_to_group(nexson_diff,
                                  base_container,
@@ -179,33 +183,45 @@ def _apply_ordered_edit_to_group(nexson_diff,
                                         known_order_key,
                                         group_id)
 
-_KNOWN_ORDERED_KEYS = frozenset(['treesById', 'trees', 'otus'])
+_KNOWN_ORDERED_KEYS = {'treesById':('treesById', True),
+                       'trees': (None, False),
+                       'otus': (None, False)}
 def _ordering_patch_modified_blob(nexson_diff, base_blob, ordering_dict):
     #_LOG.debug('ordering dict = ' + str(ordering_dict))
     for k in ordering_dict.keys():
         assert k in _KNOWN_ORDERED_KEYS
     base_nexml = base_blob['nexml']
-    for k in _KNOWN_ORDERED_KEYS:
+    for k, t in _KNOWN_ORDERED_KEYS.items():
+        bk, nested = t
         g = ordering_dict.get(k)
         if g is not None:
-            bg = base_nexml.get(k)
+            if bk is None:
+                bg = base_nexml
+            else:
+                bg = base_nexml.get(bk)
             if bg is None:
                 nexson_diff._unapplied_edits.setdefault('key-ordering', {})[k] = g
             else:
-                for group_id, the_edit in g.items():
-                    tg = bg.get(group_id)
-                    if tg is None:
-                        #_LOG.debug('unapplied tree edit for lack of group_id ' + group_id)
-                        uoe = nexson_diff._unapplied_edits.setdefault('key-ordering', {})
-                        utbgi = uoe.setdefault(k, {})
-                        utbgi[group_id] = the_edit
-                        continue
+                if nested:
+                    for group_id, the_edit in g.items():
+                        tg = bg.get(group_id)
+                        if tg is None:
+                            #_LOG.debug('unapplied tree edit for lack of group_id ' + group_id)
+                            uoe = nexson_diff._unapplied_edits.setdefault('key-ordering', {})
+                            utbgi = uoe.setdefault(k, {})
+                            utbgi[group_id] = the_edit
+                            continue
+                        _apply_ordered_edit_to_group(nexson_diff,
+                                                     tg,
+                                                     the_edit,
+                                                     k,
+                                                     group_id)
+                else:
                     _apply_ordered_edit_to_group(nexson_diff,
-                                                 tg,
-                                                 the_edit,
+                                                 bg,
+                                                 g,
                                                  k,
-                                                 group_id)
-
+                                                 None)
 def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
     dels = diff_dict['deletions']
     adds = diff_dict['additions']
