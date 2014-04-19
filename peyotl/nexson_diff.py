@@ -57,16 +57,16 @@ def new_nested_diff_summary():
 def _list_patch_modified_blob(nexson_diff, base_blob, dels, adds, mods):
     for v, c in mods:
         nexson_diff._unapplied_edits['modifications'].append((v, c))
-    for c in dels:
-        nexson_diff._unapplied_edits['deletions'].append(c)
+    for v, c in dels:
+        nexson_diff._unapplied_edits['deletions'].append((v, c))
     for v, c in adds:
         nexson_diff._unapplied_edits['additions'].append((v, c))
     return True
 
 def _create_empty_ordered_edit(by_id_property, order_property, address):
-    return {'by_id_property': bip,
+    return {'by_id_property': by_id_property,
             'deleted_id_set': set(),
-            'order_property': op,
+            'order_property': order_property,
             'address': address,
             'added_id_map': {},
     }
@@ -89,29 +89,31 @@ def _register_ordered_edit_not_made(container,
                                     by_id_property,
                                     order_property,
                                     address,
-                                    dest_order):
+                                    dest_order,
+                                    known_order_key,
+                                    group_id):
     full_edit = _create_empty_ordered_edit(by_id_property, order_property, address)
     rdis = edit_core.get('deleted_id_set')
     if rdis:
-        full_edit['deleted_id_set'] = rdi
+        full_edit['deleted_id_set'] = rdis
     raim = edit_core.get('added_id_map')
     if raim:
         full_edit['added_id_map'] = raim
-    full_edit['dest_order'] = the_edit['dest_order']
+    d_o = edit_core.get('dest_order')
+    if d_o is not None:
+        full_edit['dest_order'] = d_o
     uoe = container.setdefault('key-ordering', {})
     utbgi = uoe.setdefault(known_order_key, {})
     utbgi[group_id] = full_edit
 
-def _apply_tree_ordered_edit_to_tree_group(nexson_diff,
-                                           base_container,
-                                           the_edit,
-                                           known_order_key,
-                                           group_id):
+def _apply_ordered_edit_to_group(nexson_diff,
+                                 base_container,
+                                 the_edit,
+                                 known_order_key,
+                                 group_id):
     #_LOG.debug('the_edit = ' + str(the_edit))
     bip = the_edit['by_id_property']
-    assert(bip == 'treeById')
     op = the_edit['order_property']
-    assert(op == '^ot:treeElementOrder')
     dest_order = the_edit['dest_order']
     orig_order_of_retained = the_edit['orig_order_of_retained']
     red_ed = {}
@@ -123,14 +125,16 @@ def _apply_tree_ordered_edit_to_tree_group(nexson_diff,
     added = set()
     added_order = []
     # do the deletion...
+    #_LOG.debug('deleted_id_set = {}'.format(the_edit.get('deleted_id_set', [])))
     for k in the_edit.get('deleted_id_set', []):
-        if k not in base_container:
+        if k not in order_coll:
+            _LOG.debug('already deleted ' + k)
             red_ed.setdefault('deleted_id_set', set()).add(k)
         else:
             del by_id_coll[k]
             order_coll.remove(k)
     for k, v in the_edit.get('added_id_map', {}).items():
-        if k in base_container:
+        if k in order_coll:
             unap_ed.setdefault('added_id_map', {})[k] = v
         else:
             by_id_coll[k] = v
@@ -162,14 +166,18 @@ def _apply_tree_ordered_edit_to_tree_group(nexson_diff,
                                         bip,
                                         op,
                                         the_edit['address'],
-                                        the_edit['dest_order'])
+                                        the_edit['dest_order'],
+                                        known_order_key,
+                                        group_id)
     if unap_ed:
         _register_ordered_edit_not_made(nexson_diff._unapplied_edits,
                                         unap_ed,
                                         bip,
                                         op,
                                         the_edit['address'],
-                                        the_edit['dest_order'])
+                                        the_edit['dest_order'],
+                                        known_order_key,
+                                        group_id)
 
 _KNOWN_ORDERED_KEYS = frozenset(['treesById', 'trees', 'otus'])
 def _ordering_patch_modified_blob(nexson_diff, base_blob, ordering_dict):
@@ -177,32 +185,33 @@ def _ordering_patch_modified_blob(nexson_diff, base_blob, ordering_dict):
     for k in ordering_dict.keys():
         assert k in _KNOWN_ORDERED_KEYS
     base_nexml = base_blob['nexml']
-    tbgi = ordering_dict.get('treesById')
-    if tbgi is not None:
-        base_tree_by_group = base_nexml.get('treesById')
-        if base_tree_by_group is None:
-            #_LOG.debug('unapplied tree edit for lack of treesById')
-            nexson_diff._unapplied_edits.setdefault('key-ordering', {})['treesById'] = tbgi
-        else:
-            for group_id, tree_edit in tbgi.items():
-                tg = base_tree_by_group.get(group_id)
-                if tg is None:
-                    #_LOG.debug('unapplied tree edit for lack of group_id ' + group_id)
-                    uoe = nexson_diff._unapplied_edits.setdefault('key-ordering', {})
-                    utbgi = uoe.setdefault('treesById', {})
-                    utbgi[group_id] = tree_edit
-                    continue
-                _apply_tree_ordered_edit_to_tree_group(nexson_diff,
-                                                      tg,
-                                                      tree_edit,
-                                                      'treesById',
-                                                      group_id)
+    for k in _KNOWN_ORDERED_KEYS:
+        g = ordering_dict.get(k)
+        if g is not None:
+            bg = base_nexml.get(k)
+            if bg is None:
+                nexson_diff._unapplied_edits.setdefault('key-ordering', {})[k] = g
+            else:
+                for group_id, the_edit in g.items():
+                    tg = bg.get(group_id)
+                    if tg is None:
+                        #_LOG.debug('unapplied tree edit for lack of group_id ' + group_id)
+                        uoe = nexson_diff._unapplied_edits.setdefault('key-ordering', {})
+                        utbgi = uoe.setdefault(k, {})
+                        utbgi[group_id] = the_edit
+                        continue
+                    _apply_ordered_edit_to_group(nexson_diff,
+                                                 tg,
+                                                 the_edit,
+                                                 k,
+                                                 group_id)
+
 def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
     dels = diff_dict['deletions']
     adds = diff_dict['additions']
     mods = diff_dict['modifications']
-    for c in dels:
-        c.try_apply_del_to_mod_blob(nexson_diff, base_blob)
+    for v, c in dels:
+        c.try_apply_del_to_mod_blob(nexson_diff, base_blob, v)
     adds_to_mods = []
     really_adds = set()
     for t in adds:
@@ -257,7 +266,7 @@ def _dict_of_ordering_to_ot_diff(od):
 
 def _to_ot_diff_dict(native_diff):
     r = {}
-    for dt in ('additions', 'modifications'):
+    for dt in ('additions', 'modifications', 'deletions'):
         kvc_list = native_diff.get(dt, [])
         x = []
         for v, c in kvc_list:
@@ -267,17 +276,6 @@ def _to_ot_diff_dict(native_diff):
             x.append(y)
         if kvc_list:
             r[dt] = x
-
-    dt = 'deletions'
-    kvc_list = native_diff.get(dt, [])
-    x = []
-    for c in kvc_list:
-        y = {}
-        if c is not None:
-            y.update(c.as_ot_target())
-        x.append(y)
-    if kvc_list:
-        r[dt] = x
     x = native_diff.get('tree')
     if x:
         todd = _to_ot_diff_dict(x)
@@ -318,6 +316,25 @@ def _process_order_list_and_dict(order_key, by_id_key, src, dest):
             'added_id_map': add_id_map,
             'deleted_id_set': del_id_set}
 
+def _merge_set_like_properties(value, pv):
+    if not (isinstance(value, list) or isinstance(value, tuple)):
+        value = [value]
+    if not (isinstance(pv, list) or isinstance(pv, tuple)):
+        pv = [pv]
+    all_v = set(value).union(set(pv))
+    all_v_l = list(all_v)
+    all_v_l.sort()
+    return all_v_l
+
+def _del_merge_set_like_properties(curr_v, to_del):
+    if not (isinstance(to_del, list) or isinstance(to_del, tuple)):
+        to_del = [to_del]
+    if not (isinstance(curr_v, list) or isinstance(curr_v, tuple)):
+        curr_v = [curr_v]
+    all_v = set(curr_v) - set(to_del)
+    all_v_l = list(all_v)
+    all_v_l.sort()
+    return all_v_l
 
 _SET_LIKE_PROPERTIES = frozenset([
     '^ot:curatorName',
@@ -334,6 +351,7 @@ class NexsonDiffAddress(object):
         self._mb_cache = {}
 
     def child(self, key_in_par):
+        #_LOG.debug('id={} NexsonDiffAddress.child({})'.format(id(self), key_in_par))
         return NexsonDiffAddress(par=self, key_in_par=key_in_par)
 
     def as_ot_target(self):
@@ -355,10 +373,12 @@ class NexsonDiffAddress(object):
 
     def _find_el_in_mod_blob(self, blob):
         if self.par is None:
+            #_LOG.debug('_find_el_in_mod_blob parentless id = {}'.format(id(self)))
             return blob
         ib = id(blob)
         target = self._mb_cache.get(ib)
         if target is None:
+            #_LOG.debug('cache miss')
             if self._mb_cache:
                 self._mb_cache = {}
             par_target = self._find_par_el_in_mod_blob(blob)
@@ -366,20 +386,32 @@ class NexsonDiffAddress(object):
             target = par_target.get(self.key_in_par)
             if target is not None:
                 self._mb_cache[ib] = target
+        #else:
+        #    _LOG.debug('cache hit returning "{}"'.format(target))
         return target
 
 
-    def try_apply_del_to_mod_blob(self, nexson_diff, blob):
+    def try_apply_del_to_mod_blob(self, nexson_diff, blob, del_v):
         assert(self.par is not None) # can't delete the whole blob!
-        par_target = self.par._find_par_el_in_mod_blob(blob)
+        par_target = self._find_par_el_in_mod_blob(blob)
+        #_LOG.debug('self.key_in_par = {} par_target={}'.format(self.key_in_par, par_target))
         if par_target is None:
             return False
         assert(isinstance(par_target, dict))
+        #_LOG.debug('par_target.keys() =' + str(par_target.keys()))
         if self.key_in_par in par_target:
-            del par_target[self.key_in_par]
+            if self.key_in_par in _SET_LIKE_PROPERTIES:
+                nv = _del_merge_set_like_properties(par_target[self.key_in_par], del_v)
+                if nv:
+                    par_target[self.key_in_par] = nv
+                else:
+                    del par_target[self.key_in_par]
+            else:
+                del par_target[self.key_in_par]
             self._mb_cache = {}
             return True
-        nexson_diff._redundant_edits['deletions'].append(self)
+        _LOG.debug('redundant del')
+        nexson_diff._redundant_edits['deletions'].append((del_v, self))
         return False
 
     def try_apply_add_to_mod_blob(self, nexson_diff, blob, value, was_mod):
@@ -402,13 +434,7 @@ class NexsonDiffAddress(object):
                 container.append((value, self))
                 return True, True
             if self.key_in_par in _SET_LIKE_PROPERTIES:
-                if not isinstance(value, list):
-                    value = [value]
-                if not isinstance(pv, list):
-                    pv = [pv]
-                all_v = set(value).union(set(pv))
-                all_v_l = list(all_v)
-                all_v_l.sort()
+                all_v_l = _merge_set_like_properties(value, pv)
                 par_target[self.key_in_par] = all_v_l
                 self._mb_cache = {id(blob): all_v_l}
                 return True, True
@@ -439,14 +465,7 @@ class NexsonDiffAddress(object):
             container.append((value, self))
         else:
             if self.key_in_par in _SET_LIKE_PROPERTIES:
-                pv = par_target.get(self.key_in_par, [])
-                if not isinstance(value, list):
-                    value = [value]
-                if not isinstance(pv, list):
-                    pv = [pv]
-                all_v = set(value).union(set(pv))
-                all_v_l = list(all_v)
-                all_v_l.sort()
+                all_v_l = _merge_set_like_properties(value, par_target[self.key_in_par])
                 par_target[self.key_in_par] = all_v_l
                 self._mb_cache = {id(blob): all_v_l}
             else:
@@ -653,7 +672,7 @@ class NexsonDiff(object):
                                             tsid_context)
                 self._calculate_generic_diffs(s_trees, d_trees, trees_skip_d, tsid_context)
             else:
-                self.add_deletion(context=tsid_context)
+                self.add_deletion(s_trees, context=tsid_context)
         return False, None
 
     def _calc_tree_structure_diff(self, s_tree, d_tree, context):
@@ -794,8 +813,8 @@ class NexsonDiff(object):
     def add_addition(self, v, context):
         self.curr_diff_dict['additions'].append((v, context))
 
-    def add_deletion(self, context):
-        self.curr_diff_dict['deletions'].append(context)
+    def add_deletion(self, v, context):
+        self.curr_diff_dict['deletions'].append((v, context))
 
     def add_modification(self, v, context):
         self.curr_diff_dict['modifications'].append((v, context))
@@ -847,10 +866,7 @@ class NexsonDiff(object):
                 else:
                     if sub_context is None:
                         sub_context = context.child(k)
-                    if k in _SET_LIKE_PROPERTIES:
-                        self.add_modification([], context=sub_context)
-                    else:
-                        self.add_deletion(context=sub_context)
+                    self.add_deletion(v, context=sub_context)
         elif k in dest:
             do_generic_calc = True
             skip_tuple = skip_dict.get(k)

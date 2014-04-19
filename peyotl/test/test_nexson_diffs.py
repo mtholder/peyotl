@@ -36,12 +36,12 @@ def rec_dict_diff(f, t, p):
                 _LOG.debug('expected {p}/{k} = "{v}"'.format(p=p, k=k, v=v))
                 _LOG.debug('obtained {p}/{k} = "{v}"'.format(p=p, k=k, v=v2))
 
-
-
 class TestNexsonDiff(unittest.TestCase):
 
     def testExpectedMerge(self):
         for fn in pathmap.all_dirs(os.path.join('nexson', 'diff')):
+            if not fn.endswith('tree-del'):
+                continue
             mrca_file = os.path.join(fn, 'mrca.json')
             user_version = os.path.join(fn, 'by-user.json')
             other_version = os.path.join(fn, 'by-others.json')
