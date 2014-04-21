@@ -1,5 +1,5 @@
 from sh import git
-import sh 
+import sh
 import re
 import os
 import locket
@@ -19,7 +19,7 @@ def get_HEAD_SHA1(git_dir):
     head_file = os.path.join(git_dir, 'HEAD')
     with open(head_file, 'rU') as hf:
         head_contents = hf.read().strip()
-    assert(head_contents.startswith('ref: '))
+    assert head_contents.startswith('ref: ')
     ref_filename = head_contents[5:] #strip off "ref: "
     real_ref = os.path.join(git_dir, ref_filename)
     with open(real_ref, 'rU') as rf:
@@ -94,7 +94,7 @@ class GitAction(object):
                  remote=None,
                  git_ssh=None,
                  pkey=None,
-                 cache=None, 
+                 cache=None,
                  path_for_study_fn=None):
         """Create a GitAction object to interact with a Git repository
 
@@ -114,7 +114,7 @@ class GitAction(object):
         self.repo_remote = remote
         self.git_ssh = git_ssh
         self.pkey = pkey
-        
+
         if os.path.isdir("{}/.git".format(self.repo)):
             self.git_dir_arg = "--git-dir={}/.git".format(self.repo)
             self.gitwd = "--work-tree={}".format(self.repo)
@@ -188,21 +188,9 @@ class GitAction(object):
         x = git(self.git_dir_arg, self.gitwd, "show-ref", "master", "--heads", "--hash")
         return x.strip()
 
-
-        # next we must look at local branch names for new studies
-        # without --no-color we get terminal color codes in the branch output
-        #branches = git(self.git_dir_arg, self.gitwd, "branch", "--no-color")
-        #branches = [ b.strip() for b in branches ]
-        #for b in branches:
-        #    mo = re.match(".+_o(\d+)", b)
-        #    if mo:
-        #        dirs.append(int(mo.group(1)))
-        #dirs.sort()
-        #return dirs[-1]
-
-    def return_study(self, study_id, branch='master', commit_sha=None, return_WIP_map=False): 
-        """Return the 
-            blob[0] contents of the given study_id, 
+    def return_study(self, study_id, branch='master', commit_sha=None, return_WIP_map=False):
+        """Return the
+            blob[0] contents of the given study_id,
             blob[1] the SHA1 of the HEAD of branch (or `commit_sha`)
             blob[2] dictionary of WIPs for this study.
         If the study_id does not exist, it returns the empty string.
@@ -301,11 +289,10 @@ class GitAction(object):
     def fetch(self, remote='origin'):
         '''fetch from a remote'''
         git(self.git_dir_arg, "fetch", remote)
-    
     def push(self, branch, remote):
         git(self.git_dir_arg, 'push', remote, branch, _env=self.env())
 
-    #@TEMP TODO. Args should be gh_user, study_id, parent_sha, author but 
+    #@TEMP TODO. Args should be gh_user, study_id, parent_sha, author but
     #   currently using the # of args as a hack to detect whether the
     #   old or newer version of the function is required. #backward-compat. @KILL with merge of local-dep
     def remove_study(self, first_arg, sec_arg, third_arg, fourth_arg=None):
@@ -317,7 +304,7 @@ class GitAction(object):
         """
         if fourth_arg is None:
             study_id, branch_name, author = first_arg, sec_arg, third_arg
-            #@TODO. DANGER super-ugly hack to get gh_user 
+            #@TODO. DANGER super-ugly hack to get gh_user
             #   only doing this function is going away very soon. @KILL with merge of local-dep
             gh_user = branch_name.split('_study_')[0]
             parent_sha = self.get_master_sha()
@@ -334,7 +321,6 @@ class GitAction(object):
         git(self.git_dir_arg, self.gitwd, "rm", "-rf", study_dir)
         git(self.git_dir_arg, self.gitwd, "commit", author=author, message="Delete Study #%s via OpenTree API" % study_id)
         return self._head_sha(), branch
-        
 
     def reset_hard(self):
         try:
@@ -349,14 +335,106 @@ class GitAction(object):
             line = r.strip()
             ls = line.split()
             #_LOG.debug('ls is "{}"'.format(str(ls)))
-            assert(len(ls) == 4)
-            assert(ls[1] == 'blob')
+            assert len(ls) == 4
+            assert ls[1] == 'blob'
             return ls[2]
         except:
             _LOG.exception('git ls-tree failed')
             raise
 
-    def write_study_from_tmpfile(self, study_id, tmpfi, parent_sha, auth_info):
+    def get_version_history_for_file(self, filepath):
+        """ Return a dict representation of this file's commit history
+
+        This uses specially formatted git-log output for easy parsing, as described here:
+            http://blog.lost-theory.org/post/how-to-parse-git-log-output/
+        For a full list of available fields, see:
+            http://linux.die.net/man/1/git-log
+
+        """
+        # define the desired fields for logout output, matching the order in these lists!
+        GIT_COMMIT_FIELDS = ['id',
+                             'author_name',
+                             'author_email',
+                             'date',
+                             'date_ISO_8601',
+                             'relative_date',
+                             'message_subject',
+                             'message_body']
+        GIT_LOG_FORMAT = ['%H', '%an', '%ae', '%aD', '%ai', '%ar', '%s', '%b']
+        # make the final format string, using standard ASCII field/record delimiters
+        GIT_LOG_FORMAT = '%x1f'.join(GIT_LOG_FORMAT) + '%x1e'
+        try:
+            log = git(self.git_dir_arg,
+                      self.gitwd,
+                      '--no-pager',
+                      'log',
+                      '--format=%s' % GIT_LOG_FORMAT,
+                      '--follow',
+                      '--',
+                      filepath)
+            #_LOG.debug('log said "{}"'.format(log))
+            log = log.strip('\n\x1e').split("\x1e")
+            log = [row.strip().split("\x1f") for row in log]
+            log = [dict(zip(GIT_COMMIT_FIELDS, row)) for row in log]
+        except:
+            _LOG.exception('git log failed')
+            raise
+        return log
+
+    #@TEMP TODO: remove this form...
+    def write_study(self, study_id, file_content, branch, author):
+        """Given a study_id, temporary filename of content, branch and auth_info
+
+        Deprecated but needed until we merge api local-dep to master...
+
+        """
+        parent_sha = None
+        #@TODO. DANGER super-ugly hack to get gh_user
+        #   only doing this function is going away very soon. @KILL with merge of local-dep
+        gh_user = branch.split('_study_')[0]
+        fc = tempfile.NamedTemporaryFile()
+        if isinstance(file_content, str) or isinstance(file_content, unicode):
+            fc.write(file_content)
+        else:
+            write_as_json(file_content, fc)
+        fc.flush()
+        try:
+            study_filepath = self.path_for_study(study_id)
+            study_dir = os.path.split(study_filepath)[0]
+            if parent_sha is None:
+                self.checkout_master()
+                parent_sha = self.get_master_sha()
+            branch = self.create_or_checkout_branch(gh_user, study_id, parent_sha, force_branch_name=True)
+            # create a study directory if this is a new study EJM- what if it isn't?
+            if not os.path.isdir(study_dir):
+                os.makedirs(study_dir)
+            shutil.copy(fc.name, study_filepath)
+            git(self.git_dir_arg, self.gitwd, "add", study_filepath)
+            try:
+                git(self.git_dir_arg,
+                    self.gitwd,
+                    "commit",
+                    author=author,
+                    message="Update Study #%s via OpenTree API" % study_id)
+            except Exception, e:
+                # We can ignore this if no changes are new,
+                # otherwise raise a 400
+                if "nothing to commit" in e.message:#@EJM is this dangerous?
+                    pass
+                else:
+                    _LOG.exception('"git commit" failed')
+                    self.reset_hard()
+                    raise
+            new_sha = self._head_sha()
+        except Exception, e:
+            _LOG.exception('write_study exception')
+            raise GitWorkflowError("Could not write to study #%s ! Details: \n%s" % (study_id, e.message))
+        finally:
+            fc.close()
+        return new_sha
+
+
+    def write_study_from_tmpfile(self, study_id, tmpfi, parent_sha, auth_info, commit_msg=''):
         """Given a study_id, temporary filename of content, branch and auth_info
         """
         gh_user, author = get_user_author(auth_info)
@@ -366,11 +444,16 @@ class GitAction(object):
             self.checkout_master()
             parent_sha = self.get_master_sha()
         branch = self.create_or_checkout_branch(gh_user, study_id, parent_sha)
-        
+
+        # build complete commit message
+        if commit_msg:
+            commit_msg = "%s\n\n(Update Study #%s via OpenTree API)" % (commit_msg, study_id)
+        else:
+            commit_msg = "Update Study #%s via OpenTree API" % study_id
         # create a study directory if this is a new study EJM- what if it isn't?
         if not os.path.isdir(study_dir):
             os.makedirs(study_dir)
-        
+
         if os.path.exists(study_filepath):
             prev_file_sha = self.get_blob_sha_for_file(study_filepath)
         else:
@@ -396,27 +479,38 @@ class GitAction(object):
         if study_filepath:
             git(self.git_dir_arg, self.gitwd, "add", study_filepath)
         try:
-            m = message_format.format(study_id)
             if study_filepath:
                 if author:
-                    git(self.git_dir_arg, self.gitwd, "commit", author=author, message=m)
+                    git(self.git_dir_arg, self.gitwd, "commit", author=author, message=commit_msg)
                 else:
-                    git(self.git_dir_arg, self.gitwd, "commit", message=m)
+                    git(self.git_dir_arg, self.gitwd, "commit", message=commit_msg)
             else:
                 if author:
-                    git(self.git_dir_arg, self.gitwd, "commit", "-a", author=author, message=m)
+                    git(self.git_dir_arg, self.gitwd, "commit", "-a", author=author, message=commit_msg)
                 else:
-                    git(self.git_dir_arg, self.gitwd, "commit", "-a", message=m)
+                    git(self.git_dir_arg, self.gitwd, "commit", "-a", message=commit_msg)
+            git(self.git_dir_arg,
+                self.gitwd,
+                "commit",
+                author=author,
+                message=commit_msg)
         except Exception, e:
             # We can ignore this if no changes are new,
             # otherwise raise a 400
             if "nothing to commit" in e.message:#@EJM is this dangerous?
-                 pass
+                pass
             else:
                 _LOG.exception('"git commit" failed')
                 self.reset_hard()
                 raise
-        return self._head_sha()
+        new_sha = self._head_sha()
+        _LOG.debug('Committed study "{i}" to branch "{b}" commit SHA: "{s}"'.format(i=study_id,
+                                                                                    b=branch,
+                                                                                    s=new_sha.strip()))
+        return {'commit_sha': new_sha.strip(),
+                'branch': branch,
+                'prev_file_sha': prev_file_sha,
+               }
 
     def merge(self, branch, destination="master", auth_info=None):
         """
