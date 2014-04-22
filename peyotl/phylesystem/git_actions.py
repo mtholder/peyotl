@@ -479,6 +479,7 @@ class GitAction(object):
         if study_filepath:
             git(self.git_dir_arg, self.gitwd, "add", study_filepath)
         try:
+            commit_msg = message_format.format(study_id)
             if study_filepath:
                 if author:
                     git(self.git_dir_arg, self.gitwd, "commit", author=author, message=commit_msg)
@@ -504,13 +505,8 @@ class GitAction(object):
                 self.reset_hard()
                 raise
         new_sha = self._head_sha()
-        _LOG.debug('Committed study "{i}" to branch "{b}" commit SHA: "{s}"'.format(i=study_id,
-                                                                                    b=branch,
-                                                                                    s=new_sha.strip()))
-        return {'commit_sha': new_sha.strip(),
-                'branch': branch,
-                'prev_file_sha': prev_file_sha,
-               }
+        _LOG.debug('Committed study "{i}" commit SHA: "{s}"'.format(i=study_id, s=new_sha.strip()))
+        return new_sha.strip()
 
     def merge(self, branch, destination="master", auth_info=None):
         """

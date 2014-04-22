@@ -13,11 +13,5 @@ repodir = phylesystem.get_repos()[reponame]
 class TestCreate(unittest.TestCase):
     def testWriteStudy(self):
         GitAction(repodir)
-<<<<<<< HEAD
-        
-=======
-        #gd.write_study(study_id="1003", content=n, branch="git_actions_test_1003")
-
->>>>>>> master
 if __name__ == "__main__":
     unittest.main()
