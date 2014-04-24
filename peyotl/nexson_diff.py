@@ -103,7 +103,7 @@ def _register_ordered_edit_not_made(container,
     if d_o is not None:
         full_edit['dest_order'] = d_o
     uoe = container.setdefault('key-ordering', {})
-    
+
     if full_edit is None:
         uoe.setdefault(known_order_key, full_edit)
     else:
@@ -286,7 +286,12 @@ def _to_ot_diff_dict(native_diff):
         kvc_list = native_diff.get(dt, [])
         x = []
         for v, c in kvc_list:
-            y = {'value': v}
+            if isinstance(v, set):
+                vl = list(v)
+                vl.sort()
+                y = {'value': vl}
+            else:
+                y = {'value': v}
             if c is not None:
                 y.update(c.as_ot_target())
             x.append(y)
@@ -325,7 +330,7 @@ def _process_order_list_and_dict(order_key, by_id_key, src, dest):
             orig_id_order.append(o)
 
     for o in src_set:
-        if not (o in dest_order):
+        if not o in dest_order:
             del_id_set.add(o)
     return {'dest_order': dest_order,
             'orig_order_of_retained': orig_id_order,
@@ -358,6 +363,8 @@ _SET_LIKE_PROPERTIES = frozenset([
     '^ot:candidateTreeForSynthesis',
     '^skos:altLabel',
     '^ot:dataDeposit'])
+_BY_ID_LIST_PROPERTIES = frozenset(['agent', 'annotation'])
+_NO_MOD_PROPERTIES = frozenset(['message'])
 
 class NexsonDiffAddress(object):
     def __init__(self, par=None, key_in_par=None):
@@ -370,6 +377,15 @@ class NexsonDiffAddress(object):
         #_LOG.debug('id={} NexsonDiffAddress.child({})'.format(id(self), key_in_par))
         return NexsonDiffAddress(par=self, key_in_par=key_in_par)
 
+    def by_id_list_child(self, key_in_par):
+        return ByIdListNexsonDiffAddress(self, key_in_par)
+
+    def set_like_list_child(self, key_in_par):
+        return SetLikeListNexsonDiffAddress(self, key_in_par)
+
+    def no_mod_list_child(self, key_in_par):
+        return NoModListNexsonDiffAddress(self, key_in_par)
+
     def as_ot_target(self):
         if self._as_ot_dict is None:
             if self.par is None:
@@ -378,7 +394,7 @@ class NexsonDiffAddress(object):
                 else:
                     self._as_ot_dict = {'address': (self.key_in_par,)}
             else:
-                assert(self.key_in_par is not None)
+                assert self.key_in_par is not None
                 pl = [i for i in self.par.as_ot_target()['address']]
                 pl.append(self.key_in_par)
                 self._as_ot_dict = {'address': tuple(pl)}
@@ -398,7 +414,7 @@ class NexsonDiffAddress(object):
             if self._mb_cache:
                 self._mb_cache = {}
             par_target = self._find_par_el_in_mod_blob(blob)
-            assert(isinstance(par_target, dict))
+            assert isinstance(par_target, dict)
             target = par_target.get(self.key_in_par)
             if target is not None:
                 self._mb_cache[ib] = target
@@ -406,24 +422,19 @@ class NexsonDiffAddress(object):
         #    _LOG.debug('cache hit returning "{}"'.format(target))
         return target
 
-
     def try_apply_del_to_mod_blob(self, nexson_diff, blob, del_v):
-        assert(self.par is not None) # can't delete the whole blob!
+        assert self.par is not None # can't delete the whole blob!
         par_target = self._find_par_el_in_mod_blob(blob)
         #_LOG.debug('self.key_in_par = {} par_target={}'.format(self.key_in_par, par_target))
         if par_target is None:
             return False
-        assert(isinstance(par_target, dict))
+        assert isinstance(par_target, dict)
+        return self._try_apply_del_to_par_target(nexson_diff, par_target, del_v)
+
+    def _try_apply_del_to_par_target(self, nexson_diff, par_target, del_v):
         #_LOG.debug('par_target.keys() =' + str(par_target.keys()))
         if self.key_in_par in par_target:
-            if self.key_in_par in _SET_LIKE_PROPERTIES:
-                nv = _del_merge_set_like_properties(par_target[self.key_in_par], del_v)
-                if nv:
-                    par_target[self.key_in_par] = nv
-                else:
-                    del par_target[self.key_in_par]
-            else:
-                del par_target[self.key_in_par]
+            del par_target[self.key_in_par]
             self._mb_cache = {}
             return True
         _LOG.debug('redundant del')
@@ -432,14 +443,15 @@ class NexsonDiffAddress(object):
 
     def try_apply_add_to_mod_blob(self, nexson_diff, blob, value, was_mod):
         '''Returns ("value in blob", "presence of key makes this addition a modification")
-        records _redundant_edits 
+        records _redundant_edits
         was_mod should be true if the diff was originally a modification
         '''
-        assert(self.par is not None)
+        assert self.par is not None
         par_target = self._find_par_el_in_mod_blob(blob)
         if par_target is None:
             return False, False
-        assert(isinstance(par_target, dict))
+        assert isinstance(par_target, dict)
+
         if self.key_in_par in par_target:
             pv = par_target[self.key_in_par]
             if pv == value:
@@ -449,30 +461,33 @@ class NexsonDiffAddress(object):
                     container = nexson_diff._redundant_edits['additions']
                 container.append((value, self))
                 return True, True
-            if self.key_in_par in _SET_LIKE_PROPERTIES:
-                all_v_l = _merge_set_like_properties(value, pv)
-                par_target[self.key_in_par] = all_v_l
-                self._mb_cache = {id(blob): all_v_l}
-                return True, True
+
+        return self._try_apply_add_to_par_target(nexson_diff, par_target, value, was_mod, id(blob))
+
+    def _try_apply_add_to_par_target(self, nexson_diff, par_target, value, was_mod, blob_id):
+        if self.key_in_par in par_target:
             return False, True
-        assert(not isinstance(value, DictDiff))
-        assert(not isinstance(value, ListDiff))
+        assert not isinstance(value, DictDiff)
+        assert not isinstance(value, ListDiff)
         par_target[self.key_in_par] = value
-        self._mb_cache = {id(blob): value}
+        self._mb_cache = {blob_id: value}
         return True, True
 
     def try_apply_mod_to_mod_blob(self, nexson_diff, blob, value, was_add):
         par_target = self._find_par_el_in_mod_blob(blob)
         if self.key_in_par not in par_target:
             return False
-        #_LOG.debug('try_apply_mod_to_mod_blob par_target.keys() = {} self.key_in_par = "{}"'.format(par_target.keys(), self.key_in_par))
-        assert(not isinstance(value, DictDiff))
+        assert not isinstance(value, DictDiff)
         if isinstance(value, ListDiff):
             target = self._find_el_in_mod_blob(blob)
             if not isinstance(target, list):
                 target = [target]
                 par_target[self.key_in_par] = target
-            return _list_patch_modified_blob(nexson_diff, target, value._deletions, value._additions, value._modifications)
+            return _list_patch_modified_blob(nexson_diff,
+                                             target,
+                                             value._deletions,
+                                             value._additions,
+                                             value._modifications)
         if par_target.get(self.key_in_par) == value:
             if was_add:
                 container = nexson_diff._redundant_edits['additions']
@@ -480,14 +495,55 @@ class NexsonDiffAddress(object):
                 container = nexson_diff._redundant_edits['modifications']
             container.append((value, self))
         else:
-            if self.key_in_par in _SET_LIKE_PROPERTIES:
-                all_v_l = _merge_set_like_properties(value, par_target[self.key_in_par])
-                par_target[self.key_in_par] = all_v_l
-                self._mb_cache = {id(blob): all_v_l}
-            else:
-                par_target[self.key_in_par] = value
-                self._mb_cache = {id(blob): value}
+            self._try_apply_mod_to_par_target(nexson_diff, par_target, value, id(blob))
         return True
+
+    def _try_apply_mod_to_par_target(self, nexson_diff, par_target, value, blob_id):
+        par_target[self.key_in_par] = value
+        self._mb_cache = {blob_id: value}
+
+class ByIdListNexsonDiffAddress(NexsonDiffAddress):
+    def __init__(self, par=None, key_in_par=None):
+        NexsonDiffAddress.__init__(self, par, key_in_par)
+
+class SetLikeListNexsonDiffAddress(NexsonDiffAddress):
+    def __init__(self, par=None, key_in_par=None):
+        NexsonDiffAddress.__init__(self, par, key_in_par)
+    def _try_apply_del_to_par_target(self, nexson_diff, par_target, del_v):
+        #_LOG.debug('par_target.keys() =' + str(par_target.keys()))
+        if self.key_in_par in par_target:
+            nv = _del_merge_set_like_properties(par_target[self.key_in_par], del_v)
+            if nv:
+                par_target[self.key_in_par] = nv
+            else:
+                del par_target[self.key_in_par]
+            self._mb_cache = {}
+            return True
+        _LOG.debug('redundant del')
+        nexson_diff._redundant_edits['deletions'].append((del_v, self))
+        return False
+
+    def _try_apply_add_to_par_target(self, nexson_diff, par_target, value, was_mod, blob_id):
+        if self.key_in_par in par_target:
+            pv = par_target[self.key_in_par]
+            all_v_l = _merge_set_like_properties(value, pv)
+            par_target[self.key_in_par] = all_v_l
+            self._mb_cache = {blob_id: all_v_l}
+            return True, True
+        assert not isinstance(value, DictDiff)
+        assert not isinstance(value, ListDiff)
+        par_target[self.key_in_par] = value
+        self._mb_cache = {blob_id: value}
+        return True, True
+
+    def _try_apply_mod_to_par_target(self, nexson_diff, par_target, value, blob_id):
+        all_v_l = _merge_set_like_properties(value, par_target[self.key_in_par])
+        par_target[self.key_in_par] = all_v_l
+        self._mb_cache = {blob_id: all_v_l}
+
+class NoModListNexsonDiffAddress(NexsonDiffAddress):
+    def __init__(self, par=None, key_in_par=None):
+        NexsonDiffAddress.__init__(self, par, key_in_par)
 
 
 class NexsonDiff(object):
@@ -509,13 +565,13 @@ class NexsonDiff(object):
                             output_filepath=None):
         '''Take a NexSON (via filepath_to_patch or input_nexson dict) and applies
         the diffs (stored in the `self` object) to that NexSON and then
-        writes the output to a file. output_filepath 
-        if output_filepath is `None` then filepath_to_patch will be used as the 
+        writes the output to a file. output_filepath
+        if output_filepath is `None` then filepath_to_patch will be used as the
         output_filepath.
         NexsonDiff.patch_modified_blob does the patch
         '''
         if input_nexson is None:
-            assert(isinstance(filepath_to_patch, str) or isinstance(filepath_to_patch, unicode))
+            assert isinstance(filepath_to_patch, str) or isinstance(filepath_to_patch, unicode)
             input_nexson = _get_blob(filepath_to_patch)
         else:
             v = detect_nexson_version(input_nexson)
@@ -548,14 +604,14 @@ class NexsonDiff(object):
         n, t = new_nested_diff_summary()
         self._unapplied_nontree_edits = n
         self._unapplied_tree_edits = t
-        
+
         n, t = new_nested_diff_summary()
         self._redundant_nontree_edits = n
         self._redundant_tree_edits = t
-        
+
         self._redundant_edits = self._redundant_nontree_edits
         self._unapplied_edits = self._unapplied_nontree_edits
-        
+
     def _clear_diff_related_data(self):
         self._nontree_diff, self._tree_diff = new_nested_diff_summary()
         self.diff_dict = self._nontree_diff
@@ -564,15 +620,15 @@ class NexsonDiff(object):
         otus_diff = (self._handle_otus_diffs, None)
         trees_diff = (self._handle_trees_diffs, None)
         nexml_diff = (self._handle_nexml_diffs, {'otusById': otus_diff,
-                                                 '^ot:otusElementOrder': self.no_op_t, 
-                                                 '^ot:treesElementOrder': self.no_op_t, 
+                                                 '^ot:otusElementOrder': self.no_op_t,
+                                                 '^ot:treesElementOrder': self.no_op_t,
                                                  'treesById': trees_diff})
         self.top_skip_dict = {'nexml': nexml_diff}
-        
-        
+
+
     def patch_modified_blob(self, base_blob):
         '''Applies the diff stored in `self` to the NexSON dict `base_blob`
-        self._redundant_edits and self._unapplied_edits will be reset so that 
+        self._redundant_edits and self._unapplied_edits will be reset so that
         they reflect the edits that were not applied (either because the edits
         were already found in `base_blob` [_redundnant_edits or because the
         appropriate operations could not be performed on the base_blob dict)
@@ -588,7 +644,7 @@ class NexsonDiff(object):
     def _calculate_diff(self):
         '''Inefficient comparison of anc and des dicts.
         Recurses through dict and lists.
-        
+
         '''
         self._clear_patch_related_data()
         self._clear_diff_related_data()
@@ -596,7 +652,6 @@ class NexsonDiff(object):
         d = self.des_blob
         context = NexsonDiffAddress()
         self._calculate_generic_diffs(a, d, self.top_skip_dict, context)
-
 
     def _process_ordering_pair(self,
                                order_key,
@@ -647,14 +702,14 @@ class NexsonDiff(object):
             otusid_context = sub_context.child(otus_id)
             d_otus = dest.get(otus_id)
             if d_otus is not None:
-                assert(d_otus.keys() == ['otuById'])
-                assert(s_otus.keys() == ['otuById'])
+                assert d_otus.keys() == ['otuById']
+                assert s_otus.keys() == ['otuById']
                 obi_context = otusid_context.child('otuById')
                 s_obi = s_otus['otuById']
                 d_obi = d_otus['otuById']
                 self._calculate_generic_diffs(s_obi, d_obi, None, obi_context)
         return False, None
-    
+
     def _handle_tree_diffs(self, src, dest, skip_dict, context, key_in_par):
         sk_d = {'edgeBySourceId': self.no_op_t,
                 'nodeById': self.no_op_t,
@@ -667,9 +722,9 @@ class NexsonDiff(object):
                 self._calculate_generic_diffs(s_tree, d_tree, sk_d, tid_context)
                 self._calc_tree_structure_diff(s_tree, d_tree, tid_context)
         return False, None
-    
+
     def _handle_trees_diffs(self, src, dest, skip_dict, context, key_in_par):
-        trees_skip_d = {'^ot:treeElementOrder': self.no_op_t, 
+        trees_skip_d = {'^ot:treeElementOrder': self.no_op_t,
                         'treeById': (self._handle_tree_diffs, None)}
         sub_context = context.child(key_in_par)
         trees_id_dict = {}
@@ -707,7 +762,7 @@ class NexsonDiff(object):
 
         s_node_id_set = set(s_node_bid.keys())
         d_node_id_set = set(d_node_bid.keys())
-        
+
         node_number_except = False
         s_extra_node_id = s_node_id_set - d_node_id_set
         if s_extra_node_id:
@@ -717,11 +772,10 @@ class NexsonDiff(object):
         if d_extra_node_id:
             if (len(d_extra_node_id) > 1) or (d_extra_node_id.pop() == d_root):
                 node_number_except = True
-        #TODO: do we need more flexible diffs. In normal curation, there can 
+        #TODO: do we need more flexible diffs. In normal curation, there can
         #   only be one node getting added (the root)
         if node_number_except:
             raise ValueError('At most one node and one edge can be added to a tree')
-        
         self.activate_tree_diffs()
         try:
             deleted_node = None
@@ -737,7 +791,7 @@ class NexsonDiff(object):
                             n_context = sub_context.child(nid)
                             self._calculate_generic_diffs(s_node, d_node, None, n_context)
                     else:
-                        assert(deleted_node is None)
+                        assert deleted_node is None
                         deleted_node = (nid, s_node)
                     #    n_context = sub_context.child(nid)
                     #    self.add_deletion(n_context)
@@ -756,7 +810,7 @@ class NexsonDiff(object):
                 for eid, s_edge in s_edges.items():
                     d_edge = d_edges.get(eid)
                     if d_edge is None:
-                        assert(deleted_edge is None)
+                        assert deleted_edge is None
                         deleted_edge = (eid, s_edge)
                     else:
                         if d_edge != s_edge:
@@ -866,18 +920,49 @@ class NexsonDiff(object):
                                 sub_context = context.child(k)
                             self._calculate_generic_diffs(v, dv, skip_dict=sub_skip_dict, context=sub_context)
                         else:
-                            if isinstance(v, list) and isinstance(dv, list):
-                                rec_call = ListDiff.create(v, dv, wrap_dict_in_list=True)
+                            if isinstance(v, list) or isinstance(dv, list):
+                                if not isinstance(v, list):
+                                    v = [v]
+                                if not isinstance(dv, list):
+                                    dv = [dv]
+                                if k in _SET_LIKE_PROPERTIES:
+                                    dvs = set(dv)
+                                    svs = set(v)
+                                    dels = svs - dvs
+                                    adds = dvs - svs
+                                    if adds or dels:
+                                        sub_context = context.set_like_list_child(k)
+                                elif k in _BY_ID_LIST_PROPERTIES:
+                                    dd = {i['@id']:i for i in dv}
+                                    sd = {i['@id']:i for i in v}
+                                    sds = set(sd.keys())
+                                    dds = set(dd.keys())
+                                    adds = dds - sds
+                                    dels = sds - dds
+                                    sub_context = context.by_id_list_child(k)
+                                    inters = sds.intersection(dds)
+                                    for ki in inters:
+                                        dsv = dd[ki]
+                                        ssv = sd[ki]
+                                        if dsv != ssv:
+                                            sub_sub_context = sub_context.child(ki)
+                                            self._calculate_generic_diffs(dsv, ssv, skip_dict=sub_skip_dict, context=sub_sub_context)
+                                else:
+                                    # treat like _NO_MOD_PROPERTIES
+                                    # ugh not efficient...
+                                    dels, adds = detect_no_mod_list_dels_adds(v, dv)
+                                    if adds or dels:
+                                        sub_context = context.no_mod_list_child(k)
+                                if dels:
+                                    self.add_deletion(dels, context=sub_context)
+                                if adds:
+                                    self.add_addition(adds, context=sub_context)
+                                
                             else:
-                                if isinstance(v, dict) and isinstance(dv, list):
-                                    rec_call = ListDiff.create([v], dv, wrap_dict_in_list=True)
-                                elif isinstance(dv, dict) or isinstance(v, list):
-                                    rec_call = ListDiff.create(v, [dv], wrap_dict_in_list=True)
-                            if sub_context is None:
-                                sub_context = context.child(k)
-                            if rec_call is not None:
-                                self.add_modification(rec_call, context=sub_context)
-                            else:
+                                if k in _SET_LIKE_PROPERTIES:
+                                    sub_context = context.set_like_list_child(k)
+                                else:
+                                    sub_context = context.child(k)
                                 self.add_modification(dv, context=sub_context)
                 else:
                     if sub_context is None:
@@ -892,5 +977,40 @@ class NexsonDiff(object):
                 do_generic_calc, sub_context = func(v, dest.get(k), sub_skip_dict, context=context, key_in_par=k)
             if do_generic_calc:
                 if sub_context is None:
-                    sub_context = context.child(k)
+                    if k in _SET_LIKE_PROPERTIES:
+                        sub_context = context.set_like_list_child(k)
+                    else:
+                        sub_context = context.child(k)
+
                 self.add_addition(dest[k], context=sub_context)
+
+
+def detect_no_mod_list_dels_adds(src, dest):
+    '''Takes an ancestor (src),  descendant (dest) pair of lists
+    and returns a pair of lists:
+        dels = the objects in src for which there is not object in dest that compares equal to
+        adds = the objects in dest for which there is not object in src that compares equal to
+    '''
+    dfound_set = set()
+    sunfound_set = set()
+    dels, adds = [], []
+    for sn, el in enumerate(src):
+        found = False
+        for dn, d_el in enumerate(dest):
+            if el == d_el:
+                dfound_set.add(dn)
+                found = True
+                break
+        if not found:
+            dels.append(el)
+            sunfound_set.append(sn)
+    for dn, d_el in enumerate(dest):
+        if dn not in dfound_set:
+            found = False
+            for sn, el in enumerate(src):
+                if sn not in sunfound_set:
+                    if el == d_el:
+                        found = True
+            if not found:
+                adds.append(d_el)
+    return dels, adds
