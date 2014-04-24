@@ -60,7 +60,6 @@ class TestNexsonDiff(unittest.TestCase):
             e = eod.unapplied_edits_as_ot_diff_dict()
             e = json.loads(json.dumps(e, encoding='utf-8'), encoding='utf-8')
             x = dfdp.as_ot_diff_dict()
-            print x
             d = json.loads(json.dumps(x, encoding='utf-8'), encoding='utf-8')
             u = os.path.join(fn, 'unapplied.json')
             eu = os.path.join(fn, 'expected-unapplied.json')
