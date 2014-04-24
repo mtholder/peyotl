@@ -235,6 +235,7 @@ def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
         added, is_mod = c.try_apply_add_to_mod_blob(nexson_diff, base_blob, v, False)
         if not added:
             if is_mod:
+                _LOG.debug('add t = {}'.format(t))
                 really_adds.add(t)
                 adds_to_mods.append(t)
             else:
@@ -413,9 +414,14 @@ class NexsonDiffAddress(object):
             #_LOG.debug('cache miss')
             if self._mb_cache:
                 self._mb_cache = {}
+            _LOG.debug('Calling  NexsonDiffAddress._find_par_el_in_mod_blob from self.key_in_par = {}'.format(self.key_in_par))
             par_target = self._find_par_el_in_mod_blob(blob)
-            assert isinstance(par_target, dict)
+            if self.key_in_par == '^ot:agents':
+                _LOG.debug('self.key_in_par = {}, par_target.keys() = {}'.format(self.key_in_par, par_target.keys()))
+            assert isinstance(par_target, dict) or isinstance(par_target, IDListAsDictWrapper)
             target = par_target.get(self.key_in_par)
+            if self.key_in_par == '^ot:agents':
+                _LOG.debug('par_target[{}] = {}'.format(self.key_in_par, target))
             if target is not None:
                 self._mb_cache[ib] = target
         #else:
@@ -424,6 +430,7 @@ class NexsonDiffAddress(object):
 
     def try_apply_del_to_mod_blob(self, nexson_diff, blob, del_v):
         assert self.par is not None # can't delete the whole blob!
+        _LOG.debug('del call on self.key_in_par = "{}"'.format(self.key_in_par))
         par_target = self._find_par_el_in_mod_blob(blob)
         #_LOG.debug('self.key_in_par = {} par_target={}'.format(self.key_in_par, par_target))
         if par_target is None:
@@ -470,7 +477,7 @@ class NexsonDiffAddress(object):
         assert not isinstance(value, DictDiff)
         assert not isinstance(value, ListDiff)
         par_target[self.key_in_par] = value
-        self._mb_cache = {blob_id: value}
+        self._mb_cache = {}
         return True, True
 
     def try_apply_mod_to_mod_blob(self, nexson_diff, blob, value, was_add):
@@ -500,11 +507,101 @@ class NexsonDiffAddress(object):
 
     def _try_apply_mod_to_par_target(self, nexson_diff, par_target, value, blob_id):
         par_target[self.key_in_par] = value
-        self._mb_cache = {blob_id: value}
+        self._mb_cache = {}
+
+class IDListAsDictWrapper(object):
+    def __init__(self, idl):
+        self.idl = idl
+    def get(self, key):
+        _LOG.debug('IDListAsDictWrapper.get({})'.format(key))
+        for el in self.idl:
+            if el['@id'] == key:
+                return el
+        return None
 
 class ByIdListNexsonDiffAddress(NexsonDiffAddress):
     def __init__(self, par=None, key_in_par=None):
         NexsonDiffAddress.__init__(self, par, key_in_par)
+    def _find_el_in_mod_blob(self, blob):
+        assert self.par is not None
+        #_LOG.debug('ByIdListNexsonDiffAddress._find_el_in_mod_blob blob={}'.format(blob))
+        ib = id(blob)
+        target = self._mb_cache.get(ib)
+        if target is None:
+            #_LOG.debug('cache miss')
+            if self._mb_cache:
+                self._mb_cache = {}
+            _LOG.debug('Calling  ByIdListNexsonDiffAddress._find_par_el_in_mod_blob from self.key_in_par = {}'.format(self.key_in_par))
+            par_target = self._find_par_el_in_mod_blob(blob)
+            #_LOG.debug('self.key_in_par = {}, par_target = {}'.format(self.key_in_par, par_target))
+            assert isinstance(par_target, dict)
+            target = par_target.get(self.key_in_par)
+            assert isinstance(target, list)
+            target = IDListAsDictWrapper(target)
+            _LOG.debug('self.key_in_par = {}, target = {}'.format(self.key_in_par, target))
+            if target is not None:
+                self._mb_cache[ib] = target
+        _LOG.debug('ByIdListNexsonDiffAddress target =  "{}"'.format(target))
+        return target
+    def child(self, key_in_par):
+        _LOG.debug('ByIdListNexsonDiffAddress.key_in_par={} child.key_in_par={}'.format(self.key_in_par, key_in_par))
+        return NexsonDiffAddress.child(self, key_in_par)
+    def _try_apply_del_to_par_target(self, nexson_diff, par_target, del_v):
+        target = par_target.get(self.key_in_par)
+        if target is None:
+            nexson_diff._redundant_edits['deletions'].append((del_v, self))
+        _LOG.debug('before target = {}'.format(target))
+        inds_to_del = set()
+        for kid in del_v:
+            found = False
+            _LOG.debug('kid = {}'.format(kid))
+            for n, el in enumerate(target):
+                try:
+                    if el['@id'] == kid:
+                        inds_to_del.add(n)
+                        found = True
+                        break
+                except:
+                    raise
+                    pass
+            if not found:
+                nexson_diff._redundant_edits['deletions'].append((kid, self))
+        inds_to_del = list(inds_to_del)
+        inds_to_del.sort(reverse=True)
+        for n in inds_to_del:
+            target.pop(n)
+        _LOG.debug('after target = {}'.format(target))
+        return bool(inds_to_del)
+
+    def _try_apply_add_to_par_target(self, nexson_diff, par_target, value, was_mod, blob_id):
+        target = par_target.get(self.key_in_par)
+        if target is None:
+            nexson_diff._unapplied_edits['addition'].append((value, self))
+        _LOG.debug('before-add target = {}'.format(target))
+        for ael in value:
+            found = False
+            kid = ael['@id']
+            for n, el in enumerate(target):
+                try:
+                    if el['@id'] == kid:
+                        found = True
+                        break
+                except:
+                    raise
+                    pass
+            if not found:
+                target.append(ael)
+        s = [(i['@id'], i) for i in target]
+        s.sort()
+        del target[:]
+        target.extend([i[1] for i in s])
+        _LOG.debug('after-add target = {}'.format(target))
+        return True, True
+
+    def _try_apply_mod_to_par_target(self, nexson_diff, par_target, value, blob_id):
+        par_target[self.key_in_par] = value
+        self._mb_cache = {}
+
 
 class SetLikeListNexsonDiffAddress(NexsonDiffAddress):
     def __init__(self, par=None, key_in_par=None):
@@ -517,7 +614,7 @@ class SetLikeListNexsonDiffAddress(NexsonDiffAddress):
                 par_target[self.key_in_par] = nv
             else:
                 del par_target[self.key_in_par]
-            self._mb_cache = {}
+            #self._mb_cache = {}
             return True
         _LOG.debug('redundant del')
         nexson_diff._redundant_edits['deletions'].append((del_v, self))
@@ -528,18 +625,18 @@ class SetLikeListNexsonDiffAddress(NexsonDiffAddress):
             pv = par_target[self.key_in_par]
             all_v_l = _merge_set_like_properties(value, pv)
             par_target[self.key_in_par] = all_v_l
-            self._mb_cache = {blob_id: all_v_l}
+            #self._mb_cache = {}
             return True, True
         assert not isinstance(value, DictDiff)
         assert not isinstance(value, ListDiff)
         par_target[self.key_in_par] = value
-        self._mb_cache = {blob_id: value}
+        #self._mb_cache = {blob_id: value}
         return True, True
 
     def _try_apply_mod_to_par_target(self, nexson_diff, par_target, value, blob_id):
         all_v_l = _merge_set_like_properties(value, par_target[self.key_in_par])
         par_target[self.key_in_par] = all_v_l
-        self._mb_cache = {blob_id: all_v_l}
+        #self._mb_cache = {}
 
 class NoModListNexsonDiffAddress(NexsonDiffAddress):
     def __init__(self, par=None, key_in_par=None):
@@ -633,6 +730,7 @@ class NexsonDiff(object):
         were already found in `base_blob` [_redundnant_edits or because the
         appropriate operations could not be performed on the base_blob dict)
         '''
+        #_LOG.debug('base_blob[nexml]["^ot:agents"] = {}'.format(base_blob["nexml"]["^ot:agents"]))
         self._clear_patch_related_data()
         d = self.diff_dict
         _dict_patch_modified_blob(self, base_blob, d)
@@ -939,6 +1037,10 @@ class NexsonDiff(object):
                                     dds = set(dd.keys())
                                     adds = dds - sds
                                     dels = sds - dds
+                                    if adds:
+                                        adds = tuple([dd[i] for i in adds])
+                                    _LOG.debug('_BY_ID_LIST_PROPERTIES dels = {}'.format(str(dels)))
+                                    _LOG.debug('_BY_ID_LIST_PROPERTIES adds = {}'.format(str(adds)))
                                     sub_context = context.by_id_list_child(k)
                                     inters = sds.intersection(dds)
                                     for ki in inters:
