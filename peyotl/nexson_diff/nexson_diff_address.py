@@ -259,6 +259,10 @@ class ByIdListNexsonDiffAddress(NexsonDiffAddress):
 
 
 class SetLikeListNexsonDiffAddress(NexsonDiffAddress):
+    '''Works on lists that are to be treated as sets.
+    Requires that the elements are hashable. If that cannot be guaranteed a NoModListNexsonDiffAddress
+    should be used.
+    '''
     def __init__(self, par=None, key_in_par=None):
         NexsonDiffAddress.__init__(self, par, key_in_par)
     def _try_apply_del_to_par_target(self, nexson_diff, par_target, del_v):
@@ -293,5 +297,62 @@ class SetLikeListNexsonDiffAddress(NexsonDiffAddress):
         #self._mb_cache = {}
 
 class NoModListNexsonDiffAddress(NexsonDiffAddress):
+    '''Acts like the SetLikeListNexsonDiffAddress, but works with items
+    that are not hashable. This makes it slow. Equality testing means that it
+    is O(N*M) where N and M are the lengths of the edit list (N) and destination list.
+    
+    "NoMod" refers to the fact that (when the diff is being inferred)
+        it is assumed that if 2 entities differ at all, they are not modifications of the
+        same entity.
+    '''
     def __init__(self, par=None, key_in_par=None):
         NexsonDiffAddress.__init__(self, par, key_in_par)
+    def _try_apply_del_to_par_target(self, nexson_diff, par_target, del_v):
+        target = par_target.get(self.key_in_par)
+        if target is None:
+            nexson_diff._redundant_edits['deletions'].append((del_v, self))
+        #_LOG.debug('before target = {}'.format(target))
+        inds_to_del = set()
+        for doomed_el in del_v:
+            found = False
+            #_LOG.debug('kid = {}'.format(kid))
+            for n, el in enumerate(target):
+                try:
+                    if el == doomed_el:
+                        inds_to_del.add(n)
+                        found = True
+                        break
+                except:
+                    raise
+                    pass
+            if not found:
+                nexson_diff._redundant_edits['deletions'].append((doomed_el, self))
+        inds_to_del = list(inds_to_del)
+        inds_to_del.sort(reverse=True)
+        for n in inds_to_del:
+            target.pop(n)
+        #_LOG.debug('after target = {}'.format(target))
+        return bool(inds_to_del)
+
+    def _try_apply_add_to_par_target(self, nexson_diff, par_target, added_list, was_mod, blob_id):
+        target = par_target.get(self.key_in_par)
+        if target is None:
+            nexson_diff._unapplied_edits['addition'].append((added_list, self))
+        #_LOG.debug('before-add target = {}'.format(target))
+        for ael in added_list:
+            found = False
+            for n, el in enumerate(target):
+                try:
+                    if el == ael:
+                        found = True
+                        break
+                except:
+                    raise
+                    pass
+            if not found:
+                target.append(ael)
+        #_LOG.debug('after-add target = {}'.format(target))
+        return True, True
+
+    def _try_apply_mod_to_par_target(self, nexson_diff, par_target, value, blob_id):
+        assert False, 'It is called NoModListNexsonDiffAddress for a reason'

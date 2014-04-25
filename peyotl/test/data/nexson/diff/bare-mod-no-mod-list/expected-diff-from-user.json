@@ -1,0 +1,46 @@
+{
+"additions": [
+{
+"address": [
+"nexml", 
+"^ot:agents", 
+"agent", 
+"peyotl-validator", 
+"@otheradded"
+], 
+"value": "prop"
+}, 
+{
+"address": [
+"nexml", 
+"^ot:agents", 
+"agent", 
+"peyotl-validator", 
+"invocation", 
+"checksPerformed"
+], 
+"value": [
+{
+"k": "SECOND_OTHER", 
+"v": 1
+}, 
+"THIRD_OTHER"
+]
+}
+], 
+"deletions": [
+{
+"address": [
+"nexml", 
+"^ot:agents", 
+"agent", 
+"peyotl-validator", 
+"invocation", 
+"checksPerformed"
+], 
+"value": [
+"TO_RETAIN_U"
+]
+}
+]
+}

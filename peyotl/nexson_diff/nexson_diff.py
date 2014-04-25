@@ -801,7 +801,6 @@ def detect_no_mod_list_dels_adds(src, dest):
         dels = the objects in src for which there is not object in dest that compares equal to
         adds = the objects in dest for which there is not object in src that compares equal to
     '''
-    assert False
     dfound_set = set()
     sunfound_set = set()
     dels, adds = [], []
@@ -814,7 +813,7 @@ def detect_no_mod_list_dels_adds(src, dest):
                 break
         if not found:
             dels.append(el)
-            sunfound_set.append(sn)
+            sunfound_set.add(sn)
     for dn, d_el in enumerate(dest):
         if dn not in dfound_set:
             found = False

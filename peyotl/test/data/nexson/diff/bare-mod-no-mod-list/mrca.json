@@ -1,0 +1,24 @@
+{
+"nexml": {
+"@nexml2json": "1.2.1", 
+"^ot:agents": {
+"agent": [
+{
+"@description": "some desc", 
+"@id": "peyotl-validator",
+"@todelprop": 5,
+"invocation": {
+"checksPerformed": [
+"FIRST_MRCA",
+"SECOND_MRCA",
+"THIRD_MRCA",
+{"k": "OBJ_TO_DEL"},
+"TO_RETAIN_U",
+"TO_RETAIN_BOTH"
+]
+}
+}
+]
+}
+}
+}
