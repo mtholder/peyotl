@@ -1,0 +1,31 @@
+{
+"additions": [
+{
+"address": [
+"nexml", 
+"^ot:agents", 
+"agent", 
+"peyotl-validator", 
+"@otheradded"
+], 
+"value": "prop"
+}, 
+{
+"address": [
+"nexml", 
+"^ot:agents", 
+"agent"
+], 
+"value": [
+{
+"@description": "some other desc", 
+"@id": "peyotl-validator-others", 
+"@todelprop": 5
+}
+]
+}
+], 
+"key-ordering": {
+"treesById": {}
+}
+}
