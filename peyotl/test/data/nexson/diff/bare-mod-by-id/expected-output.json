@@ -1,0 +1,16 @@
+{
+"nexml": {
+"@nexml2json": "1.2.1", 
+"^ot:agents": {
+"agent": [
+{
+"@description": "some description", 
+"@id": "peyotl-validator", 
+"@otheradded": "prop", 
+"bogus": 5,
+"@otheradded": "prop"
+}
+]
+}
+}
+}

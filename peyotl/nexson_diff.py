@@ -4,7 +4,7 @@ from peyotl.nexson_syntax import detect_nexson_version, \
                                  write_as_json, \
                                  _is_by_id_hbf, \
                                  edge_by_source_to_edge_dict
-from peyotl.struct_diff import DictDiff, ListDiff
+from peyotl.struct_diff import DictDiff
 from peyotl.utility import get_logger
 import itertools
 import json
@@ -84,6 +84,7 @@ def _add_in_order(dest, new_items, full_list, set_contained):
                 prev_ind = dest.index(prev)
                 dest.insert(prev_ind + 1, i)
                 prev = i
+
 def _register_ordered_edit_not_made(container,
                                     edit_core,
                                     by_id_property,
@@ -222,6 +223,7 @@ def _ordering_patch_modified_blob(nexson_diff, base_blob, ordering_dict):
                                                  g,
                                                  k,
                                                  None)
+
 def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
     dels = diff_dict['deletions']
     adds = diff_dict['additions']
@@ -430,8 +432,8 @@ class NexsonDiffAddress(object):
 
     def try_apply_del_to_mod_blob(self, nexson_diff, blob, del_v):
         assert self.par is not None # can't delete the whole blob!
-        _LOG.debug('del call on self.key_in_par = "{}"'.format(self.key_in_par))
         par_target = self._find_par_el_in_mod_blob(blob)
+        _LOG.debug('del call on self.key_in_par = "{}" on par_target = "{}"'.format(self.key_in_par, par_target))
         #_LOG.debug('self.key_in_par = {} par_target={}'.format(self.key_in_par, par_target))
         if par_target is None:
             return False
@@ -455,6 +457,7 @@ class NexsonDiffAddress(object):
         '''
         assert self.par is not None
         par_target = self._find_par_el_in_mod_blob(blob)
+        _LOG.debug('add call on self.key_in_par = "{}" on {}'.format(self.key_in_par, par_target))
         if par_target is None:
             return False, False
         assert isinstance(par_target, dict)
@@ -475,26 +478,16 @@ class NexsonDiffAddress(object):
         if self.key_in_par in par_target:
             return False, True
         assert not isinstance(value, DictDiff)
-        assert not isinstance(value, ListDiff)
         par_target[self.key_in_par] = value
         self._mb_cache = {}
         return True, True
 
     def try_apply_mod_to_mod_blob(self, nexson_diff, blob, value, was_add):
         par_target = self._find_par_el_in_mod_blob(blob)
+        _LOG.debug('mod call on self.key_in_par = "{}" to "{}" applied to par_target="{}"'.format(self.key_in_par, value, par_target))
         if self.key_in_par not in par_target:
             return False
         assert not isinstance(value, DictDiff)
-        if isinstance(value, ListDiff):
-            target = self._find_el_in_mod_blob(blob)
-            if not isinstance(target, list):
-                target = [target]
-                par_target[self.key_in_par] = target
-            return _list_patch_modified_blob(nexson_diff,
-                                             target,
-                                             value._deletions,
-                                             value._additions,
-                                             value._modifications)
         if par_target.get(self.key_in_par) == value:
             if was_add:
                 container = nexson_diff._redundant_edits['additions']
@@ -531,7 +524,7 @@ class ByIdListNexsonDiffAddress(NexsonDiffAddress):
             #_LOG.debug('cache miss')
             if self._mb_cache:
                 self._mb_cache = {}
-            _LOG.debug('Calling  ByIdListNexsonDiffAddress._find_par_el_in_mod_blob from self.key_in_par = {}'.format(self.key_in_par))
+            #_LOG.debug('Calling  ByIdListNexsonDiffAddress._find_par_el_in_mod_blob from self.key_in_par = {}'.format(self.key_in_par))
             par_target = self._find_par_el_in_mod_blob(blob)
             #_LOG.debug('self.key_in_par = {}, par_target = {}'.format(self.key_in_par, par_target))
             assert isinstance(par_target, dict)
@@ -628,7 +621,6 @@ class SetLikeListNexsonDiffAddress(NexsonDiffAddress):
             #self._mb_cache = {}
             return True, True
         assert not isinstance(value, DictDiff)
-        assert not isinstance(value, ListDiff)
         par_target[self.key_in_par] = value
         #self._mb_cache = {blob_id: value}
         return True, True
@@ -1047,8 +1039,9 @@ class NexsonDiff(object):
                                         dsv = dd[ki]
                                         ssv = sd[ki]
                                         if dsv != ssv:
+                                            _LOG.debug('{} != {}'.format(dsv, ssv))
                                             sub_sub_context = sub_context.child(ki)
-                                            self._calculate_generic_diffs(dsv, ssv, skip_dict=sub_skip_dict, context=sub_sub_context)
+                                            self._calculate_generic_diffs(ssv, dsv, skip_dict=sub_skip_dict, context=sub_sub_context)
                                 else:
                                     # treat like _NO_MOD_PROPERTIES
                                     # ugh not efficient...
@@ -1065,10 +1058,12 @@ class NexsonDiff(object):
                                     sub_context = context.set_like_list_child(k)
                                 else:
                                     sub_context = context.child(k)
+                                _LOG.debug('mod key "{}" from "{}" to "{}"'.format(k, v, dv))
                                 self.add_modification(dv, context=sub_context)
                 else:
                     if sub_context is None:
                         sub_context = context.child(k)
+                    _LOG.debug('del key "{}"'.format(k))
                     self.add_deletion(v, context=sub_context)
         elif k in dest:
             do_generic_calc = True
@@ -1083,7 +1078,7 @@ class NexsonDiff(object):
                         sub_context = context.set_like_list_child(k)
                     else:
                         sub_context = context.child(k)
-
+                _LOG.debug('add key "{}" from "{}"'.format(k, dest[k]))
                 self.add_addition(dest[k], context=sub_context)
 
 

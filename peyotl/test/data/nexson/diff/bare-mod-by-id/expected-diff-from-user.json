@@ -1,0 +1,14 @@
+{
+"additions": [
+{
+"address": [
+"nexml", 
+"^ot:agents", 
+"agent", 
+"peyotl-validator", 
+"@otheradded"
+], 
+"value": "prop"
+}
+]
+}
