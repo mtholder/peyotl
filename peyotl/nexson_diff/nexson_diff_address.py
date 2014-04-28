@@ -2,6 +2,7 @@
 '''Code for holding the address of nexson diff element,
 finding the container for that diff in another nexson blob,  and applying a patch..
 '''
+from peyotl.nexson_syntax import edge_by_source_to_edge_dict
 from peyotl.struct_diff import DictDiff
 from peyotl.utility import get_logger
 import itertools
@@ -50,6 +51,9 @@ class NexsonDiffAddress(object):
 
     def no_mod_list_child(self, key_in_par):
         return NoModListNexsonDiffAddress(self, key_in_par)
+
+    def create_tree_context(self):
+        return TreeNexsonDiffAddress(self.par, self.key_in_par)
 
     def as_ot_target(self):
         if self._as_ot_dict is None:
@@ -356,3 +360,37 @@ class NoModListNexsonDiffAddress(NexsonDiffAddress):
 
     def _try_apply_mod_to_par_target(self, nexson_diff, par_target, value, blob_id):
         assert False, 'It is called NoModListNexsonDiffAddress for a reason'
+
+
+class TreeNexsonDiffAddress(NexsonDiffAddress):
+    def __init__(self, par=None, key_in_par=None):
+        NexsonDiffAddress.__init__(self, par, key_in_par)
+        self._blob_to_edge_dict = {}
+    def try_apply_rerooting_to_mod_blob(self,
+                                        nexson_diff,
+                                        base_blob,
+                                        new_root_id,
+                                        del_nd_edge,
+                                        add_nd_edge):
+        par_target = self._find_par_el_in_mod_blob(base_blob)
+        #_LOG.debug('mod call on self.key_in_par = "{}" to "{}" applied to par_target="{}"'.format(self.key_in_par, value, par_target))
+        target = par_target.get(self.key_in_par)
+        if target is None:
+            return False
+
+        bib = id(base_blob)
+        edge_dict = self._blob_to_edge_dict.get(bib)
+        if edge_dict is None:
+            self._blob_to_edge_dict = {}
+            ebs = target['edgeBySourceId']
+            edge_dict = edge_by_source_to_edge_dict(ebs)
+            self._blob_to_edge_dict[bib] = edge_dict
+            
+        _LOG.debug('edge_dict = {}'.format(edge_dict))
+        _LOG.debug('nri = {}\ndel = {}\nadd = {}'.format(new_root_id, del_nd_edge, add_nd_edge))
+        import sys; sys.exit(self.key_in_par)
+    def edge_child(self):
+        return TreeEdgeNexsonDiffAddress(self)
+class TreeEdgeNexsonDiffAddress(NexsonDiffAddress):
+    def __init__(self, par=None):
+        NexsonDiffAddress.__init__(self, par, None)

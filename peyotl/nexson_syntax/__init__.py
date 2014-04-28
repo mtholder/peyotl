@@ -338,6 +338,8 @@ def edge_by_source_to_edge_dict(edge_by_source):
     Returns a dictionary of all edge_ids to edge objects.
     '''
     ed = {}
+    _LOG.debug('edge_by_source = {}'.format(edge_by_source))
     for v in edge_by_source.values():
+        _LOG.debug('v = {}'.format(v))
         ed.update(v)
     return ed
