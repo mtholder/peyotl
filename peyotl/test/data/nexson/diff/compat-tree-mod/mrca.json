@@ -1,0 +1,159 @@
+{
+"nexml": {
+"@generator": "org.opentreeoflife.api.nexsonvalidator.nexson_nexml", 
+"@id": "bogusStudyID",
+"@nexml2json": "1.2.1", 
+"@version": "0.9", 
+"@xmlns": {
+"$": "http://www.nexml.org/2009", 
+"nex": "http://www.nexml.org/2009", 
+"ot": "http://purl.org/opentree/nexson", 
+"skos": "http://www.w3.org/2004/02/skos/core#", 
+"tb": "http://purl.org/phylo/treebase/2.0/terms#", 
+"xsd": "http://www.w3.org/2001/XMLSchema#", 
+"xsi": "http://www.w3.org/2001/XMLSchema-instance"
+}, 
+"^ot:candidateTreeForSynthesis": "tr1", 
+"^ot:otusElementOrder": [
+"ob1"
+], 
+"^ot:tag": "by user",
+"^ot:treesElementOrder": [
+"tb1"
+], 
+"otusById": {
+"ob1": {
+"otuById": {
+"otu2": {
+"^ot:originalLabel": "otu2orig"
+},
+"otu3": {
+"^ot:originalLabel": "otu3orig"
+},
+"otu4": {
+"^ot:originalLabel": "otu4orig"
+},
+"otu88801": {
+"@label": "Ancyromonas sigmoides", 
+"^ot:originalLabel": {
+"$": "Ancyromonas sigmoides", 
+"@id": "bogus"
+}, 
+"^ot:ottId": 415973, 
+"^ot:studyPublication": {
+"@href": "http://dx.doi.org/10.3732/ajb.94.12.2026"
+}, 
+"^skos:closeMatch": [
+{
+"@href": "http://purl.uniprot.org/taxonomy/94215", 
+"@id": "meta4912509"
+}, 
+{
+"@href": "http://purl.uniprot.org/taxonomy/102624", 
+"@id": "meta4912517"
+}
+], 
+"^tb:identifier.taxon": {
+"$": 7002, 
+"@id": "m0"
+}
+}
+}
+}
+}, 
+"treesById": {
+"tb1": {
+"@otus": "ob1", 
+"^ot:treeElementOrder": [
+"tr1",
+"tr2"
+], 
+"treeById": {
+"tr1": {
+"@xsi:type": "nex:FloatTree", 
+"edgeBySourceId": {
+"n0": {
+"e0": {
+"@source": "n0", 
+"@target": "n1"
+}
+}
+}, 
+"nodeById": {
+"n0": {
+"@root": true
+}, 
+"n1": {
+"@otu": "otu88801"
+}
+}, 
+"^ot:rootNodeId": "n0"
+}, 
+"tr2": {
+"@xsi:type": "nex:FloatTree", 
+"edgeBySourceId": {
+"n2": {
+"e1": {
+"@length": 0.1,
+"@source": "n2", 
+"@target": "n3"
+},
+"e2": {
+"@length": 0.22,
+"@source": "n2", 
+"@target": "n7"
+}
+},
+"n7": {
+"e3": {
+"@length": 0.333,
+"@source": "n7", 
+"@target": "n4"
+},
+"e4": {
+"@length": 0.4444,
+"@source": "n7", 
+"@target": "n8"
+}
+},
+"n8": {
+"e5": {
+"@length": 0.5555,
+"@source": "n8", 
+"@target": "n5"
+},
+"e6": {
+"@length": 0.666666,
+"@source": "n8", 
+"@target": "n6"
+}
+}
+}, 
+"nodeById": {
+"n2": {
+"@root": true
+}, 
+"n3": {
+"@otu": "otu88801"
+}, 
+"n4": {
+"@otu": "otu2"
+}, 
+"n5": {
+"@otu": "otu3"
+}, 
+"n6": {
+"@otu": "otu4"
+}, 
+"n7": {
+}, 
+"n8": {
+}
+}, 
+"^ot:rootNodeId": "n2"
+}
+}
+}
+}
+}
+}

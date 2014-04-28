@@ -2,7 +2,7 @@
 '''Code for holding the address of nexson diff element,
 finding the container for that diff in another nexson blob,  and applying a patch..
 '''
-from peyotl.nexson_syntax import edge_by_source_to_edge_dict
+from peyotl.nexson_syntax import invert_edge_by_source
 from peyotl.struct_diff import DictDiff
 from peyotl.utility import get_logger
 import itertools
@@ -366,6 +366,7 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
     def __init__(self, par=None, key_in_par=None):
         NexsonDiffAddress.__init__(self, par, key_in_par)
         self._blob_to_edge_dict = {}
+        self._blob_to_target2id = {}
     def try_apply_rerooting_to_mod_blob(self,
                                         nexson_diff,
                                         base_blob,
@@ -380,17 +381,58 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
 
         bib = id(base_blob)
         edge_dict = self._blob_to_edge_dict.get(bib)
+        ebs = target['edgeBySourceId']
         if edge_dict is None:
             self._blob_to_edge_dict = {}
-            ebs = target['edgeBySourceId']
-            edge_dict = edge_by_source_to_edge_dict(ebs)
+            edge_dict, target2id = invert_edge_by_source(ebs)
             self._blob_to_edge_dict[bib] = edge_dict
-            
+            self._blob_to_target2id[bib] = target2id
+        else:
+            target2id = self._blob_to_target2id[bib]
+        target_root = target['^ot:rootNodeId'] 
+        if target_root == new_root_id:
+            nexson_diff._redundant_edits['rerootings'].append((new_root_id, del_nd_edge, add_nd_edge, self))
+            return True
+        nd_to_del, edge_to_del_tuple = del_nd_edge
+        if nd_to_del and (target_root != nd_to_del):
+        if (not nd_to_del) and len(ebs[target_root]) > 2:
+            nexson_diff._unapplied_edits['rerootings'].append((new_root_id, del_nd_edge, add_nd_edge, self))
+            return False
+        # Unpack the data from the args...
+        if edge_to_del_tuple is not None:
+            etd_id, edge_to_del = edge_to_del_tuple
+        else:
+            etd_id, edge_to_del = None, None
+        nd_to_add, edge_to_add_tuple = add_nd_edge
+        if edge_to_add_tuple is not None:
+            eta_id, edge_to_add = edge_to_add_tuple
+        else:
+            eta_id, edge_to_add = None, None
+        # Do the actual rerooting...
+        target['^ot:rootNodeId'] = new_root_id
+        if new_root_id in ebs:
+            assert(nd_to_add is None)
+        else:
+            assert(nd_to_add is not None)
+        assert(nd_to_add['@id'] == new_root_id)
+        if edge_to_add is None:
+            assert(new_root_id in target2id)
+            etf_id = target2id[new_root_id]
+            edge_to_flip = edge_dict[etf_id]
+        else:
+            assert(eta_id not in edge_dict)
+            target_of_eta = edge_to_add
         _LOG.debug('edge_dict = {}'.format(edge_dict))
         _LOG.debug('nri = {}\ndel = {}\nadd = {}'.format(new_root_id, del_nd_edge, add_nd_edge))
+        code 
+          here
         import sys; sys.exit(self.key_in_par)
     def edge_child(self):
         return TreeEdgeNexsonDiffAddress(self)
 class TreeEdgeNexsonDiffAddress(NexsonDiffAddress):
     def __init__(self, par=None):
         NexsonDiffAddress.__init__(self, par, None)
+
+
+nd_to_add, edge_to_add = add_nd_edge
+        

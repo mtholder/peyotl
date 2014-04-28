@@ -338,8 +338,27 @@ def edge_by_source_to_edge_dict(edge_by_source):
     Returns a dictionary of all edge_ids to edge objects.
     '''
     ed = {}
-    _LOG.debug('edge_by_source = {}'.format(edge_by_source))
+    #_LOG.debug('edge_by_source = {}'.format(edge_by_source))
     for v in edge_by_source.values():
-        _LOG.debug('v = {}'.format(v))
+        #_LOG.debug('v = {}'.format(v))
         ed.update(v)
     return ed
+
+def invert_edge_by_source(edge_by_source):
+    '''Takes a dictionary with keys as source nodes and
+    values are dictionaries of edge_id to edge object
+
+    Returns a pair of dictionaries:
+        edge_ids -> edge objects, and
+        target_id -> edge_id
+    '''
+    ed = {}
+    bt = {}
+    #_LOG.debug('edge_by_source = {}'.format(edge_by_source))
+    for v in edge_by_source.values():
+        #_LOG.debug('v = {}'.format(v))
+        ed.update(v)
+        for eid, edge_obj in v.items():
+            target_id = edge_obj['@target']
+            bt[target_id] = eid
+    return ed, bt

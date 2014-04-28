@@ -588,10 +588,17 @@ class NexsonDiff(object):
         self.activate_tree_diffs()
         t_context = None
         try:
-            deleted_node = None
-            added_node = None
-            deleted_edge = None
-            added_edge = None
+            reroot_info = {'add_edge': None,
+                           'add_edge_id': None,
+                           'add_node': None,
+                           'add_node_id': None,
+                           'add_node_children': None,
+                           'del_edge': None,
+                           'del_edge_id': None,
+                           'del_node': None,
+                           'del_node_id': None,
+                           'new_root_id': None
+            }
             if not nodes_equal:
                 if t_context is None:
                     t_context = context.create_tree_context()
@@ -603,12 +610,14 @@ class NexsonDiff(object):
                             n_context = sub_context.child(nid)
                             self._calculate_generic_diffs(s_node, d_node, None, n_context)
                     else:
-                        assert deleted_node is None
-                        deleted_node = (nid, s_node)
+                        assert reroot_info['del_node'] is None
+                        reroot_info['del_node'] = s_node
+                        reroot_info['del_node_id'] = nid
                     #    n_context = sub_context.child(nid)
                     #    self.add_deletion(n_context)
                 if d_root not in s_node_id_set:
-                    added_node = (d_root, d_node_bid.get(d_root))
+                    reroot_info['add_node_id'] = d_root
+                    reroot_info['add_node_children'] = d_node_bid.get(d_root)
                 #    d_node = d_node_bid.get(d_root)
                 #    n_context = sub_context.child(d_root)
                 #    self.add_addition(d_node, n_context)
@@ -624,8 +633,9 @@ class NexsonDiff(object):
                 for eid, s_edge in s_edges.items():
                     d_edge = d_edges.get(eid)
                     if d_edge is None:
-                        assert deleted_edge is None
-                        deleted_edge = (eid, s_edge)
+                        assert reroot_info['del_edge'] is None
+                        reroot_info['del_edge'] = s_edge
+                        reroot_info['del_edge_id'] = eid
                     else:
                         if d_edge != s_edge:
                             e_context = sub_context.child(eid)
@@ -641,7 +651,7 @@ class NexsonDiff(object):
                                 pass
                             else:
                                 raise_except = True
-                                if deleted_node and deleted_node[0] == s_s:
+                                if reroot_info['del_node_id'] == s_s:
                                     opp_nd = None
                                     if s_t == d_s:
                                         opp_nd = d_t
@@ -653,7 +663,7 @@ class NexsonDiff(object):
                                             if se['@target'] == opp_nd:
                                                 raise_except = False
                                                 break
-                                elif added_node and added_node[0] == d_s:
+                                elif reroot_info['add_node_id'] == d_s:
                                     opp_nd = None
                                     if d_t == s_s:
                                         opp_nd = s_t
@@ -679,16 +689,16 @@ class NexsonDiff(object):
                         raise ValueError(msg)
                     aeid = extra_eid_set.pop()
                     ae = d_edges[aeid]
-                    added_edge = (aeid, ae)
+                    reroot_info['add_edge_id'], reroot_info['add_edge'] = aeid, ae
                 if d_root != s_root:
                     if t_context is None:
                         t_context = context.create_tree_context()
-                    self.add_rerooting(d_root, (deleted_node, deleted_edge), (added_node, added_edge), t_context)
+                    self.add_rerooting(reroot_info, t_context)
                 else:
-                    assert deleted_node is None
-                    assert deleted_edge is None
-                    assert added_node is None
-                    assert added_edge is None
+                    assert reroot_info['del_node'] is None
+                    assert reroot_info['del_edge'] is None
+                    assert reroot_info['add_node_id'] is None
+                    assert reroot_info['add_edge_id'] is None
         finally:
             self.activate_nontree_diffs()
 
