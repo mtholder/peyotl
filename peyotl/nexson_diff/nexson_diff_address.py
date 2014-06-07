@@ -394,8 +394,8 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
             nexson_diff._redundant_edits['rerootings'].append((new_root_id, del_nd_edge, add_nd_edge, self))
             return True
         nd_to_del, edge_to_del_tuple = del_nd_edge
-        if nd_to_del and (target_root != nd_to_del):
-        if (not nd_to_del) and len(ebs[target_root]) > 2:
+        if (nd_to_del and (target_root != nd_to_del)) \
+           or ((not nd_to_del) and len(ebs[target_root]) > 2):
             nexson_diff._unapplied_edits['rerootings'].append((new_root_id, del_nd_edge, add_nd_edge, self))
             return False
         # Unpack the data from the args...
@@ -424,8 +424,8 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
             target_of_eta = edge_to_add
         _LOG.debug('edge_dict = {}'.format(edge_dict))
         _LOG.debug('nri = {}\ndel = {}\nadd = {}'.format(new_root_id, del_nd_edge, add_nd_edge))
-        code 
-          here
+        #code 
+        #  here
         import sys; sys.exit(self.key_in_par)
     def edge_child(self):
         return TreeEdgeNexsonDiffAddress(self)
@@ -434,5 +434,5 @@ class TreeEdgeNexsonDiffAddress(NexsonDiffAddress):
         NexsonDiffAddress.__init__(self, par, None)
 
 
-nd_to_add, edge_to_add = add_nd_edge
+#nd_to_add, edge_to_add = add_nd_edge
         
