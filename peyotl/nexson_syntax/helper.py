@@ -16,9 +16,22 @@ NEXML_NEXSON_VERSION = 'nexml'
 SUPPORTED_NEXSON_VERSIONS = frozenset([BADGER_FISH_NEXSON_VERSION,
                                        DIRECT_HONEY_BADGERFISH,
                                        BY_ID_HONEY_BADGERFISH])
+SUPPORTED_NEXSON_VERSIONS_AND_ALIASES = frozenset([BADGER_FISH_NEXSON_VERSION,
+                                                   DIRECT_HONEY_BADGERFISH,
+                                                   BY_ID_HONEY_BADGERFISH,
+                                                   '0',
+                                                   '0.0',
+                                                   '1.0',
+                                                   '1.2'])
 # TODO: in lieu of real namespace support...
 _LITERAL_META_PAT = re.compile(r'.*[:]?LiteralMeta$')
 _RESOURCE_META_PAT = re.compile(r'.*[:]?ResourceMeta$')
+
+def detect_nexson_version(blob):
+    '''Returns the nexml2json attribute or the default code for badgerfish'''
+    n = get_nexml_el(blob)
+    assert isinstance(n, dict)
+    return n.get('@nexml2json', BADGER_FISH_NEXSON_VERSION)
 
 def get_nexml_el(blob):
     v = blob.get('nexml')
@@ -133,6 +146,7 @@ def _add_uniq_value_to_dict_bf(d, k, v):
 _is_badgerfish_version = lambda x: x.startswith('0.')
 _is_direct_hbf = lambda x: x.startswith('1.0.')
 _is_by_id_hbf = lambda x: x.startswith('1.2')
+_is_supported_nexson_vers = lambda x: x in SUPPORTED_NEXSON_VERSIONS_AND_ALIASES
 
 def _debug_dump_dom(el):
     '''Debugging helper. Prints out `el` contents.'''
@@ -280,6 +294,9 @@ def find_val_for_first_bf_r_meta(d, prop_name):
             return extract_meta(m_el)
     return None
 
+def find_val_for_first_hbf_l_meta(d, prop_name):
+    p = '^' + prop_name
+    return d.get(p)
 
 def find_val_literal_meta_first(d, prop_name, version):
     if _is_badgerfish_version(version):

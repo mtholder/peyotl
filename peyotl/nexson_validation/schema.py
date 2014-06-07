@@ -164,7 +164,7 @@ def check_hbf_meta_int(x, obj, k, vc):
         return check_obj_meta_int(x, obj, k, vc)
     return check_raw_int(x, obj, k, vc)
 def check_raw_float(x, obj, k, vc):
-    return  __TRUE_VAL if (isinstance(x, float)) else __FALSE_FLOAT
+    return  __TRUE_VAL if (isinstance(x, float) or isinstance(x, int)) else __FALSE_FLOAT
 def check_obj_meta_float(x, obj, k, vc):
     mo = extract_meta(x)
     _check_id(x, obj, k, vc)
@@ -236,7 +236,7 @@ def check_hbf_meta_str_repeatable(x, obj, k, vc):
             return __FALSE_STR_REPEATABLE_EL
     return __TRUE_VAL
 
-class _VT:
+class _VT(object):
     '''Value type enum'''
     BOOL = 0
     DICT = 1
@@ -314,9 +314,11 @@ _ExpMNexmlEl_All = {'ot:dataDeposit': _VT.HREF,
                     'ot:studyPublicationReference': _VT.STR,
                     'ot:studyYear': _VT.INT,
                    }
-_TypMNexmlEl_All = {'ot:curatorName': _VT.STR_REPEATABLE_EL,
+_TypMNexmlEl_All = {'ot:annotationEvents': _VT.DICT,
+                    'ot:curatorName': _VT.STR_REPEATABLE_EL,
                     'ot:focalClade': _VT.INT,
                     'ot:focalCladeOTTTaxonName': _VT.STR,
+                    'ot:messages': _VT.DICT,
                     'ot:notIntendedForSynthesis': _VT.BOOL,
                     'ot:notUsingRootedTrees': _VT.BOOL,
                     'ot:studyId': _VT.STR,
@@ -401,6 +403,7 @@ _ExpMOtuEl_All = {'ot:ottId': _VT.INT,
                  }
 _TypMOtuEl_All = {'ot:treebaseOTUId': _VT.STR,
                   'ot:ottTaxonName': _VT.STR,
+                  'ot:altLabel': _VT.STR,
                   'ot:taxonLink': _VT.DICT,
                   "skos:altLabel": _VT.LIST_OR_DICT,
                  }
@@ -485,10 +488,12 @@ _All_TreeEl_Dir = {'@about': _VT.STR,
 _ReqMTreeEl_ByI = {'ot:rootNodeId': _VT.STR,
                  }
 _ReqMTreeEl_Dir = _EMPTY_DICT
-_ExpMTreeEl_All = {'ot:branchLengthTimeUnit': _VT.STR,
+_ExpMTreeEl_All = {'ot:branchLengthDescription': _VT.STR,
+                   'ot:branchLengthTimeUnit': _VT.STR,
                    'ot:branchLengthMode': _VT.STR,
                    'ot:curatedType': _VT.STR,
                    'ot:inGroupClade': _VT.STR,
+                   'ot:outGroupEdge': _VT.STR,
                    }
 _TypMTreeEl_All = {'ot:specifiedRoot': _VT.STR,
                    'ot:tag': _VT.STR_REPEATABLE_EL,

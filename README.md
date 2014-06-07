@@ -1,16 +1,14 @@
 # ![peyotl](https://raw.githubusercontent.com/OpenTreeOfLife/peyotl/master/doc/peyotl-logo.png)
 
 <code>peyotl</code> is a python package written to make it easier to
-access web services and data
-associated with the [Open Tree of Life project] [1].
-
-This is intended to hold utility code to make it easier to:
+interact with the software produced by the [Open Tree of Life project] [1].
+Specifically, to:
 
 1. interact with a local version of the [phylesystem] [2] repository of 
     curated phylogenetic studies ;
 
 2. call web services associated with the studies (served by web app 
-    running the [api.opentree.org code] [3]);
+    running the [phylesystem-api code] [3]);
 
 3. call web services associated with taxonomic resolution services
     (running [taxomachine] [4] );
@@ -22,7 +20,7 @@ This is intended to hold utility code to make it easier to:
      we have not built yet)
 
 Currently peyotl is used to implement most of the functionality in the 
-study curation [API] [3].
+[phylesystem-api] [3] backend of the study curation tool.
 
 ## Installation
 
@@ -43,6 +41,26 @@ your local copy of phylesystem repos.
 
 The environmental variable, PHYLESYSTEM_PARENT, if set will be used rather 
 than the config-based value.
+
+### Logging configuration
+
+If PEYOTL_LOGGING_LEVEL is in the environment, then the behavior of 
+the log is determined by environmental variables:
+   PEYOTL_LOG_FILE_PATH filepath of log file (StreamHandler if omitted)
+   PEYOTL_LOGGING_LEVEL (NotSet, debug, info, warning, error, or critical)
+   PEYOTL_LOGGING_FORMAT  "rich", "simple" or "None" (None is default)
+
+Otherwise, these logger settings are now controlled by a
+ ~/.peyotl/config or the peyotl/default.conf file. The content to configure
+ the logger looks like:
+
+[logging]
+level = debug
+filepath = /absolute/path/to/log/file/here
+formatter = rich
+
+You probably want to replace the default behavior by specifying
+PEYOTL_LOGGING_LEVEL or having a ~/.peyotl/config file.
 
 # Testing
 

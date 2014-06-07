@@ -180,6 +180,7 @@ class DefaultRichLogger(object):
         invocation_obj = {
             'commandLine': [i for i in invocation if i.startswith('--')],
             'checksPerformed': checks_performed,
+            #'checksPerformed': checks_performed,
             'otherProperty': [
                 {'name': 'pythonVersion',
                 'value': platform.python_version()},

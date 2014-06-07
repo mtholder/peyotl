@@ -1,7 +1,10 @@
 #!/usr/bin/env python
+from peyotl import get_logger
 from peyotl import write_as_json
 from peyotl.nexson_syntax.helper import add_literal_meta, \
+                                        detect_nexson_version, \
                                         find_val_literal_meta_first
+_LOG = get_logger(__name__)
 SYNTAX_VERSION = '0.0.0'
 def _rec_resource_meta(blob, k):
     if k == 'meta' and isinstance(blob, dict):
@@ -114,24 +117,85 @@ def _move_ott_taxon_name_to_otu(obj):
 
 def _move_otu_at_label_properties(obj):
     nex = obj['nexml']
-    ogl = nex['otus']
-    if not isinstance(ogl, list):
-        ogl = [ogl]
-    for og in ogl:
-        for otu in og['otu']:
-            ol = find_val_literal_meta_first(otu, 'ot:originalLabel', SYNTAX_VERSION)
-            assert ol is not None
-            label_att = otu.get('@label')
-            if label_att is not None:
-                del otu['@label']
-                if label_att != ol:
-                    ml = find_val_literal_meta_first(otu, 'ot:ottTaxonName', SYNTAX_VERSION)
-                    if (not ml) or (ml != label_att):
-                        add_literal_meta(otu, 'ot:altLabel', label_att, SYNTAX_VERSION)
+    if 'otus' in nex:
+        syntax=SYNTAX_VERSION
 
-def workaround_phylografter_export_diffs(obj, out):
+        ogl = nex['otus']
+        if not isinstance(ogl, list):
+            ogl = [ogl]
+        for og in ogl:
+            for otu in og['otu']:
+                _move_label_properties_for_otu(otu, syntax)
+    else:
+        syntax = detect_nexson_version(obj)
+        assert 'otusById' in nex
+        for otus_group in nex.get('otusById', {}).values():
+            assert 'otuById' in otus_group
+            for otu in otus_group.get('otuById', {}).values():
+                _move_label_properties_for_otu(otu, syntax)
+def _move_label_properties_for_otu(otu, syntax_version):
+    ol = find_val_literal_meta_first(otu, 'ot:originalLabel', syntax_version)
+    assert ol is not None
+    label_att = otu.get('@label')
+    if label_att is not None:
+        del otu['@label']
+        if label_att != ol:
+            ml = find_val_literal_meta_first(otu, 'ot:ottTaxonName', syntax_version)
+            if (not ml) or (ml != label_att):
+                add_literal_meta(otu, 'ot:altLabel', label_att, syntax_version)
+
+def _add_defaults(obj):
+    nex = obj['nexml']
+    if '^ot:annotationEvents' not in nex:
+        nex['^ot:annotationEvents'] = {'annotation': []}
+    if '^ot:candidateTreeForSynthesis' not in nex:
+        nex['^ot:candidateTreeForSynthesis'] = []
+    if '^ot:messages' not in nex:
+        nex['^ot:messages'] = {'message': []}
+    if '^ot:tag' not in nex:
+        nex['^ot:tag'] = []
+    else:
+        v = nex['^ot:tag']
+        if not isinstance(v, list):
+            nex['^ot:tag'] = [v]
+    _EMPTY_STR_TAGS = ["^ot:branchLengthDescription",
+                       "^ot:branchLengthMode",
+                       "^ot:branchLengthTimeUnit",
+                       "^ot:outGroupEdge",
+                       "^ot:specifiedRoot",
+                       ]
+    #_LOG.debug('nex ' + str(nex.keys()) + '\n')
+    for tree_group in nex.get('treesById', {}).values():
+        #_LOG.debug('tg ' + str(tree_group.keys()) + '\n')
+        for tree in tree_group.get('treeById', {}).values():
+            #_LOG.debug('t ' + str(tree.keys()) + '\n')
+            for t in _EMPTY_STR_TAGS:
+                if t not in tree:
+                    tree[t] = ''
+            if '^ot:tag' not in tree:
+                tree['^ot:tag'] = []
+            else:
+                v = tree['^ot:tag']
+                if not isinstance(v, list):
+                    tree['^ot:tag'] = [v]
+
+
+def apr_1_2014_workaround_phylografter_export_diffs(obj, out):
     _rec_resource_meta(obj, 'root')
     _coerce_boolean(obj, 'root')
     _move_ott_taxon_name_to_otu(obj)
     _move_otu_at_label_properties(obj)
+    write_as_json(obj, out)
+
+def workaround_phylografter_export_diffs(obj, out):
+    workaround_phylografter_nexson(obj)
+    write_as_json(obj, out)
+
+def workaround_phylografter_nexson(obj):
+    _move_otu_at_label_properties(obj)
+
+def add_default_prop(obj, out):
+    # see Jim's comment on 
+    # https://groups.google.com/forum/?fromgroups&hl=en#!searchin/opentreeoflife-software/tried$20a$20commit/opentreeoflife-software/c8b_rQvUYvA/g1p-yIfmCEcJ
+    _add_defaults(obj)
     write_as_json(obj, out)

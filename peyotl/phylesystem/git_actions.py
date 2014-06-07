@@ -65,7 +65,7 @@ def get_filepath_for_namespaced_id(repo_dir, study_id):
 def get_filepath_for_simple_id(repo_dir, study_id):
     return '{r}/study/{s}/{s}.json'.format(r=repo_dir, s=study_id)
 
-class RepoLock():
+class RepoLock(object):
     def __init__(self, lock):
         self._lock = lock
     def __enter__(self):
@@ -184,6 +184,16 @@ class GitAction(object):
     def _head_sha(self):
         return git(self.git_dir_arg, self.gitwd, "rev-parse", "HEAD").strip()
 
+    def get_branch_list(self):
+        x = git(self.git_dir_arg, self.gitwd, "branch", "--no-color")
+        b = []
+        for line in x.split('\n'):
+            if line.startswith('*'):
+                line = line[1:]
+            ls = line.strip()
+            if ls:
+                b.append(ls)
+        return b
     def get_master_sha(self):
         x = git(self.git_dir_arg, self.gitwd, "show-ref", "master", "--heads", "--hash")
         return x.strip()
@@ -288,7 +298,8 @@ class GitAction(object):
 
     def fetch(self, remote='origin'):
         '''fetch from a remote'''
-        git(self.git_dir_arg, "fetch", remote)
+        git(self.git_dir_arg, "fetch", remote, _env=self.env())
+
     def push(self, branch, remote):
         git(self.git_dir_arg, 'push', remote, branch, _env=self.env())
 
@@ -499,6 +510,7 @@ class GitAction(object):
             # We can ignore this if no changes are new,
             # otherwise raise a 400
             if "nothing to commit" in e.message:#@EJM is this dangerous?
+                _LOG.debug('"nothing to commit" found in error response')
                 pass
             else:
                 _LOG.exception('"git commit" failed')

@@ -3,6 +3,7 @@
 copies of the phylesystem repositories.
 '''
 from peyotl.utility import get_config, expand_path, get_logger
+from cStringIO import StringIO
 import json
 try:
     import anyjson
@@ -33,17 +34,22 @@ _LOG = get_logger(__name__)
 _study_index_lock = Lock()
 _study_index = None
 
-
-def _get_phylesystem_parent():
+STUDY_ID_PATTERN = re.compile(r'^[a-zA-Z]+_+[0-9]+$')
+def _get_phylesystem_parent_with_source():
+    src = 'environment'
     if 'PHYLESYSTEM_PARENT' in os.environ:
         phylesystem_parent = os.environ.get('PHYLESYSTEM_PARENT')
     else:
         try:
             phylesystem_parent = expand_path(get_config('phylesystem', 'parent'))
+            src = 'configfile'
         except:
-            raise ValueError('No phylesystem parent specified in config or environmental variables')
+            raise ValueError('No [phylesystem] "parent" specified in config or environmental variables')
     x = phylesystem_parent.split(':') #TEMP hardcoded assumption that : does not occur in a path name
-    return x
+    return x, src
+
+def _get_phylesystem_parent():
+    return _get_phylesystem_parent_with_source()[0]
 
 
 def get_repos(par_list=None):
@@ -65,7 +71,7 @@ def get_repos(par_list=None):
             if os.path.isdir(os.path.join(p, name + '/.git')):
                 _repos[name] = os.path.abspath(os.path.join(p, name))
     if len(_repos) == 0:
-        raise ValueError('No git repos in {parent}'.format(str(par_list)))
+        raise ValueError('No git repos in {parent}'.format(parent=str(par_list)))
     return _repos
 
 def create_id2study_info(path, tag):
@@ -122,8 +128,33 @@ def diagnose_repo_study_id_convention(repo_dir):
             'fp_fn': get_filepath_for_namespaced_id,
             'id2alias_list': namespaced_get_alias,
     }
+class PhylesystemShardBase(object):
+    def get_rel_path_fragment(self, study_id):
+        '''For `study_id` returns the path from the
+        repo to the study file. This is useful because
+        (if you know the remote), it lets you construct the full path.
+        '''
+        with self._index_lock:
+            r = self._study_index[study_id]
+        fp = r[-1]
+        return fp[(len(self.path) + 1):] # "+ 1" to remove the /
+    def get_study_index(self):
+        return self._study_index
+    study_index = property(get_study_index)
+    def get_study_ids(self, include_aliases=False):
+        with self._index_lock:
+            k = self._study_index.keys()
+        if self.has_aliases and (not include_aliases):
+            x = []
+            for i in k:
+                if DIGIT_PATTERN.match(i) or ((len(i) > 1) and (i[-2] == '_')):
+                    pass
+                else:
+                    x.append(i)
+            return x
+        return k
 
-class PhylesystemShard(object):
+class PhylesystemShard(PhylesystemShardBase):
     '''Wrapper around a git repos holding nexson studies'''
     def __init__(self,
                  name,
@@ -179,18 +210,6 @@ class PhylesystemShard(object):
         self._next_study_id = None
         self._study_counter_lock = None
 
-    def get_study_ids(self, include_aliases=False):
-        with self._index_lock:
-            k = self._study_index.keys()
-        if self.has_aliases and (not include_aliases):
-            x = []
-            for i in k:
-                if DIGIT_PATTERN.match(i) or ((len(i) > 1) and (i[-2] == '_')):
-                    pass
-                else:
-                    x.append(i)
-            return x
-        return k
     def register_new_study(self, study_id):
         pass
 
@@ -213,17 +232,13 @@ class PhylesystemShard(object):
             for k in self._study_index.keys():
                 if k.startswith(prefix):
                     try:
-                        pn = int(k[3:])
+                        pn = int(k[lp:])
                         if pn > n:
                             n = pn
                     except:
                         pass
         with self._study_counter_lock:
             self._next_study_id = 1 + n
-
-    def get_study_index(self):
-        return self._study_index
-    study_index = property(get_study_index)
 
     def diagnose_repo_nexml2json(self):
         with self._index_lock:
@@ -239,14 +254,18 @@ class PhylesystemShard(object):
                               pkey=self.pkey,
                               path_for_study_fn=self.filepath_for_study_id_fn)
 
-    def create_git_action_for_new_study(self):
+    def create_git_action_for_new_study(self, new_study_id=None):
         ga = self.create_git_action()
-        # studies created by the OpenTree API start with ot_,
-        # so they don't conflict with new study id's from other sources
-        with self._study_counter_lock:
-            c = self._next_study_id
-            self._next_study_id = 1 + c
-        new_study_id = "ot_{c:d}".format(c=c)
+        if new_study_id is None:
+            # studies created by the OpenTree API start with ot_,
+            # so they don't conflict with new study id's from other sources
+            with self._study_counter_lock:
+                c = self._next_study_id
+                self._next_study_id = 1 + c
+            #@TODO. This form of incrementing assumes that
+            #   this codebase is the only service minting
+            #   new study IDs!
+            new_study_id = "ot_{c:d}".format(c=c)
         fp = ga.path_for_study(new_study_id)
         with self._index_lock:
             self._study_index[new_study_id] = (self.name, self.study_dir, fp)
@@ -272,16 +291,6 @@ class PhylesystemShard(object):
                            remote=remote_name)
         return True
 
-    def get_rel_path_fragment(self, study_id):
-        '''For `study_id` returns the path from the
-        repo to the study file. This is useful because
-        (if you know the remote), it lets you construct the full path.
-        '''
-        with self._index_lock:
-            r = self._study_index[study_id]
-        fp = r[-1]
-        return fp[(len(self.path) + 1):] # "+ 1" to remove the /
-
     def iter_study_filepaths(self, **kwargs):
         '''Returns a pair: (study_id, absolute filepath of study file)
         for each study in this repository.
@@ -304,7 +313,55 @@ class PhylesystemShard(object):
                 except Exception:
                     pass
 
+    def write_configuration(self, out, secret_attrs=False):
+        key_order = ['name', 'path', 'git_dir', 'study_dir', 'repo_nexml2json',
+                    'git_ssh', 'pkey', 'has_aliases', '_next_study_id',
+                    'number of studies']
+        cd = self.get_configuration_dict(secret_attrs=secret_attrs)
+        for k in key_order:
+            if k in cd:
+                out.write('  {} = {}'.format(k, cd[k]))
+        out.write('  studies in alias groups:\n')
+        for o in cd['studies']:
+            out.write('    {} ==> {}\n'.format(o['keys'], o['relpath']))
 
+    def get_configuration_dict(self, secret_attrs=False):
+        rd = {'name': self.name,
+              'path': self.path,
+              'git_dir': self.git_dir,
+              'repo_nexml2json': self.repo_nexml2json,
+              'study_dir': self.study_dir,
+              'git_ssh': self.git_ssh,
+              }
+        if self._next_study_id is not None:
+            rd['_next_study_id'] = self._next_study_id,
+        if secret_attrs:
+            rd['pkey'] = self.pkey
+        with self._index_lock:
+            si = self._study_index
+        r = _invert_dict_list_val(si)
+        key_list = r.keys()
+        rd['number of studies'] = len(key_list)
+        key_list.sort()
+        m = []
+        for k in key_list:
+            v = r[k]
+            fp = k[2]
+            assert fp.startswith(self.study_dir)
+            rp = fp[len(self.study_dir) + 1:]
+            m.append({'keys': v, 'relpath': rp})
+        rd['studies'] = m
+        return rd
+    def get_branch_list(self):
+        ga = self.create_git_action()
+        return ga.get_branch_list()
+def _invert_dict_list_val(d):
+    o = {}
+    for k, v in d.items():
+        o.setdefault(v, []).append(k)
+    for v in o.values():
+        v.sort()
+    return o
 _CACHE_REGION_CONFIGURED = False
 _REGION = None
 def _make_phylesystem_cache_region():
@@ -371,7 +428,67 @@ def _make_phylesystem_cache_region():
     return None
 
 
-class _Phylesystem(object):
+class _PhylesystemBase(object):
+    '''Impl. of some basic functionality that a _Phylesystem or _PhylesystemProxy
+    can provide.
+    '''
+    def get_repo_and_path_fragment(self, study_id):
+        '''For `study_id` returns a list of:
+            [0] the repo name and,
+            [1] the path from the repo to the study file.
+        This is useful because
+        (if you know the remote), it lets you construct the full path.
+        '''
+        with self._index_lock:
+            shard = self._study2shard_map[study_id]
+        return shard.name, shard.get_rel_path_fragment(study_id)
+
+    def get_public_url(self, study_id, branch='master'):
+        '''Returns a GitHub URL for the
+        '''
+        #@TEMP, TODO. should look in the remote to find this. But then it can be tough to determine
+        #       which (if any) remotes are publicly visible... hmmmm
+        name, path_frag = self.get_repo_and_path_fragment(study_id)
+        return 'https://raw.githubusercontent.com/OpenTreeOfLife/' + name + '/' + branch + '/' + path_frag
+    get_external_url = get_public_url
+
+class PhylesystemShardProxy(PhylesystemShardBase):
+    '''Proxy for interacting with external resources if given the
+    configuration of a remote Phylesystem
+    '''
+    def __init__(self, config):
+        self._index_lock = Lock() #TODO should invent a fake lock for the proxies
+        self.name = config['name']
+        self.repo_nexml2json = config['repo_nexml2json']
+        self.path = ' ' # mimics place of the abspath of repo in path -> relpath mapping
+        self.has_aliases = False
+        d = {}
+        for study in config['studies']:
+            kl = study['keys']
+            if len(kl) > 1:
+                self.has_aliases = True
+            for k in study['keys']:
+                d[k] = (self.name, self.path, self.path + '/study/' + study['relpath'])
+        self._study_index = d
+class PhylesystemProxy(_PhylesystemBase):
+    '''Proxy for interacting with external resources if given the
+    configuration of a remote Phylesystem
+    '''
+    def __init__(self, config):
+        self._index_lock = Lock() #TODO should invent a fake lock for the proxies
+        self.repo_nexml2json = config['repo_nexml2json']
+        self.shards = []
+        for s in config.get('shards', []):
+            self.shards.append(PhylesystemShardProxy(s))
+        d = {}
+        for s in self.shards:
+            for k in s.study_index.keys():
+                if k in d:
+                    raise KeyError('study "{i}" found in multiple repos'.format(i=k))
+                d[k] = s
+        self._study2shard_map = d
+
+class _Phylesystem(_PhylesystemBase):
     '''Wrapper around a set of sharded git repos.
     '''
     def __init__(self,
@@ -399,6 +516,14 @@ class _Phylesystem(object):
             'remote_map' - a dictionary of remote name to prefix (the repo name + '.git' will be
                 appended to create the URL for pushing).
         '''
+        if repos_dict is not None:
+            self._filepath_args = 'repos_dict = {}'.format(repr(repos_dict))
+        elif repos_par is not None:
+            self._filepath_args = 'repos_par = {}'.format(repr(repos_par))
+        else:
+            fmt = '<No arg> default phylesystem_parent from {}'
+            a = _get_phylesystem_parent_with_source()[1]
+            self._filepath_args = fmt.format(a)
         push_mirror_repos_par = None
         push_mirror_remote_map = {}
         if mirror_info:
@@ -480,8 +605,8 @@ class _Phylesystem(object):
         shard = self.get_shard(study_id)
         return shard.create_git_action()
 
-    def create_git_action_for_new_study(self):
-        return self._growing_shard.create_git_action_for_new_study()
+    def create_git_action_for_new_study(self, new_study_id=None):
+        return self._growing_shard.create_git_action_for_new_study(new_study_id=new_study_id)
 
     def add_validation_annotation(self, study_obj, sha):
         need_to_cache = False
@@ -619,25 +744,42 @@ class _Phylesystem(object):
     def ingest_new_study(self,
                          new_study_nexson,
                          repo_nexml2json,
-                         auth_info):
-        gd, new_study_id = self.create_git_action_for_new_study()
+                         auth_info,
+                         new_study_id=None):
+        placeholder_added = False
+        if new_study_id is not None:
+            if new_study_id.startswith('ot_'):
+                raise ValueError('Study IDs with the "ot_" prefix can only be automatically generated.')
+            if not STUDY_ID_PATTERN.match(new_study_id):
+                raise ValueError('Study ID does not match the expected pattern of alphabeticprefix_numericsuffix')
+            with self._index_lock:
+                if new_study_id in self._study2shard_map:
+                    raise ValueError('Study ID is already in use!')
+                self._study2shard_map[new_study_id] = None
+                placeholder_added = True
         try:
-            nexml = new_study_nexson['nexml']
-            nexml['^ot:studyId'] = new_study_id
-            bundle = validate_and_convert_nexson(new_study_nexson,
-                                                 repo_nexml2json,
-                                                 allow_invalid=True)
-            nexson, annotation, validation_log, nexson_adaptor = bundle
-            r = self.annotate_and_write(git_data=gd,
-                                        nexson=nexson,
-                                        study_id=new_study_id,
-                                        auth_info=auth_info,
-                                        adaptor=nexson_adaptor,
-                                        annotation=annotation,
-                                        parent_sha=None,
-                                        master_file_blob_included=None)
+            gd, new_study_id = self.create_git_action_for_new_study(new_study_id=new_study_id)
+            try:
+                nexml = new_study_nexson['nexml']
+                nexml['^ot:studyId'] = new_study_id
+                bundle = validate_and_convert_nexson(new_study_nexson,
+                                                     repo_nexml2json,
+                                                     allow_invalid=True)
+                nexson, annotation, validation_log, nexson_adaptor = bundle
+                r = self.annotate_and_write(git_data=gd,
+                                            nexson=nexson,
+                                            study_id=new_study_id,
+                                            auth_info=auth_info,
+                                            adaptor=nexson_adaptor,
+                                            annotation=annotation,
+                                            parent_sha=None,
+                                            master_file_blob_included=None)
+            except:
+                self._growing_shard.delete_study_from_index(new_study_id)
+                raise
         except:
-            self._growing_shard.delete_study_from_index(new_study_id)
+            if placeholder_added:
+                del self._study2shard_map[new_study_id]
             raise
         with self._index_lock:
             self._study2shard_map[new_study_id] = self._growing_shard
@@ -648,26 +790,6 @@ class _Phylesystem(object):
         for shard in self._shards:
             k.extend(shard.get_study_ids(include_aliases=include_aliases))
         return k
-
-    def get_repo_and_path_fragment(self, study_id):
-        '''For `study_id` returns a list of:
-            [0] the repo name and,
-            [1] the path from the repo to the study file.
-        This is useful because
-        (if you know the remote), it lets you construct the full path.
-        '''
-        with self._index_lock:
-            shard = self._study2shard_map[study_id]
-        return shard.name, shard.get_rel_path_fragment(study_id)
-
-    def get_public_url(self, study_id, branch='master'):
-        '''Returns a GitHub URL for the
-        '''
-        #@TEMP, TODO. should look in the remote to find this. But then it can be tough to determine
-        #       which (if any) remotes are publicly visible... hmmmm
-        name, path_frag = self.get_repo_and_path_fragment(study_id)
-
-        return 'https://raw.githubusercontent.com/OpenTreeOfLife/' + name + '/' + branch + '/' + path_frag
 
     def iter_study_objs(self, **kwargs):
         '''Generator that iterates over all detected phylesystem studies.
@@ -680,6 +802,36 @@ class _Phylesystem(object):
             for study_id, blob in shard.iter_study_objs(**kwargs):
                 yield study_id, blob
 
+    def report_configuration(self):
+        out = StringIO()
+        self.write_configuration(out)
+        return out.getvalue()
+
+    def write_configuration(self, out, secret_attrs=False):
+        key_order = ['repo_nexml2json',
+                     'number_of_shards',
+                     'initialization',]
+        cd = self.get_configuration_dict(secret_attrs=secret_attrs)
+        for k in key_order:
+            if k in cd:
+                out.write('  {} = {}'.format(k, cd[k]))
+        for n, shard in enumerate(self._shards):
+            out.write('Shard {}:\n'.format(n))
+            shard.write_configuration(out)
+    def get_configuration_dict(self, secret_attrs=False):
+        cd = {'repo_nexml2json': self.repo_nexml2json,
+              'number_of_shards': len(self._shards),
+              'initialization': self._filepath_args}
+        cd['shards'] = []
+        for i in self._shards:
+            cd['shards'].append(i.get_configuration_dict(secret_attrs=secret_attrs))
+        return cd
+    def get_branch_list(self):
+        a = []
+        for i in self._shards:
+            a.extend(i.get_branch_list())
+        return a
+        
 _THE_PHYLESYSTEM = None
 def Phylesystem(repos_dict=None,
                 repos_par=None,
