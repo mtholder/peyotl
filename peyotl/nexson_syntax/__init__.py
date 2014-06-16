@@ -307,28 +307,28 @@ class PhyloSchema(object):
         p = self._phylesystem_api_params()
         e = self._phylesystem_api_ext()
         if self.content == 'study':
-            return '{d}/v1/study/{i}{e}'.format(d=base_url, i=study_id, e=e), p
+            return '{d}/study/{i}{e}'.format(d=base_url, i=study_id, e=e), p
         elif self.content == 'tree':
             if self.content_id is None:
-                return '{d}/v1/study/{i}/tree{e}'.format(d=base_url, i=study_id, e=e), p
-            return '{d}/v1/study/{i}/tree/{t}{e}'.format(d=base_url, i=study_id, t=self.content_id, e=e), p
+                return '{d}/study/{i}/tree{e}'.format(d=base_url, i=study_id, e=e), p
+            return '{d}/study/{i}/tree/{t}{e}'.format(d=base_url, i=study_id, t=self.content_id, e=e), p
         elif self.content == 'subtree':
             assert self.content_id is not None
             t, n = self.content_id
             p['subtree_id'] = n
-            return '{d}/v1/study/{i}/tree/{t}{e}'.format(d=base_url, i=study_id, t=t, e=e), p
+            return '{d}/study/{i}/tree/{t}{e}'.format(d=base_url, i=study_id, t=t, e=e), p
         elif self.content == 'meta':
-            return '{d}/v1/study/{i}/meta{e}'.format(d=base_url, i=study_id, e=e), p
+            return '{d}/study/{i}/meta{e}'.format(d=base_url, i=study_id, e=e), p
         elif self.content == 'otus':
             if self.content_id is None:
-                return '{d}/v1/study/{i}/otus{e}'.format(d=base_url, i=study_id, e=e), p
-            return '{d}/v1/study/{i}/otus/{t}{e}'.format(d=base_url, i=study_id, t=self.content_id, e=e), p
+                return '{d}/study/{i}/otus{e}'.format(d=base_url, i=study_id, e=e), p
+            return '{d}/study/{i}/otus/{t}{e}'.format(d=base_url, i=study_id, t=self.content_id, e=e), p
         elif self.content == 'otu':
             if self.content_id is None:
-                return '{d}/v1/study/{i}/otu{e}'.format(d=base_url, i=study_id, e=e), p
-            return '{d}/v1/study/{i}/otu/{t}{e}'.format(d=base_url, i=study_id, t=self.content_id, e=e), p
+                return '{d}/study/{i}/otu{e}'.format(d=base_url, i=study_id, e=e), p
+            return '{d}/study/{i}/otu/{t}{e}'.format(d=base_url, i=study_id, t=self.content_id, e=e), p
         elif self.content == 'otumap':
-            return '{d}/v1/otumap/{i}{e}'.format(d=base_url, i=study_id, e=e), p
+            return '{d}/otumap/{i}{e}'.format(d=base_url, i=study_id, e=e), p
         else:
             assert False
 
@@ -890,6 +890,7 @@ BEGIN TREES;
     wrapper.write('\nEND;\n')
     wrapper.reset()
     return f.getvalue()
+
 def convert_tree(tree_id, tree, otu_group, schema, subtree_id=None):
     label_key = schema.otu_label_prop
     if schema.format_str == 'nexus':
@@ -963,7 +964,11 @@ def extract_otu_nexson(nexson, otu_id, curr_version):
             if otu_id in go:
                 return {otu_id: go[otu_id]}
     return None
-def extract_tree_nexson(nexson, tree_id, curr_version):
+
+def extract_tree_nexson(nexson, tree_id, curr_version=None):
+    '''Returns a list of (id, tree, otus_group) tuples for the 
+    specified tree_id (all trees if tree_id is None)
+    '''
     if curr_version is None:
         curr_version = detect_nexson_version(nexson)
     if not _is_by_id_hbf(curr_version):

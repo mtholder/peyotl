@@ -128,6 +128,7 @@ def diagnose_repo_study_id_convention(repo_dir):
             'fp_fn': get_filepath_for_namespaced_id,
             'id2alias_list': namespaced_get_alias,
     }
+
 class PhylesystemShardBase(object):
     def get_rel_path_fragment(self, study_id):
         '''For `study_id` returns the path from the
@@ -291,6 +292,14 @@ class PhylesystemShard(PhylesystemShardBase):
                            remote=remote_name)
         return True
 
+    def _is_alias(self, study_id):
+        alias_list = self.id_alias_list_fn(study_id)
+        if len(alias_list) > 1:
+            ml = max([len(i) for i in alias_list])
+            if ml > len(study_id):
+                return True
+        return False
+
     def iter_study_filepaths(self, **kwargs):
         '''Returns a pair: (study_id, absolute filepath of study file)
         for each study in this repository.
@@ -298,7 +307,8 @@ class PhylesystemShard(PhylesystemShardBase):
         '''
         with self._index_lock:
             for study_id, info in self._study_index.items():
-                yield study_id, info[-1]
+                if not self._is_alias(study_id):
+                    yield study_id, info[-1]
 
     def iter_study_objs(self, **kwargs):
         '''Returns a pair: (study_id, nexson_blob)
@@ -306,12 +316,13 @@ class PhylesystemShard(PhylesystemShardBase):
         Order is arbitrary.
         '''
         for study_id, fp in self.iter_study_filepaths(**kwargs):
-            with codecs.open(fp, 'rU', 'utf-8') as fo:
-                try:
-                    nex_obj = anyjson.loads(fo.read())
-                    yield (study_id, nex_obj)
-                except Exception:
-                    pass
+            if not self._is_alias(study_id):
+                with codecs.open(fp, 'rU', 'utf-8') as fo:
+                    try:
+                        nex_obj = anyjson.loads(fo.read())
+                        yield (study_id, nex_obj)
+                    except Exception:
+                        pass
 
     def write_configuration(self, out, secret_attrs=False):
         key_order = ['name', 'path', 'git_dir', 'study_dir', 'repo_nexml2json',
@@ -452,6 +463,12 @@ class _PhylesystemBase(object):
         return 'https://raw.githubusercontent.com/OpenTreeOfLife/' + name + '/' + branch + '/' + path_frag
     get_external_url = get_public_url
 
+    def get_study_ids(self, include_aliases=False):
+        k = []
+        for shard in self._shards:
+            k.extend(shard.get_study_ids(include_aliases=include_aliases))
+        return k
+
 class PhylesystemShardProxy(PhylesystemShardBase):
     '''Proxy for interacting with external resources if given the
     configuration of a remote Phylesystem
@@ -470,6 +487,7 @@ class PhylesystemShardProxy(PhylesystemShardBase):
             for k in study['keys']:
                 d[k] = (self.name, self.path, self.path + '/study/' + study['relpath'])
         self._study_index = d
+
 class PhylesystemProxy(_PhylesystemBase):
     '''Proxy for interacting with external resources if given the
     configuration of a remote Phylesystem
@@ -477,11 +495,11 @@ class PhylesystemProxy(_PhylesystemBase):
     def __init__(self, config):
         self._index_lock = Lock() #TODO should invent a fake lock for the proxies
         self.repo_nexml2json = config['repo_nexml2json']
-        self.shards = []
+        self._shards = []
         for s in config.get('shards', []):
-            self.shards.append(PhylesystemShardProxy(s))
+            self._shards.append(PhylesystemShardProxy(s))
         d = {}
-        for s in self.shards:
+        for s in self._shards:
             for k in s.study_index.keys():
                 if k in d:
                     raise KeyError('study "{i}" found in multiple repos'.format(i=k))
@@ -636,6 +654,10 @@ class _Phylesystem(_PhylesystemBase):
 
         return annot_event
 
+    def get_filepath_for_study(self, study_id):
+        ga = self.create_git_action(study_id)
+        return ga.path_for_study(study_id)
+
     def return_study(self,
                      study_id,
                      branch='master',
@@ -785,12 +807,6 @@ class _Phylesystem(_PhylesystemBase):
             self._study2shard_map[new_study_id] = self._growing_shard
         return new_study_id, r
 
-    def get_study_ids(self, include_aliases=False):
-        k = []
-        for shard in self._shards:
-            k.extend(shard.get_study_ids(include_aliases=include_aliases))
-        return k
-
     def iter_study_objs(self, **kwargs):
         '''Generator that iterates over all detected phylesystem studies.
         and returns the study object (deserialized from nexson) for
@@ -800,6 +816,17 @@ class _Phylesystem(_PhylesystemBase):
         '''
         for shard in self._shards:
             for study_id, blob in shard.iter_study_objs(**kwargs):
+                yield study_id, blob
+
+    def iter_study_filepaths(self, **kwargs):
+        '''Generator that iterates over all detected phylesystem studies.
+        and returns the study object (deserialized from nexson) for
+        each study.
+        Order is by shard, but arbitrary within shards.
+        @TEMP not locked to prevent study creation/deletion
+        '''
+        for shard in self._shards:
+            for study_id, blob in shard.iter_study_filepaths(**kwargs):
                 yield study_id, blob
 
     def report_configuration(self):
