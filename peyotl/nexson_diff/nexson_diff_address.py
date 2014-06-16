@@ -370,9 +370,7 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
     def try_apply_rerooting_to_mod_blob(self,
                                         nexson_diff,
                                         base_blob,
-                                        new_root_id,
-                                        del_nd_edge,
-                                        add_nd_edge):
+                                        reroot_info):
         par_target = self._find_par_el_in_mod_blob(base_blob)
         #_LOG.debug('mod call on self.key_in_par = "{}" to "{}" applied to par_target="{}"'.format(self.key_in_par, value, par_target))
         target = par_target.get(self.key_in_par)
@@ -389,44 +387,65 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
             self._blob_to_target2id[bib] = target2id
         else:
             target2id = self._blob_to_target2id[bib]
-        target_root = target['^ot:rootNodeId'] 
+        target_root = target['^ot:rootNodeId']
+
+        new_root_id = reroot_info['new_root_id']
         if target_root == new_root_id:
-            nexson_diff._redundant_edits['rerootings'].append((new_root_id, del_nd_edge, add_nd_edge, self))
+            nexson_diff._redundant_edits['rerootings'].append((reroot_info, self))
             return True
-        nd_to_del, edge_to_del_tuple = del_nd_edge
-        if (nd_to_del and (target_root != nd_to_del)) \
-           or ((not nd_to_del) and len(ebs[target_root]) > 2):
-            nexson_diff._unapplied_edits['rerootings'].append((new_root_id, del_nd_edge, add_nd_edge, self))
+        del_node_id = reroot_info['del_node_id']
+        if (del_node_id and (target_root != del_node_id)) \
+           or ((not del_node_id) and len(ebs[target_root]) > 2):
+            nexson_diff._unapplied_edits['rerootings'].append((reroot_info, self))
             return False
-        # Unpack the data from the args...
-        if edge_to_del_tuple is not None:
-            etd_id, edge_to_del = edge_to_del_tuple
-        else:
-            etd_id, edge_to_del = None, None
-        nd_to_add, edge_to_add_tuple = add_nd_edge
-        if edge_to_add_tuple is not None:
-            eta_id, edge_to_add = edge_to_add_tuple
-        else:
-            eta_id, edge_to_add = None, None
+        etd_id = reroot_info['del_edge_id']
+        edge_to_del = reroot_info['del_edge']
+        del_node = reroot_info['del_node']
+        eta_id = reroot_info['add_edge_id']
+        edge_to_add = reroot_info['add_edge']
+        add_edge_sib_edge = reroot_info['add_edge_sib_edge']
+        add_edge_sib_edge_id = reroot_info['add_edge_sib_edge_id']
+        nta_id = reroot_info['add_node_id']
+        nd_to_add = reroot_info['add_node']
         # Do the actual rerooting...
         target['^ot:rootNodeId'] = new_root_id
+        already_flipped = set()
         if new_root_id in ebs:
             assert(nd_to_add is None)
         else:
             assert(nd_to_add is not None)
-        assert(nd_to_add['@id'] == new_root_id)
         if edge_to_add is None:
             assert(new_root_id in target2id)
             etf_id = target2id[new_root_id]
             edge_to_flip = edge_dict[etf_id]
         else:
             assert(eta_id not in edge_dict)
-            target_of_eta = edge_to_add
+            target_of_eta_id = edge_to_add['@target']
+            assert add_edge_sib_edge is not None
+            assert add_edge_sib_edge_id is not None
+            sib_of_target_id = add_edge_sib_edge['@target']
+            if add_edge_sib_edge_id in ebs.get(sib_of_target_id, {}):
+                edge_to_flip = ebs[sib_of_target_id][add_edge_sib_edge_id]
+            else:
+                assert add_edge_sib_edge_id in ebs.get(target_of_eta_id, {})
+                edge_to_flip = ebs[target_of_eta_id][add_edge_sib_edge_id]
+                edge_to_flip['@source'] = target_of_eta_id
+                already_flipped.add(add_edge_sib_edge_id)
+            etf_id = add_edge_sib_edge_id
+            edge_to_flip['@target'] = nta_id
         _LOG.debug('edge_dict = {}'.format(edge_dict))
-        _LOG.debug('nri = {}\ndel = {}\nadd = {}'.format(new_root_id, del_nd_edge, add_nd_edge))
-        #code 
-        #  here
-        import sys; sys.exit(self.key_in_par)
+        _LOG.debug('nri = {}\ndel = {}\nadd = {}'.format(new_root_id, etd_id, eta_id))
+        while edge_to_flip is not None:
+            _target, _source = edge_to_flip['@target'], edge_to_flip['@source']
+            print "t,s =", _target, _source
+            _target, _source = _source, _target
+            edge_to_flip['@target'], edge_to_flip['@source'] = _target, _source
+            ebs[]
+            already_flipped.add(etf_id)
+            etf_id = target2id.get(_source)
+            if etf_id in already_flipped:
+                break
+            edge_to_flip = edge_dict[etf_id]
     def edge_child(self):
         return TreeEdgeNexsonDiffAddress(self)
 class TreeEdgeNexsonDiffAddress(NexsonDiffAddress):

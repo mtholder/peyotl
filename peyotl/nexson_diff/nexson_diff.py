@@ -253,8 +253,8 @@ def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
 
 def _tree_dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
     rerootings = diff_dict['rerootings']
-    for new_root_id, del_nd_edge, add_nd_edge, c in rerootings:
-        c.try_apply_rerooting_to_mod_blob(nexson_diff, base_blob, new_root_id, del_nd_edge, add_nd_edge)
+    for reroot_info, c in rerootings:
+        c.try_apply_rerooting_to_mod_blob(nexson_diff, base_blob, reroot_info)
     _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict)
 
 def _ordering_to_ot_diff(od):
@@ -559,14 +559,16 @@ class NexsonDiff(object):
         d_edges_bsid = d_tree['edgeBySourceId']
         s_node_bid = s_tree['nodeById']
         d_node_bid = d_tree['nodeById']
-        s_root = s_tree['^ot:rootNodeId']
-        d_root = d_tree['^ot:rootNodeId']
-        roots_equal = (s_root == d_root)
+        s_root_id = s_tree['^ot:rootNodeId']
+        d_root_id = d_tree['^ot:rootNodeId']
+        roots_equal = (s_root_id == d_root_id)
         nodes_equal = (s_node_bid == d_node_bid)
         edges_equal = (s_edges_bsid == d_edges_bsid)
         if roots_equal and nodes_equal and edges_equal:
             return
-
+        if roots_equal:
+            self._calc_tree_diff_no_rooting_change(s_tree, d_tree, context)
+            return
         s_node_id_set = set(s_node_bid.keys())
         d_node_id_set = set(d_node_bid.keys())
 
@@ -574,12 +576,12 @@ class NexsonDiff(object):
         s_extra_node_id = s_node_id_set - d_node_id_set
         if s_extra_node_id:
             _LOG.debug("s_extra_node_id = {}".format(s_extra_node_id))
-            if (len(s_extra_node_id) > 1) or (s_extra_node_id.pop() != s_root):
+            if (len(s_extra_node_id) > 1) or (s_extra_node_id.pop() != s_root_id):
                 node_number_except = True
         d_extra_node_id = d_node_id_set - s_node_id_set
         if d_extra_node_id:
             _LOG.debug("d_extra_node_id = {}".format(d_extra_node_id))
-            if (len(d_extra_node_id) > 1) or (d_extra_node_id.pop() != d_root):
+            if (len(d_extra_node_id) > 1) or (d_extra_node_id.pop() != d_root_id):
                 node_number_except = True
         #TODO: do we need more flexible diffs. In normal curation, there can
         #   only be one node getting added (the root)
@@ -597,7 +599,9 @@ class NexsonDiff(object):
                            'del_edge_id': None,
                            'del_node': None,
                            'del_node_id': None,
-                           'new_root_id': None
+                           'new_root_id': None,
+                           'add_edge_sib_edge': None,
+                           'add_edge_sib_edge_id': None,
             }
             if not nodes_equal:
                 if t_context is None:
@@ -615,12 +619,9 @@ class NexsonDiff(object):
                         reroot_info['del_node_id'] = nid
                     #    n_context = sub_context.child(nid)
                     #    self.add_deletion(n_context)
-                if d_root not in s_node_id_set:
-                    reroot_info['add_node_id'] = d_root
-                    reroot_info['add_node_children'] = d_node_bid.get(d_root)
-                #    d_node = d_node_bid.get(d_root)
-                #    n_context = sub_context.child(d_root)
-                #    self.add_addition(d_node, n_context)
+                if d_root_id not in s_node_id_set:
+                    reroot_info['add_node_id'] = d_root_id
+                    reroot_info['add_node'] = d_node_bid.get(d_root_id)
             if not edges_equal:
                 if t_context is None:
                     t_context = context.create_tree_context()
@@ -690,9 +691,23 @@ class NexsonDiff(object):
                     aeid = extra_eid_set.pop()
                     ae = d_edges[aeid]
                     reroot_info['add_edge_id'], reroot_info['add_edge'] = aeid, ae
-                if d_root != s_root:
+                    aes = ae['@source']
+                    assert aes == d_root_id
+                    root_edges = d_edges_bsid[aes]
+                    assert len(root_edges) == 2
+                    sib_edge = None
+                    sib_edge_id = None
+                    for k, v in root_edges.items():
+                        if k != aeid:
+                            sib_edge = v
+                            sib_edge_id = k
+                    assert sib_edge is not None
+                    reroot_info['add_edge_sib_edge'] = v
+                    reroot_info['add_edge_sib_edge_id'] = k
+                if d_root_id != s_root_id:
                     if t_context is None:
                         t_context = context.create_tree_context()
+                    reroot_info['new_root_id'] = d_root_id
                     self.add_rerooting(reroot_info, t_context)
                 else:
                     assert reroot_info['del_node'] is None
@@ -702,8 +717,8 @@ class NexsonDiff(object):
         finally:
             self.activate_nontree_diffs()
 
-    def add_rerooting(self, new_root_id, del_nd_edge, add_nd_edge, context):
-        self.curr_diff_dict['rerootings'].append((new_root_id, del_nd_edge, add_nd_edge, context))
+    def add_rerooting(self, reroot_info, context):
+        self.curr_diff_dict['rerootings'].append((reroot_info, context))
 
     def activate_tree_diffs(self):
         self.curr_diff_dict = self._tree_diff
