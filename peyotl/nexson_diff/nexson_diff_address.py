@@ -440,7 +440,6 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
             print "t,s =", _target, _source
             _target, _source = _source, _target
             edge_to_flip['@target'], edge_to_flip['@source'] = _target, _source
-            ebs[]
             already_flipped.add(etf_id)
             etf_id = target2id.get(_source)
             if etf_id in already_flipped:
