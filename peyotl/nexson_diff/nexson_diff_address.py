@@ -153,7 +153,7 @@ class NexsonDiffAddress(object):
     def try_apply_mod_to_mod_blob(self, nexson_diff, blob, value, was_add):
         par_target = self._find_par_el_in_mod_blob(blob)
         #_LOG.debug('mod call on self.key_in_par = "{}" to "{}" applied to par_target="{}"'.format(self.key_in_par, value, par_target))
-        if self.key_in_par not in par_target:
+        if (par_target is None) or (self.key_in_par not in par_target):
             return False
         assert not isinstance(value, DictDiff)
         if par_target.get(self.key_in_par) == value:
@@ -401,8 +401,12 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
             nexson_diff._unapplied_edits['rerootings'].append((reroot_info, self))
             return False
         etd_id = reroot_info['del_edge_id']
-        edge_to_del = reroot_info['del_edge']
-        del_node = reroot_info['del_node']
+        del_node_id = reroot_info['del_node_id']
+        if del_node_id:
+            del_node = target['nodeById'][del_node_id]
+        if etd_id:
+            assert del_node_id
+            edge_to_del = ebs[del_node_id][etd_id]
         eta_id = reroot_info['add_edge_id']
         edge_to_add = reroot_info['add_edge']
         add_edge_sib_edge = reroot_info['add_edge_sib_edge']
@@ -441,14 +445,53 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
         _LOG.debug('nri = {}\ndel = {}\nadd = {}'.format(new_root_id, etd_id, eta_id))
         while edge_to_flip is not None:
             _target, _source = edge_to_flip['@target'], edge_to_flip['@source']
-            print "edge_to_flip t,s =", _target, _source
+            _LOG.debug("edge_to_flip t,s = {}, {}".format(_target, _source))
+            if etf_id != etd_id:
+                del ebs[_source][etf_id]
             _target, _source = _source, _target
+            try:
+                ebs[_source][etf_id] = edge_to_flip
+            except KeyError:
+                assert _source == nta_id
+                ebs[_source] = {etf_id: edge_to_flip, 
+                                add_edge_sib_edge_id: add_edge_sib_edge}
             edge_to_flip['@target'], edge_to_flip['@source'] = _target, _source
             already_flipped.add(etf_id)
-            etf_id = target2id.get(_source)
-            if etf_id in already_flipped:
+            etf_id = target2id.get(_target)
+            _LOG.debug("etf_id  {}".format(etf_id))
+            if (etf_id is None) or (etf_id in already_flipped):
                 break
             edge_to_flip = edge_dict[etf_id]
+        _LOG.debug('ebs = ' + str(ebs))
+        if del_node_id:
+            _LOG.debug('del_node_id = ' + del_node_id)
+            _LOG.debug('etd_id = ' + etd_id)
+            edges_from_doomed_root = ebs[del_node_id]
+            assert len(edges_from_doomed_root) == 2
+            sib_to_grow_id, sib_to_grow = None, None
+            for ei, eo in edges_from_doomed_root.items():
+                if ei != etd_id:
+                    sib_to_grow_id, sib_to_grow = ei, eo
+                    break
+            _LOG.debug('ebs[del_node_id] = ' + str(edges_from_doomed_root))
+            _LOG.debug('edge_to_del = ' + str(edge_to_del))
+            _LOG.debug('sib_to_grow = ' + str(sib_to_grow))
+            if etd_id in already_flipped:
+                _real_source = edge_to_del['@source']
+                assert edge_to_del['@target'] == del_node_id
+                _real_target = sib_to_grow['@target']
+                assert sib_to_grow['@source'] == del_node_id
+            else:
+                assert sib_to_grow_id is already_flipped
+                _real_source = sib_to_grow['@source']
+                assert sib_to_grow['@target'] == del_node_id
+                _real_target = edge_to_del['@target']
+                assert edge_to_del['@source'] == del_node_id
+            del ebs[del_node_id]
+            sib_to_grow['@source'], sib_to_grow['@target'] = _real_source, _real_target
+            ebs[_real_source][sib_to_grow_id] = sib_to_grow
+            del target['nodeById'][del_node_id]
+        return True, True
     def edge_child(self):
         return TreeEdgeNexsonDiffAddress(self)
 class TreeEdgeNexsonDiffAddress(NexsonDiffAddress):
