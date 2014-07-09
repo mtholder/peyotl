@@ -7,6 +7,7 @@ from peyotl.struct_diff import DictDiff
 from peyotl.utility import get_logger
 import itertools
 import json
+import copy
 
 _LOG = get_logger(__name__)
 
@@ -409,7 +410,6 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
             edge_to_del = ebs[del_node_id][etd_id]
         eta_id = reroot_info['add_edge_id']
         edge_to_add = reroot_info['add_edge']
-        add_edge_sib_edge = reroot_info['add_edge_sib_edge']
         add_edge_sib_edge_id = reroot_info['add_edge_sib_edge_id']
         nta_id = reroot_info['add_node_id']
         nd_to_add = reroot_info['add_node']
@@ -426,35 +426,34 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
             etf_id = target2id[new_root_id]
             edge_to_flip = edge_dict[etf_id]
         else:
-            _LOG.debug('Edge to add. add_edge_sib_edge_id = {}'.format(add_edge_sib_edge_id))
+            _LOG.debug('add_edge_sib_edge_id = {}'.format(add_edge_sib_edge_id))
             assert(eta_id not in edge_dict)
             target_of_eta_id = edge_to_add['@target']
-            assert add_edge_sib_edge is not None
             assert add_edge_sib_edge_id is not None
+            add_edge_sib_edge = ebs[target_of_eta_id][add_edge_sib_edge_id]
             sib_of_target_id = add_edge_sib_edge['@target']
-            if add_edge_sib_edge_id in ebs.get(sib_of_target_id, {}):
-                edge_to_flip = ebs[sib_of_target_id][add_edge_sib_edge_id]
-            else:
-                assert add_edge_sib_edge_id in ebs.get(target_of_eta_id, {})
-                edge_to_flip = ebs[target_of_eta_id][add_edge_sib_edge_id]
-                edge_to_flip['@source'] = target_of_eta_id
-                already_flipped.add(add_edge_sib_edge_id)
-            etf_id = add_edge_sib_edge_id
-            edge_to_flip['@target'] = nta_id
+            _LOG.debug('target_of_eta_id = {}'.format(target_of_eta_id))
+            _LOG.debug('sib_of_target_id = {}'.format(sib_of_target_id))
+            assert add_edge_sib_edge_id in ebs[target_of_eta_id]
+            del ebs[target_of_eta_id][add_edge_sib_edge_id]
+            ebs[target_of_eta_id][eta_id] = copy.deepcopy(edge_to_add)
+            ebs[nta_id] = {add_edge_sib_edge_id: add_edge_sib_edge,}
+            add_edge_sib_edge['@source'] = nta_id
+            edge_to_flip = ebs[target_of_eta_id][eta_id]
+            etf_id = eta_id
+            # flip it, so that it is backward for the iterated of flipping
+            #   seems stupid, but reduces code duplication below
+            edge_to_flip['@target'], edge_to_flip['@source'] = edge_to_flip['@source'], edge_to_flip['@target'],
         _LOG.debug('edge_dict = {}'.format(edge_dict))
         _LOG.debug('nri = {}\ndel = {}\nadd = {}'.format(new_root_id, etd_id, eta_id))
         while edge_to_flip is not None:
+
             _target, _source = edge_to_flip['@target'], edge_to_flip['@source']
             _LOG.debug("edge_to_flip t,s = {}, {}".format(_target, _source))
             if etf_id != etd_id:
                 del ebs[_source][etf_id]
             _target, _source = _source, _target
-            try:
-                ebs[_source][etf_id] = edge_to_flip
-            except KeyError:
-                assert _source == nta_id
-                ebs[_source] = {etf_id: edge_to_flip, 
-                                add_edge_sib_edge_id: add_edge_sib_edge}
+            ebs[_source][etf_id] = edge_to_flip
             edge_to_flip['@target'], edge_to_flip['@source'] = _target, _source
             already_flipped.add(etf_id)
             etf_id = target2id.get(_target)
@@ -491,6 +490,9 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
             sib_to_grow['@source'], sib_to_grow['@target'] = _real_source, _real_target
             ebs[_real_source][sib_to_grow_id] = sib_to_grow
             del target['nodeById'][del_node_id]
+        if nta_id:
+            assert nta_id in ebs # we added it above in the flipping code...
+            target['nodeById'][nta_id] = copy.deepcopy(nd_to_add)
         return True, True
     def edge_child(self):
         return TreeEdgeNexsonDiffAddress(self)

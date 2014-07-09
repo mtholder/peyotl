@@ -553,6 +553,56 @@ class NexsonDiff(object):
                 self.add_deletion(s_trees, context=tsid_context)
         return False, None
 
+    def _calc_tree_diff_no_rooting_change(self, s_tree, d_tree, context):
+        edge_skip = {'@source': self.no_op_t, '@target': self.no_op_t}
+        s_edges_bsid = s_tree['edgeBySourceId']
+        d_edges_bsid = d_tree['edgeBySourceId']
+        s_node_bid = s_tree['nodeById']
+        d_node_bid = d_tree['nodeById']
+        s_node_id_set = set(s_node_bid.keys())
+        d_node_id_set = set(d_node_bid.keys())
+        nodes_equal = (s_node_bid == d_node_bid)
+        edges_equal = (s_edges_bsid == d_edges_bsid)
+        if s_node_id_set != d_node_id_set:
+            raise ValueError('If the rooting does not change, the nodes IDs should be identical.')
+        self.activate_tree_diffs()
+        t_context = None
+        try:
+            if not nodes_equal:
+                if t_context is None:
+                    t_context = context.create_tree_context()
+                sub_context = t_context.child('nodeById')
+                for nid, s_node in s_node_bid.items():
+                    d_node = d_node_bid.get(nid)
+                    assert d_node is not None
+                    if d_node != s_node:
+                        n_context = sub_context.child(nid)
+                        self._calculate_generic_diffs(s_node, d_node, None, n_context)
+            if not edges_equal:
+                if t_context is None:
+                    t_context = context.create_tree_context()
+                sub_context = t_context.edge_child()
+                s_edges = edge_by_source_to_edge_dict(s_edges_bsid)
+                d_edges = edge_by_source_to_edge_dict(d_edges_bsid)
+                lde = len(d_edges)
+                lse = len(s_edges)
+                _LOG.debug('s_edges = {}'.format(s_edges))
+                _LOG.debug('d_edges = {}'.format(d_edges))
+                for eid, s_edge in s_edges.items():
+                    _LOG.debug('eid = {}'.format(eid))
+                    d_edge = d_edges.get(eid)
+                    assert d_edge is not None
+                    if d_edge != s_edge:
+                        e_context = sub_context.child(eid)
+                        if (len(s_edge) > 3) or (len(d_edge) > 3) \
+                            or ('@length' not in s_edge) \
+                            or ('@length' not in d_edge):
+                            self._calculate_generic_diffs(s_node, d_node, edge_skip, e_context)
+                        elif s_edge['@length'] != d_edge['@length']:
+                            self.add_modification(d_edge['@length'], e_context)
+        finally:
+            self.activate_nontree_diffs()
+
     def _calc_tree_structure_diff(self, s_tree, d_tree, context):
         edge_skip = {'@source': self.no_op_t, '@target': self.no_op_t}
         s_edges_bsid = s_tree['edgeBySourceId']
