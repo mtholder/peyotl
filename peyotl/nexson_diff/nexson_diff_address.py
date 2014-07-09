@@ -137,6 +137,8 @@ class NexsonDiffAddress(object):
                     container = nexson_diff._redundant_edits['additions']
                 container.append((value, self))
                 return True, True
+            else:
+                return False, was_mod
 
         return self._try_apply_add_to_par_target(nexson_diff, par_target, value, was_mod, id(blob))
 
@@ -415,10 +417,12 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
         else:
             assert(nd_to_add is not None)
         if edge_to_add is None:
+            _LOG.debug('No edge to add')
             assert(new_root_id in target2id)
             etf_id = target2id[new_root_id]
             edge_to_flip = edge_dict[etf_id]
         else:
+            _LOG.debug('Edge to add. add_edge_sib_edge_id = {}'.format(add_edge_sib_edge_id))
             assert(eta_id not in edge_dict)
             target_of_eta_id = edge_to_add['@target']
             assert add_edge_sib_edge is not None
@@ -437,7 +441,7 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
         _LOG.debug('nri = {}\ndel = {}\nadd = {}'.format(new_root_id, etd_id, eta_id))
         while edge_to_flip is not None:
             _target, _source = edge_to_flip['@target'], edge_to_flip['@source']
-            print "t,s =", _target, _source
+            print "edge_to_flip t,s =", _target, _source
             _target, _source = _source, _target
             edge_to_flip['@target'], edge_to_flip['@source'] = _target, _source
             already_flipped.add(etf_id)
