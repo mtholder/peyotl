@@ -222,9 +222,11 @@ def _ordering_patch_modified_blob(nexson_diff, base_blob, ordering_dict):
                                                  None)
 
 def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
+    #_LOG.debug('_dict_patch_modified_blob(...diff_dict = ' + str(diff_dict) + ')')
     dels = diff_dict['deletions']
     adds = diff_dict['additions']
     mods = diff_dict['modifications']
+    #_LOG.debug('mods = ' + str(mods))
     for v, c in dels:
         c.try_apply_del_to_mod_blob(nexson_diff, base_blob, v)
     adds_to_mods = []
@@ -252,6 +254,7 @@ def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
             nexson_diff._unapplied_edits['additions'].append(t)
 
 def _tree_dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
+    #_LOG.debug('_tree_dict_patch_modified_blob(...diff_dict = ' + str(diff_dict) + ')')
     rerootings = diff_dict['rerootings']
     for reroot_info, c in rerootings:
         c.try_apply_rerooting_to_mod_blob(nexson_diff, base_blob, reroot_info)
@@ -586,20 +589,15 @@ class NexsonDiff(object):
                 d_edges = edge_by_source_to_edge_dict(d_edges_bsid)
                 lde = len(d_edges)
                 lse = len(s_edges)
-                _LOG.debug('s_edges = {}'.format(s_edges))
-                _LOG.debug('d_edges = {}'.format(d_edges))
+                #_LOG.debug('s_edges = {}'.format(s_edges))
+                #_LOG.debug('d_edges = {}'.format(d_edges))
                 for eid, s_edge in s_edges.items():
-                    _LOG.debug('eid = {}'.format(eid))
+                    #_LOG.debug('eid = {}'.format(eid))
                     d_edge = d_edges.get(eid)
                     assert d_edge is not None
                     if d_edge != s_edge:
                         e_context = sub_context.child(eid)
-                        if (len(s_edge) > 3) or (len(d_edge) > 3) \
-                            or ('@length' not in s_edge) \
-                            or ('@length' not in d_edge):
-                            self._calculate_generic_diffs(s_node, d_node, edge_skip, e_context)
-                        elif s_edge['@length'] != d_edge['@length']:
-                            self.add_modification(d_edge['@length'], e_context)
+                        self._calculate_generic_diffs(s_edge, d_edge, edge_skip, e_context)
         finally:
             self.activate_nontree_diffs()
 
@@ -625,12 +623,12 @@ class NexsonDiff(object):
         node_number_except = False
         s_extra_node_id = s_node_id_set - d_node_id_set
         if s_extra_node_id:
-            _LOG.debug("s_extra_node_id = {}".format(s_extra_node_id))
+            #_LOG.debug("s_extra_node_id = {}".format(s_extra_node_id))
             if (len(s_extra_node_id) > 1) or (s_extra_node_id.pop() != s_root_id):
                 node_number_except = True
         d_extra_node_id = d_node_id_set - s_node_id_set
         if d_extra_node_id:
-            _LOG.debug("d_extra_node_id = {}".format(d_extra_node_id))
+            #_LOG.debug("d_extra_node_id = {}".format(d_extra_node_id))
             if (len(d_extra_node_id) > 1) or (d_extra_node_id.pop() != d_root_id):
                 node_number_except = True
         #TODO: do we need more flexible diffs. In normal curation, there can
@@ -690,12 +688,7 @@ class NexsonDiff(object):
                     else:
                         if d_edge != s_edge:
                             e_context = sub_context.child(eid)
-                            if (len(s_edge) > 3) or (len(d_edge) > 3) \
-                                or ('@length' not in s_edge) \
-                                or ('@length' not in d_edge):
-                                self._calculate_generic_diffs(s_node, d_node, edge_skip, e_context)
-                            elif s_edge['@length'] != d_edge['@length']:
-                                self.add_modification(d_edge['@length'], e_context)
+                            self._calculate_generic_diffs(s_edge, d_edge, edge_skip, e_context)
                             s_s, s_t = s_edge['@source'], s_edge['@target']
                             d_s, d_t = d_edge['@source'], d_edge['@target']
                             if ((s_s == d_s) and (s_t == d_t)) or ((s_s == d_t) and (s_t == d_s)):
@@ -860,6 +853,7 @@ class NexsonDiff(object):
                                     self.add_addition(adds, context=sub_context)
                                 
                             else:
+                                #_LOG.debug('mod in key = ' + k)
                                 if k in _SET_LIKE_PROPERTIES:
                                     sub_context = context.set_like_list_child(k)
                                 else:

@@ -125,10 +125,8 @@ class NexsonDiffAddress(object):
         assert self.par is not None
         par_target = self._find_par_el_in_mod_blob(blob)
         #_LOG.debug('add call on self.key_in_par = "{}" on {}'.format(self.key_in_par, par_target))
-        if par_target is None:
-            return False, False
+        assert par_target is not None
         assert isinstance(par_target, dict)
-
         if self.key_in_par in par_target:
             pv = par_target[self.key_in_par]
             if pv == value:
@@ -154,7 +152,9 @@ class NexsonDiffAddress(object):
     def try_apply_mod_to_mod_blob(self, nexson_diff, blob, value, was_add):
         par_target = self._find_par_el_in_mod_blob(blob)
         #_LOG.debug('mod call on self.key_in_par = "{}" to "{}" applied to par_target="{}"'.format(self.key_in_par, value, par_target))
-        if (par_target is None) or (self.key_in_par not in par_target):
+        assert par_target is not None
+        #_LOG.debug('Looking for {} in {} to set value to {}'.format(self.key_in_par, par_target.keys(), value))
+        if self.key_in_par not in par_target:
             return False
         assert not isinstance(value, DictDiff)
         if par_target.get(self.key_in_par) == value:
@@ -379,7 +379,7 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
         target = par_target.get(self.key_in_par)
         if target is None:
             return False
-
+        #_LOG.debug('nexson_diff.__dict__ =' + str(nexson_diff.__dict__))
         bib = id(base_blob)
         edge_dict = self._blob_to_edge_dict.get(bib)
         ebs = target['edgeBySourceId']
@@ -421,19 +421,19 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
         else:
             assert(nd_to_add is not None)
         if edge_to_add is None:
-            _LOG.debug('No edge to add')
+            #_LOG.debug('No edge to add')
             assert(new_root_id in target2id)
             etf_id = target2id[new_root_id]
             edge_to_flip = edge_dict[etf_id]
         else:
-            _LOG.debug('add_edge_sib_edge_id = {}'.format(add_edge_sib_edge_id))
+            #_LOG.debug('add_edge_sib_edge_id = {}'.format(add_edge_sib_edge_id))
             assert(eta_id not in edge_dict)
             target_of_eta_id = edge_to_add['@target']
             assert add_edge_sib_edge_id is not None
             add_edge_sib_edge = ebs[target_of_eta_id][add_edge_sib_edge_id]
             sib_of_target_id = add_edge_sib_edge['@target']
-            _LOG.debug('target_of_eta_id = {}'.format(target_of_eta_id))
-            _LOG.debug('sib_of_target_id = {}'.format(sib_of_target_id))
+            #_LOG.debug('target_of_eta_id = {}'.format(target_of_eta_id))
+            #_LOG.debug('sib_of_target_id = {}'.format(sib_of_target_id))
             assert add_edge_sib_edge_id in ebs[target_of_eta_id]
             del ebs[target_of_eta_id][add_edge_sib_edge_id]
             ebs[target_of_eta_id][eta_id] = copy.deepcopy(edge_to_add)
@@ -444,12 +444,12 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
             # flip it, so that it is backward for the iterated of flipping
             #   seems stupid, but reduces code duplication below
             edge_to_flip['@target'], edge_to_flip['@source'] = edge_to_flip['@source'], edge_to_flip['@target'],
-        _LOG.debug('edge_dict = {}'.format(edge_dict))
-        _LOG.debug('nri = {}\ndel = {}\nadd = {}'.format(new_root_id, etd_id, eta_id))
+        #_LOG.debug('edge_dict = {}'.format(edge_dict))
+        #_LOG.debug('nri = {}\ndel = {}\nadd = {}'.format(new_root_id, etd_id, eta_id))
         while edge_to_flip is not None:
 
             _target, _source = edge_to_flip['@target'], edge_to_flip['@source']
-            _LOG.debug("edge_to_flip t,s = {}, {}".format(_target, _source))
+            #_LOG.debug("edge_to_flip t,s = {}, {}".format(_target, _source))
             if etf_id != etd_id:
                 del ebs[_source][etf_id]
             _target, _source = _source, _target
@@ -457,14 +457,14 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
             edge_to_flip['@target'], edge_to_flip['@source'] = _target, _source
             already_flipped.add(etf_id)
             etf_id = target2id.get(_target)
-            _LOG.debug("etf_id  {}".format(etf_id))
+            #_LOG.debug("etf_id  {}".format(etf_id))
             if (etf_id is None) or (etf_id in already_flipped):
                 break
             edge_to_flip = edge_dict[etf_id]
-        _LOG.debug('ebs = ' + str(ebs))
+        #_LOG.debug('ebs = ' + str(ebs))
         if del_node_id:
-            _LOG.debug('del_node_id = ' + del_node_id)
-            _LOG.debug('etd_id = ' + etd_id)
+            #_LOG.debug('del_node_id = ' + del_node_id)
+            #_LOG.debug('etd_id = ' + etd_id)
             edges_from_doomed_root = ebs[del_node_id]
             assert len(edges_from_doomed_root) == 2
             sib_to_grow_id, sib_to_grow = None, None
@@ -472,14 +472,15 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
                 if ei != etd_id:
                     sib_to_grow_id, sib_to_grow = ei, eo
                     break
-            _LOG.debug('ebs[del_node_id] = ' + str(edges_from_doomed_root))
-            _LOG.debug('edge_to_del = ' + str(edge_to_del))
-            _LOG.debug('sib_to_grow = ' + str(sib_to_grow))
+            #_LOG.debug('ebs[del_node_id] = ' + str(edges_from_doomed_root))
+            #_LOG.debug('edge_to_del = ' + str(edge_to_del))
+            #_LOG.debug('sib_to_grow = ' + str(sib_to_grow))
             if etd_id in already_flipped:
                 _real_source = edge_to_del['@source']
                 assert edge_to_del['@target'] == del_node_id
                 _real_target = sib_to_grow['@target']
                 assert sib_to_grow['@source'] == del_node_id
+                del ebs[_real_source][etd_id]
             else:
                 assert sib_to_grow_id is already_flipped
                 _real_source = sib_to_grow['@source']
@@ -498,7 +499,24 @@ class TreeNexsonDiffAddress(NexsonDiffAddress):
         return TreeEdgeNexsonDiffAddress(self)
 class TreeEdgeNexsonDiffAddress(NexsonDiffAddress):
     def __init__(self, par=None):
-        NexsonDiffAddress.__init__(self, par, None)
+        NexsonDiffAddress.__init__(self, par, 'pseudo-edge-dict')
+        self.edge_by_id = None
+    def _find_el_in_mod_blob(self, blob):
+        assert self.par is not None
+        ib = id(blob)
+        target = self._mb_cache.get(ib)
+        if target is None:
+            #_LOG.debug('cache miss')
+            if self._mb_cache:
+                self._mb_cache = {}
+
+            #_LOG.debug('Calling  NexsonDiffAddress._find_par_el_in_mod_blob from self.key_in_par = {}'.format(self.key_in_par))
+            par_target = self._find_par_el_in_mod_blob(blob)
+            ebs = par_target['edgeBySourceId']
+            edge_dict, target2id = invert_edge_by_source(ebs)
+            self._mb_cache[ib] = edge_dict
+            target = edge_dict
+        return target
 
 
 #nd_to_add, edge_to_add = add_nd_edge
