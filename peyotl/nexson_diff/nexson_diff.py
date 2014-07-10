@@ -18,34 +18,6 @@ _LOG = get_logger(__name__)
 class PatchRC:
     SUCCESS, REDUNDANT, NOT_APPLIED = 0, 1, 2
 
-def _try_apply_add_to_mod_blob(address, blob, value):
-    '''Returns ("value in blob", "presence of key makes this addition a modification")
-    records _redundant_edits
-    was_mod should be true if the diff was originally a modification
-    '''
-    par_target = address._find_par_el_in_mod_blob(blob)
-    assert par_target is not None
-    assert isinstance(par_target, dict)
-    if address.key_in_par in par_target:
-        pv = par_target[address.key_in_par]
-        if pv == value:
-            return PatchRC.REDUNDANT
-        else:
-            return PatchRC.NOT_APPLIED
-    par_target[address.key_in_par] = value
-    return PatchRC.SUCCESS
-
-def _try_apply_mod_to_mod_blob(address, blob, value):
-    par_target = address._find_par_el_in_mod_blob(blob)
-    assert par_target is not None
-    if address.key_in_par not in par_target:
-        return PatchRC.NOT_APPLIED
-    if par_target.get(address.key_in_par) == value:
-        return PatchRC.REDUNDANT
-    par_target[address.key_in_par] = value
-    address._mb_cache = {}
-    return PatchRC.SUCCESS
-
 class NexsonDiff(object):
     def __init__(self, address, value=None):
         self.address = address
@@ -80,7 +52,47 @@ class DeletionDiff(NexsonDiff):
     def __init__(self, value, address):
         NexsonDiff.__init__(self, address=address, value=value)
     def _try_patch_mod_blob(self, blob):
-        return self.address.try_apply_del_to_mod_blob(blob, self.value)
+        return self._try_apply_del_to_mod_blob(blob)
+    def _try_apply_del_to_mod_blob(self, blob):
+        address = self.address
+        assert address.par is not None # can't delete the whole blob!
+        par_target = address._find_par_el_in_mod_blob(blob)
+        if par_target is None:
+            return PatchRC.REDUNDANT
+        return self._try_apply_del_to_par_target(par_target)
+    def _try_apply_del_to_par_target(self, par_target):
+        address = self.address
+        assert isinstance(par_target, dict)
+        if address.key_in_par in par_target:
+            del par_target[address.key_in_par]
+            address._mb_cache = {}
+            return PatchRC.SUCCESS
+        return PatchRC.REDUNDANT
+
+class NoModDelDiff(DeletionDiff):
+    def _try_apply_del_to_par_target(self, par_target):
+        address = self.address
+        target = par_target.get(address.key_in_par)
+        if target is None:
+            return PatchRC.REDUNDANT
+        inds_to_del = set()
+        num_not_applied = 0
+        for doomed_el in self.value:
+            found = False
+            for n, el in enumerate(target):
+                if el == doomed_el:
+                    inds_to_del.add(n)
+                    found = True
+                    break
+            if not found:
+                num_not_applied += 1
+        if num_not_applied == len(self.value):
+            return PatchRC.REDUNDANT
+        inds_to_del = list(inds_to_del)
+        inds_to_del.sort(reverse=True)
+        for n in inds_to_del:
+            target.pop(n)
+        return PatchRC.SUCCESS
 
 class AdditionDiff(NexsonDiff):
     def __init__(self, value, address):
@@ -88,17 +100,147 @@ class AdditionDiff(NexsonDiff):
     def _try_patch_mod_blob(self, blob):
         a = self.address
         v = self.value
-        rc = _try_apply_add_to_mod_blob(a, blob, v)
+        rc = self._try_apply_add_to_mod_blob(blob, v)
         return rc
+
+    def _try_apply_add_to_mod_blob(self, blob, value):
+        '''Returns ("value in blob", "presence of key makes this addition a modification")
+        records _redundant_edits
+        was_mod should be true if the diff was originally a modification
+        '''
+        address = self.address
+        par_target = address._find_par_el_in_mod_blob(blob)
+        assert par_target is not None
+        return self._try_apply_add_to_par_target(par_target)
+
+    def _try_apply_add_to_par_target(self, par_target):
+        address = self.address
+        value = self.value
+        assert isinstance(par_target, dict)
+        if address.key_in_par in par_target:
+            pv = par_target[address.key_in_par]
+            if pv == value:
+                return PatchRC.REDUNDANT
+            else:
+                return PatchRC.NOT_APPLIED
+        par_target[address.key_in_par] = value
+        return PatchRC.SUCCESS
+
+class ByIdAddDiff(AdditionDiff):
+    def _try_apply_add_to_par_target(self, par_target):
+        #_LOG.debug('_try_apply_add_to_par_target')
+        address = self.address
+        assert isinstance(par_target, dict)
+        if address.key_in_par in par_target:
+            pv = par_target[address.key_in_par]
+            if not isinstance(pv, list) or isinstance(pv, tuple):
+                pv = [pv]
+                par_target[address.key_in_par] = pv
+        target = par_target.get(address.key_in_par)
+        if target is None:
+            return PatchRC.NOT_APPLIED
+        value = self.value
+        num_not_applied = 0
+        for ael in value:
+            found = False
+            kid = ael['@id']
+            for n, el in enumerate(target):
+                try:
+                    if el['@id'] == kid:
+                        found = True
+                        break
+                except:
+                    raise
+                    pass
+            if found:
+                num_not_applied += 1
+            else:
+                target.append(ael)
+        s = [(i['@id'], i) for i in target]
+        s.sort()
+        del target[:]
+        target.extend([i[1] for i in s])
+        if num_not_applied > 0:
+            return PatchRC.NOT_APPLIED
+        return PatchRC.SUCCESS
+
+class NoModAddDiff(AdditionDiff):
+    def _try_apply_add_to_par_target(self, par_target):
+        address = self.address
+        target = par_target.get(address.key_in_par)
+        if target is None:
+            target = []
+            par_target[address.key_in_par] = target
+        if not (isinstance(target, list) or isinstance(target, tuple)):
+            target = [target]
+            par_target[address.key_in_par] = target
+        num_not_applied = 0
+        for ael in self.value:
+            found = False
+            for n, el in enumerate(target):
+                if el == ael:
+                    found = True
+                    break
+            if not found:
+                target.append(ael)
+            else:
+                num_not_applied += 1
+        if num_not_applied == len(self.value):
+            return PatchRC.REDUNDANT
+        return PatchRC.SUCCESS
 
 class ModificationDiff(NexsonDiff):
     def __init__(self, value, address):
+        #_LOG.debug('ModificationDiff at {} value={}'.format(address.as_path_syntax(), value))
         NexsonDiff.__init__(self, address=address, value=value)
-    def _try_patch_mod_blob(self, diff_set, blob):
+    def _try_patch_mod_blob(self, blob):
         a = self.address
         v = self.value
-        rc = _try_apply_mod_to_mod_blob(a, blob, v)
-        return rc
+        return self._try_apply_mod_to_mod_blob(blob, v)
+    def _try_apply_mod_to_mod_blob(self, blob, value):
+        address = self.address
+        par_target = address._find_par_el_in_mod_blob(blob)
+        #_LOG.debug('Mod patch apply: par_target = '.format(par_target))
+        assert par_target is not None
+        if address.key_in_par not in par_target:
+            return PatchRC.NOT_APPLIED
+        if par_target.get(address.key_in_par) == value:
+            return PatchRC.REDUNDANT
+        par_target[address.key_in_par] = value
+        address._mb_cache = {}
+        return PatchRC.SUCCESS
+
+
+class SetAddDiff(AdditionDiff):
+    pass
+class SetDelDiff(DeletionDiff):
+    pass
+
+class ByIdDelDiff(DeletionDiff):
+    def _try_apply_del_to_par_target(self, par_target):
+        address = self.address
+        target = par_target.get(address.key_in_par)
+        if target is None:
+            PatchRC.REDUNDANT
+        inds_to_del = set()
+        num_not_found = 0
+        for kid in self.value:
+            found = False
+            for n, el in enumerate(target):
+                if el['@id'] == kid:
+                    inds_to_del.add(n)
+                    found = True
+                    break
+            if not found:
+                num_not_found += 1
+        if num_not_found == len(self.value):
+            return PatchRC.REDUNDANT
+        inds_to_del = list(inds_to_del)
+        inds_to_del.sort(reverse=True)
+        for n in inds_to_del:
+            target.pop(n)
+        #_LOG.debug('after target = {}'.format(target))
+        return PatchRC.SUCCESS
 
 def _get_blob(src):
     '''Returns the nexson blob for diffing from filepath or dict.
@@ -310,14 +452,8 @@ def _dict_patch_modified_blob(base_blob, diff_dict, patch_log):
     adds = diff_dict['additions']
     mods = diff_dict['modifications']
     rerootings = diff_dict['rerootings']
-    for rd in rerootings:
-        rd.patch_mod_blob(base_blob, patch_log)
-    for dd in dels:
-        dd.patch_mod_blob(base_blob, patch_log)
-    for ad in adds:
-        ad.patch_mod_blob(base_blob, patch_log)
-    for md in mods:
-        ad.patch_mod_blob(base_blob, patch_log)
+    for d_obj in itertools.chain(rerootings, dels, adds, mods):
+        d_obj.patch_mod_blob(base_blob, patch_log)
     od = diff_dict.get('key-ordering', {})
     _ordering_patch_modified_blob(base_blob, od, patch_log)
 
@@ -716,8 +852,6 @@ class NexsonDiffSet(object):
                         assert reroot_info['del_node'] is None
                         reroot_info['del_node'] = s_node
                         reroot_info['del_node_id'] = nid
-                    #    n_context = sub_context.child(nid)
-                    #    self.add_deletion(n_context)
                 if d_root_id not in s_node_id_set:
                     reroot_info['add_node_id'] = d_root_id
                     reroot_info['add_node'] = d_node_bid.get(d_root_id)
@@ -858,6 +992,7 @@ class NexsonDiffSet(object):
                                 if not isinstance(dv, list):
                                     dv = [dv]
                                 if k in _SET_LIKE_PROPERTIES:
+                                    add_type, del_type = SetAddDiff, SetDelDiff
                                     dvs = set(dv)
                                     svs = set(v)
                                     dels = svs - dvs
@@ -865,6 +1000,7 @@ class NexsonDiffSet(object):
                                     if adds or dels:
                                         sub_context = context.set_like_list_child(k)
                                 elif k in _BY_ID_LIST_PROPERTIES:
+                                    add_type, del_type = ByIdAddDiff, ByIdDelDiff
                                     dd = {i['@id']:i for i in dv}
                                     sd = {i['@id']:i for i in v}
                                     sds = set(sd.keys())
@@ -887,15 +1023,16 @@ class NexsonDiffSet(object):
                                             sub_sub_context = sub_context.child(ki)
                                             self._calculate_generic_diffs(ssv, dsv, skip_dict=sub_skip_dict, context=sub_sub_context)
                                 else:
+                                    add_type, del_type = NoModAddDiff, NoModDelDiff
                                     # treat like _NO_MOD_PROPERTIES
                                     # ugh not efficient...
                                     dels, adds = detect_no_mod_list_dels_adds(v, dv)
                                     if adds or dels:
                                         sub_context = context.no_mod_list_child(k)
                                 if dels:
-                                    self.add(DeletionDiff(dels, address=sub_context))
+                                    self.add(del_type(dels, address=sub_context))
                                 if adds:
-                                    self.add(AdditionDiff(adds, address=sub_context))
+                                    self.add(add_type(adds, address=sub_context))
                                 
                             else:
                                 #_LOG.debug('mod in key = ' + k)
