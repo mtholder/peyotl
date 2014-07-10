@@ -10,6 +10,7 @@ from peyotl.nexson_syntax import detect_nexson_version, \
 from peyotl.nexson_diff.nexson_diff_address import NexsonDiffAddress
 from peyotl.utility import get_logger
 import itertools
+import copy
 import json
 
 _LOG = get_logger(__name__)
@@ -46,8 +47,9 @@ def _try_apply_mod_to_mod_blob(address, blob, value):
     return PatchRC.SUCCESS
 
 class NexsonDiff(object):
-    def __init__(self, address):
+    def __init__(self, address, value=None):
         self.address = address
+        self.value = value
     def patch_mod_blob(self, blob, patch_log):
         rc = self._try_patch_mod_blob(blob)
         if rc == PatchRC.SUCCESS:
@@ -57,43 +59,45 @@ class NexsonDiff(object):
         elif rc == PatchRC.REDUNDANT:
             patch_log.mark_redundant(self)
         return False
-
+    def as_ot_diff(self):
+        v = copy.deepcopy(self.value)
+        if isinstance(v, set):
+            vl = list(v)
+            vl.sort()
+            y = {'value': vl}
+        else:
+            y = {'value': v}
+        if self.address is not None:
+            y.update(self.address.as_ot_target())
+        return y
 class RerootingDiff(NexsonDiff):
     def __init__(self, reroot_info, address):
-        NexsonDiff.__init__(self, address)
-        self.info = reroot_info
+        NexsonDiff.__init__(self, address=address, value=reroot_info)
     def _try_patch_mod_blob(self, blob):
-        return self.address.try_apply_rerooting_to_mod_blob(blob, self.info)
+        return self.address.try_apply_rerooting_to_mod_blob(blob, self.value)
 
 class DeletionDiff(NexsonDiff):
     def __init__(self, value, address):
-        NexsonDiff.__init__(self, address)
-        self.value = value
+        NexsonDiff.__init__(self, address=address, value=value)
     def _try_patch_mod_blob(self, blob):
         return self.address.try_apply_del_to_mod_blob(blob, self.value)
 
 class AdditionDiff(NexsonDiff):
     def __init__(self, value, address):
-        NexsonDiff.__init__(self, address)
-        self.value = value
+        NexsonDiff.__init__(self, address=address, value=value)
     def _try_patch_mod_blob(self, blob):
         a = self.address
         v = self.value
         rc = _try_apply_add_to_mod_blob(a, blob, v)
-        if rc == PatchRC.NOT_APPLIED:
-            rc = _try_apply_mod_to_mod_blob(a, blob, v)
         return rc
 
 class ModificationDiff(NexsonDiff):
     def __init__(self, value, address):
-        NexsonDiff.__init__(self, address)
-        self.value = value
+        NexsonDiff.__init__(self, address=address, value=value)
     def _try_patch_mod_blob(self, diff_set, blob):
         a = self.address
         v = self.value
         rc = _try_apply_mod_to_mod_blob(a, blob, v)
-        if rc == PatchRC.NOT_APPLIED:
-            rc = _try_apply_add_to_mod_blob(a, blob, v)
         return rc
 
 def _get_blob(src):
@@ -346,26 +350,14 @@ def _dict_of_ordering_to_ot_diff(od):
 
 def _to_ot_diff_dict(native_diff):
     r = {}
-    for dt in ('additions', 'modifications', 'deletions'):
+    for dt in ('additions', 'modifications', 'deletions', 'rerootings'):
         kvc_list = native_diff.get(dt, [])
         x = []
-        for v, c in kvc_list:
-            if isinstance(v, set):
-                vl = list(v)
-                vl.sort()
-                y = {'value': vl}
-            else:
-                y = {'value': v}
-            if c is not None:
-                y.update(c.as_ot_target())
+        for diff_obj in kvc_list:
+            y = diff_obj.as_ot_diff()
             x.append(y)
         if kvc_list:
             r[dt] = x
-    x = native_diff.get('tree')
-    if x:
-        todd = _to_ot_diff_dict(x)
-        if todd:
-            r['tree'] = todd
     if 'key-ordering' in native_diff:
         nk = native_diff['key-ordering']
         if nk:
