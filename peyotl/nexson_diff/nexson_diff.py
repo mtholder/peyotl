@@ -14,6 +14,88 @@ import json
 
 _LOG = get_logger(__name__)
 
+class PatchRC:
+    SUCCESS, REDUNDANT, NOT_APPLIED = 0, 1, 2
+
+def _try_apply_add_to_mod_blob(address, blob, value):
+    '''Returns ("value in blob", "presence of key makes this addition a modification")
+    records _redundant_edits
+    was_mod should be true if the diff was originally a modification
+    '''
+    par_target = address._find_par_el_in_mod_blob(blob)
+    assert par_target is not None
+    assert isinstance(par_target, dict)
+    if address.key_in_par in par_target:
+        pv = par_target[address.key_in_par]
+        if pv == value:
+            return PatchRC.REDUNDANT
+        else:
+            return PatchRC.NOT_APPLIED
+    par_target[address.key_in_par] = value
+    return PatchRC.SUCCESS
+
+def _try_apply_mod_to_mod_blob(address, blob, value):
+    par_target = address._find_par_el_in_mod_blob(blob)
+    assert par_target is not None
+    if address.key_in_par not in par_target:
+        return PatchRC.NOT_APPLIED
+    if par_target.get(address.key_in_par) == value:
+        return PatchRC.REDUNDANT
+    par_target[address.key_in_par] = value
+    address._mb_cache = {}
+    return PatchRC.SUCCESS
+
+class NexsonDiff(object):
+    def __init__(self, address):
+        self.address = address
+    def patch_mod_blob(self, blob, patch_log):
+        rc = self._try_patch_mod_blob(blob)
+        if rc == PatchRC.SUCCESS:
+            return True
+        if rc == PatchRC.NOT_APPLIED:
+            patch_log.mark_unapplied(self)
+        elif rc == PatchRC.REDUNDANT:
+            patch_log.mark_redundant(self)
+        return False
+
+class RerootingDiff(NexsonDiff):
+    def __init__(self, reroot_info, address):
+        NexsonDiff.__init__(self, address)
+        self.info = reroot_info
+    def _try_patch_mod_blob(self, blob):
+        return self.address.try_apply_rerooting_to_mod_blob(blob, self.info)
+
+class DeletionDiff(NexsonDiff):
+    def __init__(self, value, address):
+        NexsonDiff.__init__(self, address)
+        self.value = value
+    def _try_patch_mod_blob(self, blob):
+        return self.address.try_apply_del_to_mod_blob(blob, self.value)
+
+class AdditionDiff(NexsonDiff):
+    def __init__(self, value, address):
+        NexsonDiff.__init__(self, address)
+        self.value = value
+    def _try_patch_mod_blob(self, blob):
+        a = self.address
+        v = self.value
+        rc = _try_apply_add_to_mod_blob(a, blob, v)
+        if rc == PatchRC.NOT_APPLIED:
+            rc = _try_apply_mod_to_mod_blob(a, blob, v)
+        return rc
+
+class ModificationDiff(NexsonDiff):
+    def __init__(self, value, address):
+        NexsonDiff.__init__(self, address)
+        self.value = value
+    def _try_patch_mod_blob(self, diff_set, blob):
+        a = self.address
+        v = self.value
+        rc = _try_apply_mod_to_mod_blob(a, blob, v)
+        if rc == PatchRC.NOT_APPLIED:
+            rc = _try_apply_add_to_mod_blob(a, blob, v)
+        return rc
+
 def _get_blob(src):
     '''Returns the nexson blob for diffing from filepath or dict.
     Verifies that the nexson version is correct (or raises a ValueError)
@@ -26,10 +108,10 @@ def _get_blob(src):
         b = json.load(src)
     v = detect_nexson_version(b)
     if not _is_by_id_hbf(v):
-        raise ValueError('NexsonDiff objects can only operate on NexSON version 1.2. Found version = "{}"'.format(v))
+        raise ValueError('NexsonDiffSet objects can only operate on NexSON version 1.2. Found version = "{}"'.format(v))
     return b
 
-OT_DIFF_TYPE_LIST = ('additions', 'deletions', 'modifications')
+OT_DIFF_TYPE_LIST = ('additions', 'deletions', 'modifications', 'rerootings', 'key-ordering')
 
 def new_diff_summary(in_tree=False):
     d = {}
@@ -107,7 +189,7 @@ def _register_ordered_edit_not_made(container,
         utbgi = uoe.setdefault(known_order_key, {})
         utbgi[group_id] = full_edit
 
-def _apply_ordered_edit_to_group(nexson_diff,
+def _apply_ordered_edit_to_group(patch_log,
                                  base_container,
                                  the_edit,
                                  known_order_key,
@@ -162,29 +244,27 @@ def _apply_ordered_edit_to_group(nexson_diff,
     base_container[op] = final_order
 
     if red_ed:
-        _register_ordered_edit_not_made(nexson_diff._redundant_edits,
-                                        red_ed,
-                                        bip,
-                                        op,
-                                        the_edit['address'],
-                                        the_edit['dest_order'],
-                                        known_order_key,
-                                        group_id)
+        patch_log.mark_redundant_ordered(red_ed,
+                                 bip,
+                                 op,
+                                 the_edit['address'],
+                                 the_edit['dest_order'],
+                                 known_order_key,
+                                 group_id)
     if unap_ed:
-        _register_ordered_edit_not_made(nexson_diff._unapplied_edits,
-                                        unap_ed,
-                                        bip,
-                                        op,
-                                        the_edit['address'],
-                                        the_edit['dest_order'],
-                                        known_order_key,
-                                        group_id)
+        patch_log.mark_unapplied_ordered(unap_ed,
+                                         bip,
+                                         op,
+                                         the_edit['address'],
+                                         the_edit['dest_order'],
+                                         known_order_key,
+                                         group_id)
 
 _KNOWN_ORDERED_KEYS = {'treesById':('treesById', True),
                        'trees': (None, False),
                        'otus': (None, False)}
 
-def _ordering_patch_modified_blob(nexson_diff, base_blob, ordering_dict):
+def _ordering_patch_modified_blob(base_blob, ordering_dict, patch_log):
     #_LOG.debug('ordering dict = ' + str(ordering_dict))
     for k in ordering_dict.keys():
         assert k in _KNOWN_ORDERED_KEYS
@@ -198,68 +278,44 @@ def _ordering_patch_modified_blob(nexson_diff, base_blob, ordering_dict):
             else:
                 bg = base_nexml.get(bk)
             if bg is None:
-                nexson_diff._unapplied_edits.setdefault('key-ordering', {})[k] = g
+                patch_log._unapplied_edits.setdefault('key-ordering', {})[k] = g
             else:
                 if nested:
                     for group_id, the_edit in g.items():
                         tg = bg.get(group_id)
                         if tg is None:
                             #_LOG.debug('unapplied tree edit for lack of group_id ' + group_id)
-                            uoe = nexson_diff._unapplied_edits.setdefault('key-ordering', {})
+                            uoe = patch_log._unapplied_edits.setdefault('key-ordering', {})
                             utbgi = uoe.setdefault(k, {})
                             utbgi[group_id] = the_edit
                             continue
-                        _apply_ordered_edit_to_group(nexson_diff,
+                        _apply_ordered_edit_to_group(patch_log,
                                                      tg,
                                                      the_edit,
                                                      k,
                                                      group_id)
                 else:
-                    _apply_ordered_edit_to_group(nexson_diff,
+                    _apply_ordered_edit_to_group(patch_log,
                                                  bg,
                                                  g,
                                                  k,
                                                  None)
 
-def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
-    #_LOG.debug('_dict_patch_modified_blob(...diff_dict = ' + str(diff_dict) + ')')
+def _dict_patch_modified_blob(base_blob, diff_dict, patch_log):
     dels = diff_dict['deletions']
     adds = diff_dict['additions']
     mods = diff_dict['modifications']
-    #_LOG.debug('adds = ' + str(adds))
-    for v, c in dels:
-        c.try_apply_del_to_mod_blob(nexson_diff, base_blob, v)
-    adds_to_mods = []
-    really_adds = set()
-    for t in adds:
-        v, c = t
-        added, is_mod = c.try_apply_add_to_mod_blob(nexson_diff, base_blob, v, False)
-        if not added:
-            if is_mod:
-                #_LOG.debug('add t = {}'.format(t))
-                really_adds.add(t)
-                adds_to_mods.append(t)
-            else:
-                #_LOG.debug('adding to _unapplied_edits: {}'.format(t))
-                nexson_diff._unapplied_edits['additions'].append(t)
-    mods_to_adds = []
-    for t in itertools.chain(mods, adds_to_mods):
-        v, c = t
-        was_add = t in really_adds
-        if not c.try_apply_mod_to_mod_blob(nexson_diff, base_blob, v, was_add):
-            mods_to_adds.append(t)
-    for t in mods_to_adds:
-        v, c = t
-        added, is_mod = c.try_apply_add_to_mod_blob(nexson_diff, base_blob, v, True)
-        if not added:
-            nexson_diff._unapplied_edits['additions'].append(t)
-
-def _tree_dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
-    #_LOG.debug('_tree_dict_patch_modified_blob(...diff_dict = ' + str(diff_dict) + ')')
     rerootings = diff_dict['rerootings']
-    for reroot_info, c in rerootings:
-        c.try_apply_rerooting_to_mod_blob(nexson_diff, base_blob, reroot_info)
-    _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict)
+    for rd in rerootings:
+        rd.patch_mod_blob(base_blob, patch_log)
+    for dd in dels:
+        dd.patch_mod_blob(base_blob, patch_log)
+    for ad in adds:
+        ad.patch_mod_blob(base_blob, patch_log)
+    for md in mods:
+        ad.patch_mod_blob(base_blob, patch_log)
+    od = diff_dict.get('key-ordering', {})
+    _ordering_patch_modified_blob(base_blob, od, patch_log)
 
 def _ordering_to_ot_diff(od):
     r = {}
@@ -354,9 +410,30 @@ _SET_LIKE_PROPERTIES = frozenset([
 _BY_ID_LIST_PROPERTIES = frozenset(['agent', 'annotation'])
 _NO_MOD_PROPERTIES = frozenset(['message'])
 
+def _extract_by_diff_type(d, diff_obj):
+    if isinstance(diff_obj, RerootingDiff):
+        return d['rerootings']
+    elif isinstance(diff_obj, AdditionDiff):
+        return d['additions']
+    elif isinstance(diff_obj, DeletionDiff):
+        return d['deletions']
+    elif isinstance(diff_obj, ModificationDiff):
+        return d['modifications']
+    else:
+        raise NotImplementedError('Unknown Diff Type')
 
+class PatchLog(object):
+    def __init__(self):
+        self.unapplied_edits = new_diff_summary()
+        self.redundant_edits = new_diff_summary()
+    def mark_unapplied(self, d_obj):
+        _extract_by_diff_type(self.unapplied_edits, d_obj).append(d_obj)
+    def mark_redundant(self, d_obj):
+        _extract_by_diff_type(self.redundant_edits, d_obj).append(d_obj)
+    def unapplied_as_ot_diff_dict(self):
+        return _to_ot_diff_dict(self.unapplied_edits)
 
-class NexsonDiff(object):
+class NexsonDiffSet(object):
     def __init__(self, anc=None, des=None, patch=None):
         if patch is None:
             if anc is None or des is None:
@@ -364,7 +441,7 @@ class NexsonDiff(object):
             self.anc_blob = _get_blob(anc)
             self.des_blob = _get_blob(des)
             self.no_op_t = (self._no_op_handling, None)
-            self._calculate_diff()
+            self._calculate_diffs()
         else:
             self.diff_dict = patch
             add_nested_diff_fields(patch)
@@ -378,7 +455,7 @@ class NexsonDiff(object):
         writes the output to a file. output_filepath
         if output_filepath is `None` then filepath_to_patch will be used as the
         output_filepath.
-        NexsonDiff.patch_modified_blob does the patch
+        NexsonDiffSet.patch_modified_blob does the patch
         '''
         if input_nexson is None:
             assert isinstance(filepath_to_patch, str) or isinstance(filepath_to_patch, unicode)
@@ -386,24 +463,13 @@ class NexsonDiff(object):
         else:
             v = detect_nexson_version(input_nexson)
             if not _is_by_id_hbf(v):
-                raise ValueError('NexsonDiff objects can only operate on NexSON version 1.2. Found version = "{}"'.format(v))
-        self.patch_modified_blob(input_nexson)
+                raise ValueError('NexsonDiffSet objects can only operate on NexSON version 1.2. Found version = "{}"'.format(v))
+        patch_log = self.patch_modified_blob(input_nexson)
         if output_filepath is None:
             output_filepath = filepath_to_patch
         write_as_json(input_nexson, output_filepath)
+        return patch_log
 
-    def unapplied_edits_as_ot_diff_dict(self):
-        u = {}
-        if self._unapplied_nontree_edits is not None:
-            u = self._unapplied_nontree_edits
-        uo = _to_ot_diff_dict(u)
-        tu = {}
-        if self._unapplied_tree_edits is not None:
-            tu = self._unapplied_tree_edits
-        tod = _to_ot_diff_dict(tu)
-        if tod:
-            uo['tree'] = tod
-        return uo
 
     def as_ot_diff_dict(self):
         return _to_ot_diff_dict(self.diff_dict)
@@ -417,18 +483,6 @@ class NexsonDiff(object):
         if t.get('rerootings'):
             return True
         return False
-
-    def _clear_patch_related_data(self):
-        n, t = new_nested_diff_summary()
-        self._unapplied_nontree_edits = n
-        self._unapplied_tree_edits = t
-
-        n, t = new_nested_diff_summary()
-        self._redundant_nontree_edits = n
-        self._redundant_tree_edits = t
-
-        self._redundant_edits = self._redundant_nontree_edits
-        self._unapplied_edits = self._unapplied_nontree_edits
 
     def _clear_diff_related_data(self):
         self._nontree_diff, self._tree_diff = new_nested_diff_summary()
@@ -452,20 +506,16 @@ class NexsonDiff(object):
         appropriate operations could not be performed on the base_blob dict)
         '''
         #_LOG.debug('base_blob[nexml]["^ot:agents"] = {}'.format(base_blob["nexml"]["^ot:agents"]))
-        self._clear_patch_related_data()
+        patch_log = PatchLog()
         d = self.diff_dict
-        _dict_patch_modified_blob(self, base_blob, d)
-        self._redundant_edits = self._redundant_tree_edits
-        self._unapplied_edits = self._unapplied_tree_edits
-        _tree_dict_patch_modified_blob(self, base_blob, d['tree'])
-        _ordering_patch_modified_blob(self, base_blob, d['key-ordering'])
+        _dict_patch_modified_blob(base_blob, d, patch_log)
+        return patch_log
 
-    def _calculate_diff(self):
+    def _calculate_diffs(self):
         '''Inefficient comparison of anc and des dicts.
         Recurses through dict and lists.
 
         '''
-        self._clear_patch_related_data()
         self._clear_diff_related_data()
         a = self.anc_blob
         d = self.des_blob
@@ -562,7 +612,7 @@ class NexsonDiff(object):
                                             tsid_context)
                 self._calculate_generic_diffs(s_trees, d_trees, trees_skip_d, tsid_context)
             else:
-                self.add_deletion(s_trees, context=tsid_context)
+                self.add(DeletionDiff(s_trees, context=tsid_context))
         return False, None
 
     def _calc_tree_diff_no_rooting_change(self, s_tree, d_tree, context):
@@ -760,7 +810,7 @@ class NexsonDiff(object):
                     if t_context is None:
                         t_context = context.create_tree_context()
                     reroot_info['new_root_id'] = d_root_id
-                    self.add_rerooting(reroot_info, t_context)
+                    self.add(RerootingDiff(reroot_info, t_context))
                 else:
                     assert reroot_info['del_node'] is None
                     assert reroot_info['del_edge'] is None
@@ -769,8 +819,6 @@ class NexsonDiff(object):
         finally:
             self.activate_nontree_diffs()
 
-    def add_rerooting(self, reroot_info, context):
-        self.curr_diff_dict['rerootings'].append((reroot_info, context))
 
     def activate_tree_diffs(self):
         self.curr_diff_dict = self._tree_diff
@@ -778,14 +826,8 @@ class NexsonDiff(object):
     def activate_nontree_diffs(self):
         self.curr_diff_dict = self._nontree_diff
 
-    def add_addition(self, v, context):
-        self.curr_diff_dict['additions'].append((v, context))
-
-    def add_deletion(self, v, context):
-        self.curr_diff_dict['deletions'].append((v, context))
-
-    def add_modification(self, v, context):
-        self.curr_diff_dict['modifications'].append((v, context))
+    def add(self, d_obj):
+        _extract_by_diff_type(self.curr_diff_dict, d_obj).append(d_obj)
 
     def _calculate_generic_diffs(self, src, dest, skip_dict, context):
         sk = set(src.keys())
@@ -859,9 +901,9 @@ class NexsonDiff(object):
                                     if adds or dels:
                                         sub_context = context.no_mod_list_child(k)
                                 if dels:
-                                    self.add_deletion(dels, context=sub_context)
+                                    self.add(DeletionDiff(dels, address=sub_context))
                                 if adds:
-                                    self.add_addition(adds, context=sub_context)
+                                    self.add(AdditionDiff(adds, address=sub_context))
                                 
                             else:
                                 #_LOG.debug('mod in key = ' + k)
@@ -870,12 +912,12 @@ class NexsonDiff(object):
                                 else:
                                     sub_context = context.child(k)
                                 #_LOG.debug('mod key "{}" from "{}" to "{}"'.format(k, v, dv))
-                                self.add_modification(dv, context=sub_context)
+                                self.add(ModificationDiff(dv, address=sub_context))
                 else:
                     if sub_context is None:
                         sub_context = context.child(k)
                     #_LOG.debug('del key "{}"'.format(k))
-                    self.add_deletion(v, context=sub_context)
+                    self.add(DeletionDiff(v, address=sub_context))
         elif k in dest:
             do_generic_calc = True
             skip_tuple = skip_dict.get(k)
@@ -890,7 +932,7 @@ class NexsonDiff(object):
                     else:
                         sub_context = context.child(k)
                 #_LOG.debug('add key "{}" from "{}"'.format(k, dest[k]))
-                self.add_addition(dest[k], context=sub_context)
+                self.add(AdditionDiff(dest[k], address=sub_context))
 
 
 def detect_no_mod_list_dels_adds(src, dest):

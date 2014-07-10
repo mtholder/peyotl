@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from peyotl.nexson_diff import NexsonDiff
+from peyotl.nexson_diff import NexsonDiffSet
 import sys
 VERBOSE = False
 
@@ -48,7 +48,7 @@ changes as deletion vs additions.
         error('Could not open file "{fn}"\n'.format(fn=inpfn2))
         return False
 
-    nd = NexsonDiff(inp1, inp2)
+    nd = NexsonDiffSet(inp1, inp2)
     if nd.has_differences():
         od = nd.as_ot_diff_dict()
         if outfn is not None:

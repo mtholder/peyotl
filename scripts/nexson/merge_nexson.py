@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from peyotl.nexson_diff import NexsonDiff
+from peyotl.nexson_diff import NexsonDiffSet
 import sys
 import os
 VERBOSE = False
@@ -41,7 +41,7 @@ Environmental variables used:
             error('"{}" does not exist'.format(inpfn1))
             return False
     VERBOSE = args.verbose
-    nd = NexsonDiff(anc=mrca, des=edited)
+    nd = NexsonDiffSet(anc=mrca, des=edited)
     nd.patch_modified_file(basefile, output_filepath=args.output)
     return True
 

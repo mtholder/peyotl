@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-from peyotl.nexson_diff import NexsonDiff
+from peyotl.nexson_diff import NexsonDiffSet
 from peyotl.nexson_syntax import write_as_json
 from peyotl.test.support import pathmap
 from peyotl.utility import get_logger
@@ -17,12 +17,12 @@ def emulate_conflicted_merge(mrca_file,
                              study_filepath):
     base = study_filepath + '.tmp'
     shutil.copy(other_version, base)
-    edits_on_dest = NexsonDiff(mrca_file, user_version)
+    edits_on_dest = NexsonDiffSet(mrca_file, user_version)
     #write_as_json(edits_on_dest.as_ot_diff_dict(), sys.stderr)
-    edits_on_dest.patch_modified_file(base, output_filepath=study_filepath)
+    patch_log = edits_on_dest.patch_modified_file(base, output_filepath=study_filepath)
     os.remove(base)
-    diffs_from_dest_par = NexsonDiff(user_version, study_filepath)
-    return edits_on_dest, diffs_from_dest_par
+    diffs_from_dest_par = NexsonDiffSet(user_version, study_filepath)
+    return patch_log, diffs_from_dest_par
 
 def read_json(fp):
     return json.load(codecs.open(fp, 'rU', encoding='utf-8'))
@@ -47,7 +47,7 @@ class TestNexsonDiff(unittest.TestCase):
             user_version = os.path.join(fn, 'by-user.json')
             other_version = os.path.join(fn, 'by-others.json')
             output = os.path.join(fn, 'output')
-            eod, dfdp = emulate_conflicted_merge(mrca_file, 
+            patch_log, dfdp = emulate_conflicted_merge(mrca_file, 
                                                  user_version,
                                                  other_version,
                                                  output)
@@ -58,7 +58,7 @@ class TestNexsonDiff(unittest.TestCase):
             #_LOG.debug('reading output_blob from ' + output)
             output_blob = read_json(output)
             rec_dict_diff(expected_blob, output_blob, '')
-            e = eod.unapplied_edits_as_ot_diff_dict()
+            e = patch_log.unapplied_as_ot_diff_dict()
             e = json.loads(json.dumps(e, encoding='utf-8'), encoding='utf-8')
             x = dfdp.as_ot_diff_dict()
             d = json.loads(json.dumps(x, encoding='utf-8'), encoding='utf-8')

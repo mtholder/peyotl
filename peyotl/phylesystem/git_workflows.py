@@ -217,7 +217,7 @@ def merge_from_master(git_action, study_id, auth_info, parent_sha):
     """
     gh_user, author = get_user_author(auth_info)
     acquire_lock_raise(git_action, fail_msg="Could not acquire lock to merge study #{s}".format(s=study_id))
-    diff_that_patched = None
+    patch_log = None
     post_merge_diff = None
     files_to_del = []
     try:
@@ -237,7 +237,7 @@ def merge_from_master(git_action, study_id, auth_info, parent_sha):
                                                   auth_info)
             new_sha = cmd['sha']
             files_to_del = cmd['files_to_del']
-            diff_that_patched = cmd['diff_that_patched']
+            patch_log = cmd['patch_log']
             post_merge_diff = cmd['post_merge_diff']
     finally:
         git_action.release_lock()
@@ -245,8 +245,8 @@ def merge_from_master(git_action, study_id, auth_info, parent_sha):
         os.remove(fp)
 
     edits_not_applied = {}
-    if diff_that_patched is not None:
-        edits_not_applied = diff_that_patched.unapplied_edits_as_ot_diff_dict()
+    if patch_log is not None:
+        edits_not_applied = patch_log.unapplied_as_ot_diff_dict()
     post_merge_diff_dict = None
     if post_merge_diff is not None:
         post_merge_diff_dict = post_merge_diff.as_ot_diff_dict()

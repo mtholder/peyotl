@@ -117,64 +117,6 @@ class NexsonDiffAddress(object):
         nexson_diff._redundant_edits['deletions'].append((del_v, self))
         return False
 
-    def try_apply_add_to_mod_blob(self, nexson_diff, blob, value, was_mod):
-        '''Returns ("value in blob", "presence of key makes this addition a modification")
-        records _redundant_edits
-        was_mod should be true if the diff was originally a modification
-        '''
-        assert self.par is not None
-        par_target = self._find_par_el_in_mod_blob(blob)
-        #_LOG.debug('add call on self.key_in_par = "{}" on {}'.format(self.key_in_par, par_target))
-        assert par_target is not None
-        assert isinstance(par_target, dict)
-        if self.key_in_par in par_target:
-            pv = par_target[self.key_in_par]
-            if pv == value:
-                if was_mod:
-                    container = nexson_diff._redundant_edits['modifications']
-                else:
-                    container = nexson_diff._redundant_edits['additions']
-                container.append((value, self))
-                #_LOG.debug('try_apply_add_to_mod_blob t, t')
-                return True, True
-            else:
-                #_LOG.debug('try_apply_add_to_mod_blob F, was_mod')
-                return False, was_mod
-        #_LOG.debug('delegate _try_apply_add_to_par_target')
-        return self._try_apply_add_to_par_target(nexson_diff, par_target, value, was_mod, id(blob))
-
-    def _try_apply_add_to_par_target(self, nexson_diff, par_target, value, was_mod, blob_id):
-        if self.key_in_par in par_target:
-            #_LOG.debug('_try_apply_add_to_par_target F, t')
-            return False, True
-        assert not isinstance(value, DictDiff)
-        par_target[self.key_in_par] = value
-        self._mb_cache = {}
-        #_LOG.debug('_try_apply_add_to_par_target t, t')
-        return True, True
-
-    def try_apply_mod_to_mod_blob(self, nexson_diff, blob, value, was_add):
-        par_target = self._find_par_el_in_mod_blob(blob)
-        #_LOG.debug('mod call on self.key_in_par = "{}" to "{}" applied to par_target="{}"'.format(self.key_in_par, value, par_target))
-        assert par_target is not None
-        #_LOG.debug('Looking for {} in {} to set value to {}'.format(self.key_in_par, par_target.keys(), value))
-        if self.key_in_par not in par_target:
-            return False
-        assert not isinstance(value, DictDiff)
-        if par_target.get(self.key_in_par) == value:
-            if was_add:
-                container = nexson_diff._redundant_edits['additions']
-            else:
-                container = nexson_diff._redundant_edits['modifications']
-            container.append((value, self))
-        else:
-            self._try_apply_mod_to_par_target(nexson_diff, par_target, value, id(blob))
-        return True
-
-    def _try_apply_mod_to_par_target(self, nexson_diff, par_target, value, blob_id):
-        par_target[self.key_in_par] = value
-        self._mb_cache = {}
-
 class IDListAsDictWrapper(object):
     def __init__(self, idl):
         self.idl = idl

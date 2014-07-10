@@ -6,7 +6,7 @@ import locket
 import codecs
 from peyotl import get_logger
 import shutil
-from peyotl.nexson_diff import NexsonDiff
+from peyotl.nexson_diff import NexsonDiffSet
 import tempfile #@TEMPORARY for deprecated write_study
 _LOG = get_logger(__name__)
 class MergeException(Exception):
@@ -566,7 +566,7 @@ class GitAction(object):
             git(self.git_dir_arg, self.gitwd, "checkout", destination)
         try:
             git(self.git_dir_arg, self.gitwd, "merge", branch)
-            return {'diff_that_patched': None,
+            return {'patch_log': None,
                     'post_merge_diff': None,
                     'files_to_del': [],
                     'sha': self._head_sha(),
@@ -589,7 +589,7 @@ class GitAction(object):
             dfo.close()
             shutil.copy(sfn, study_filepath) # start with the content in the source
             edits_on_dest = NexsonDiff(mfn, dfn) # construct differences made by this curator (diff between mrca and dest branch)
-            edits_on_dest.patch_modified_file(study_filepath) # apply the curator's edits to the base
+            patch_log = edits_on_dest.patch_modified_file(study_filepath) # apply the curator's edits to the base
             self._add_and_commit_from_working_dir(study_id,
                                                   author,
                                                   study_filepath,
@@ -628,7 +628,7 @@ class GitAction(object):
                 pass
             self.reset_hard()
             raise
-        return {'diff_that_patched': edits_on_dest,
+        return {'patch_log': patch_log,
                 'post_merge_diff': diffs_from_dest_par,
                 'files_to_del': [mfn, sfn, dfn],
                 'sha': self._head_sha(),
