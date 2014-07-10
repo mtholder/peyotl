@@ -18,6 +18,7 @@ def emulate_conflicted_merge(mrca_file,
     base = study_filepath + '.tmp'
     shutil.copy(other_version, base)
     edits_on_dest = NexsonDiff(mrca_file, user_version)
+    #write_as_json(edits_on_dest.as_ot_diff_dict(), sys.stderr)
     edits_on_dest.patch_modified_file(base, output_filepath=study_filepath)
     os.remove(base)
     diffs_from_dest_par = NexsonDiff(user_version, study_filepath)
@@ -40,8 +41,8 @@ class TestNexsonDiff(unittest.TestCase):
 
     def testExpectedMerge(self):
         for fn in pathmap.all_dirs(os.path.join('nexson', 'diff')):
-            #if not fn.endswith('compat-tree-mod'):
-            #    continue
+            if not fn.endswith('bare-mod-no-mod-list'):
+                pass
             mrca_file = os.path.join(fn, 'mrca.json')
             user_version = os.path.join(fn, 'by-user.json')
             other_version = os.path.join(fn, 'by-others.json')

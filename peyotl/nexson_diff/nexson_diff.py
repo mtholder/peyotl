@@ -226,7 +226,7 @@ def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
     dels = diff_dict['deletions']
     adds = diff_dict['additions']
     mods = diff_dict['modifications']
-    #_LOG.debug('mods = ' + str(mods))
+    #_LOG.debug('adds = ' + str(adds))
     for v, c in dels:
         c.try_apply_del_to_mod_blob(nexson_diff, base_blob, v)
     adds_to_mods = []
@@ -240,6 +240,7 @@ def _dict_patch_modified_blob(nexson_diff, base_blob, diff_dict):
                 really_adds.add(t)
                 adds_to_mods.append(t)
             else:
+                #_LOG.debug('adding to _unapplied_edits: {}'.format(t))
                 nexson_diff._unapplied_edits['additions'].append(t)
     mods_to_adds = []
     for t in itertools.chain(mods, adds_to_mods):
@@ -392,9 +393,17 @@ class NexsonDiff(object):
         write_as_json(input_nexson, output_filepath)
 
     def unapplied_edits_as_ot_diff_dict(self):
-        if self._unapplied_edits is None:
-            return {}
-        return _to_ot_diff_dict(self._unapplied_edits)
+        u = {}
+        if self._unapplied_nontree_edits is not None:
+            u = self._unapplied_nontree_edits
+        uo = _to_ot_diff_dict(u)
+        tu = {}
+        if self._unapplied_tree_edits is not None:
+            tu = self._unapplied_tree_edits
+        tod = _to_ot_diff_dict(tu)
+        if tod:
+            uo['tree'] = tod
+        return uo
 
     def as_ot_diff_dict(self):
         return _to_ot_diff_dict(self.diff_dict)
@@ -826,10 +835,12 @@ class NexsonDiff(object):
                                     sd = {i['@id']:i for i in v}
                                     sds = set(sd.keys())
                                     dds = set(dd.keys())
+                                    #_LOG.debug('sds = {}, dds = {}'.format(sds, dds))
                                     adds = dds - sds
                                     dels = sds - dds
                                     if adds:
                                         adds = tuple([dd[i] for i in adds])
+                                    #_LOG.debug('adds = {}, dels = {}'.format(adds, dels))
                                     #_LOG.debug('_BY_ID_LIST_PROPERTIES dels = {}'.format(str(dels)))
                                     #_LOG.debug('_BY_ID_LIST_PROPERTIES adds = {}'.format(str(adds)))
                                     sub_context = context.by_id_list_child(k)
