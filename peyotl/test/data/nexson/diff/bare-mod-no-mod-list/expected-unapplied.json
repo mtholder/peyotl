@@ -1,1 +1,34 @@
-{}
+{
+"additions": [
+{
+"address": [
+"nexml", 
+"^ot:agents", 
+"agent", 
+"peyotl-validator", 
+"invocation", 
+"checksPerformed"
+], 
+"value": [
+{
+"k": "SECOND_SHARED"
+}
+]
+}
+], 
+"deletions": [
+{
+"address": [
+"nexml", 
+"^ot:agents", 
+"agent", 
+"peyotl-validator", 
+"invocation", 
+"checksPerformed"
+], 
+"value": [
+"SECOND_MRCA"
+]
+}
+]
+}

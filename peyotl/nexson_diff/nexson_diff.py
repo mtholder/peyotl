@@ -59,6 +59,7 @@ class NexsonDiff(object):
         return {PatchRC.SUCCESS: (self, PatchReason.SUCCESS)}
     def _not_applied_return(self, reason):
         return {PatchRC.NOT_APPLIED: (self, reason)}
+
 class RerootingDiff(NexsonDiff):
     def __init__(self, reroot_info, address):
         NexsonDiff.__init__(self, address=address, value=reroot_info)
@@ -209,7 +210,19 @@ class DeletionDiff(NexsonDiff):
             return self._success_return()
         return self._redundant_return()
 
+def _merge_set_like_properties(value, pv):
+    if not (isinstance(value, list) or isinstance(value, tuple)):
+        value = [value]
+    if not (isinstance(pv, list) or isinstance(pv, tuple)):
+        pv = [pv]
+    all_v = set(value).union(set(pv))
+    all_v_l = list(all_v)
+    all_v_l.sort()
+    return all_v_l
+
 class NoModDelDiff(DeletionDiff):
+    def __init__(self, value, address):
+        DeletionDiff.__init__(self, address=address, value=value)
     def _try_apply_del_to_par_target(self, par_target):
         address = self.address
         target = par_target.get(address.key_in_par)
@@ -241,6 +254,55 @@ class NoModDelDiff(DeletionDiff):
             r[PatchRC.SUCCESS] = (nmdd, PatchReason.SUCCESS)
         return r
 
+class SetDelDiff(DeletionDiff):
+    def __init__(self, value, address):
+        DeletionDiff.__init__(self, address=address, value=value)
+    def _try_apply_del_to_par_target(self, par_target):
+        address = self.address
+        if address.key_in_par in par_target:
+            nv = _del_merge_set_like_properties(par_target[self.key_in_par], del_v)
+            if nv:
+                par_target[address.key_in_par] = nv
+            else:
+                del par_target[address.key_in_par]
+            address._mb_cache = {}
+            return self._success_return()
+        return self._redundant_return()
+
+class ByIdDelDiff(DeletionDiff):
+    def __init__(self, value, address):
+        DeletionDiff.__init__(self, address=address, value=value)
+    def _try_apply_del_to_par_target(self, par_target):
+        address = self.address
+        target = par_target.get(address.key_in_par)
+        if target is None:
+            return self._redundant_return()
+        inds_to_del = set()
+        not_applied, applied = [], []
+        for kid in self.value:
+            found = False
+            for n, el in enumerate(target):
+                if el['@id'] == kid:
+                    inds_to_del.add(n)
+                    found = True
+                    break
+            if not found:
+                not_applied.append(kid)
+            else:
+                applied.append(kid)
+        r = {}
+        if not_applied:
+            nmdd = ByIdDelDiff(address=self.address, value=not_applied)
+            r[PatchRC.REDUNDANT] = (nmdd, PatchReason.REDUNDANT)
+        if len(not_applied) < len(self.value):
+            inds_to_del = list(inds_to_del)
+            inds_to_del.sort(reverse=True)
+            for n in inds_to_del:
+                target.pop(n)
+            nmdd = ByIdDelDiff(address=self.address, value=applied)
+            r[PatchRC.SUCCESS] = (nmdd, PatchReason.SUCCESS)
+        return r
+
 class AdditionDiff(NexsonDiff):
     def __init__(self, value, address):
         NexsonDiff.__init__(self, address=address, value=value)
@@ -268,7 +330,39 @@ class AdditionDiff(NexsonDiff):
         address._mb_cache = {}
         return self._success_return()
 
+def _del_merge_set_like_properties(curr_v, to_del):
+    if not (isinstance(to_del, list) or isinstance(to_del, tuple)):
+        to_del = [to_del]
+    if not (isinstance(curr_v, list) or isinstance(curr_v, tuple)):
+        curr_v = [curr_v]
+    all_v = set(curr_v) - set(to_del)
+    all_v_l = list(all_v)
+    all_v_l.sort()
+    return all_v_l
+
+class SetAddDiff(AdditionDiff):
+    def __init__(self, value, address):
+        AdditionDiff.__init__(self, address=address, value=value)
+    def _try_apply_add_to_par_target(self, par_target):
+        address = self.address
+        assert isinstance(par_target, dict)
+        if address.key_in_par in par_target:
+            pv = par_target[address.key_in_par]
+            if not isinstance(pv, list) or isinstance(pv, tuple):
+                pv = [pv]
+                par_target[address.key_in_par] = pv
+                address._mb_cache = {}
+        if address.key_in_par in par_target:
+            val = _merge_set_like_properties(self.value, par_target[address.key_in_par])
+        else:
+            val = self.value
+        par_target[address.key_in_par] = val
+        address._mb_cache = {}
+        return self._success_return()
+
 class ByIdAddDiff(AdditionDiff):
+    def __init__(self, value, address):
+        AdditionDiff.__init__(self, address=address, value=value)
     def _try_apply_add_to_par_target(self, par_target):
         #_LOG.debug('_try_apply_add_to_par_target')
         address = self.address
@@ -310,6 +404,8 @@ class ByIdAddDiff(AdditionDiff):
         return r
 
 class NoModAddDiff(AdditionDiff):
+    def __init__(self, value, address):
+        AdditionDiff.__init__(self, address=address, value=value)
     def _try_apply_add_to_par_target(self, par_target):
         address = self.address
         target = par_target.get(address.key_in_par)
@@ -362,45 +458,6 @@ class ModificationDiff(NexsonDiff):
         par_target[address.key_in_par] = value
         address._mb_cache = {}
         return self._success_return()
-
-
-class SetAddDiff(AdditionDiff):
-    pass
-
-class SetDelDiff(DeletionDiff):
-    pass
-
-class ByIdDelDiff(DeletionDiff):
-    def _try_apply_del_to_par_target(self, par_target):
-        address = self.address
-        target = par_target.get(address.key_in_par)
-        if target is None:
-            return self._redundant_return()
-        inds_to_del = set()
-        not_applied, applied = [], []
-        for kid in self.value:
-            found = False
-            for n, el in enumerate(target):
-                if el['@id'] == kid:
-                    inds_to_del.add(n)
-                    found = True
-                    break
-            if not found:
-                not_applied.append(kid)
-            else:
-                applied.append(kid)
-        r = {}
-        if not_applied:
-            nmdd = ByIdDelDiff(address=self.address, value=not_applied)
-            r[PatchRC.REDUNDANT] = (nmdd, PatchReason.REDUNDANT)
-        if len(not_applied) < len(self.value):
-            inds_to_del = list(inds_to_del)
-            inds_to_del.sort(reverse=True)
-            for n in inds_to_del:
-                target.pop(n)
-            nmdd = ByIdDelDiff(address=self.address, value=applied)
-            r[PatchRC.SUCCESS] = (nmdd, PatchReason.SUCCESS)
-        return r
 
 def _add_in_order(dest, new_items, full_list, set_contained):
     prev = None

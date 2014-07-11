@@ -3,34 +3,12 @@
 finding the container for that diff in another nexson blob,  and applying a patch..
 '''
 from peyotl.nexson_syntax import invert_edge_by_source
-from peyotl.struct_diff import DictDiff
 from peyotl.utility import get_logger
 import itertools
 import json
 import copy
 
 _LOG = get_logger(__name__)
-
-def _del_merge_set_like_properties(curr_v, to_del):
-    if not (isinstance(to_del, list) or isinstance(to_del, tuple)):
-        to_del = [to_del]
-    if not (isinstance(curr_v, list) or isinstance(curr_v, tuple)):
-        curr_v = [curr_v]
-    all_v = set(curr_v) - set(to_del)
-    all_v_l = list(all_v)
-    all_v_l.sort()
-    return all_v_l
-
-
-def _merge_set_like_properties(value, pv):
-    if not (isinstance(value, list) or isinstance(value, tuple)):
-        value = [value]
-    if not (isinstance(pv, list) or isinstance(pv, tuple)):
-        pv = [pv]
-    all_v = set(value).union(set(pv))
-    all_v_l = list(all_v)
-    all_v_l.sort()
-    return all_v_l
 
 class NexsonDiffAddress(object):
     def __init__(self, par=None, key_in_par=None):
@@ -149,52 +127,6 @@ class SetLikeListNexsonDiffAddress(NexsonDiffAddress):
     '''
     def __init__(self, par=None, key_in_par=None):
         NexsonDiffAddress.__init__(self, par, key_in_par)
-    def _try_apply_del_to_par_target(self, nexson_diff, par_target, del_v):
-        #_LOG.debug('par_target.keys() =' + str(par_target.keys()))
-        if self.key_in_par in par_target:
-            nv = _del_merge_set_like_properties(par_target[self.key_in_par], del_v)
-            if nv:
-                par_target[self.key_in_par] = nv
-            else:
-                del par_target[self.key_in_par]
-            #self._mb_cache = {}
-            return True
-        #_LOG.debug('redundant del')
-        nexson_diff._redundant_edits['deletions'].append((del_v, self))
-        return False
-
-    def _try_apply_add_to_par_target(self, nexson_diff, par_target, value, was_mod, blob_id):
-        if self.key_in_par in par_target:
-            pv = par_target[self.key_in_par]
-            all_v_l = _merge_set_like_properties(value, pv)
-            par_target[self.key_in_par] = all_v_l
-            #self._mb_cache = {}
-            return True, True
-        assert not isinstance(value, DictDiff)
-        par_target[self.key_in_par] = value
-        #self._mb_cache = {blob_id: value}
-        return True, True
-
-    def _try_apply_mod_to_par_target(self, nexson_diff, par_target, value, blob_id):
-        all_v_l = _merge_set_like_properties(value, par_target[self.key_in_par])
-        par_target[self.key_in_par] = all_v_l
-        #self._mb_cache = {}
-    def try_apply_add_to_mod_blob(self, nexson_diff, blob, value, was_mod):
-        '''Returns ("value in blob", "presence of key makes this addition a modification")
-        records _redundant_edits
-        was_mod should be true if the diff was originally a modification
-        '''
-        assert self.par is not None
-        par_target = self._find_par_el_in_mod_blob(blob)
-        #_LOG.debug('add call on self.key_in_par = "{}" on {}'.format(self.key_in_par, par_target))
-        assert par_target is not None
-        assert isinstance(par_target, dict)
-        if self.key_in_par in par_target:
-            pv = par_target[self.key_in_par]
-            if not isinstance(pv, list) or isinstance(pv, tuple):
-                pv = [pv]
-                par_target[self.key_in_par] = pv
-        return self._try_apply_add_to_par_target(nexson_diff, par_target, value, was_mod, id(blob))
 
 class NoModListNexsonDiffAddress(NexsonDiffAddress):
     '''Acts like the SetLikeListNexsonDiffAddress, but works with items
