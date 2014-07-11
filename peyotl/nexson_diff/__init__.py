@@ -3,4 +3,4 @@
 
 '''
 __all__ = ['nexson_diff', 'nexson_diff_address']
-from peyotl.nexson_diff.nexson_diff import NexsonDiffSet
+from peyotl.nexson_diff.nexson_diff_set import NexsonDiffSet
