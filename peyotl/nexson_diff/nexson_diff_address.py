@@ -32,14 +32,16 @@ def _merge_set_like_properties(value, pv):
     all_v_l.sort()
     return all_v_l
 
-
 class NexsonDiffAddress(object):
     def __init__(self, par=None, key_in_par=None):
         self.par = par
         self.key_in_par = key_in_par
         self._as_ot_dict = None
         self._mb_cache = {}
-
+    def ordering_child(self, key):
+        return KeyOrderingElementAddress(self, key)
+    def by_id_child(self, key):
+        return ByIdOrderingElementAddress(self, key)
     def child(self, key_in_par):
         #_LOG.debug('id={} NexsonDiffAddress.child({})'.format(id(self), key_in_par))
         return NexsonDiffAddress(par=self, key_in_par=key_in_par)
@@ -238,6 +240,10 @@ class TreeEdgeNexsonDiffAddress(NexsonDiffAddress):
             target = edge_dict
         return target
 
+class ByIdOrderingElementAddress(NexsonDiffAddress):
+    def __init__(self, par, key_in_par):
+        NexsonDiffAddress.__init__(self, par, key_in_par)
 
-#nd_to_add, edge_to_add = add_nd_edge
-        
+class KeyOrderingElementAddress(NexsonDiffAddress):
+    def __init__(self, par, key_in_par):
+        NexsonDiffAddress.__init__(self, par, key_in_par)
