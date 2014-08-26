@@ -1,33 +1,151 @@
 \documentclass[a4paper,10pt]{article}
 \usepackage[utf8]{inputenc}
+\usepackage{setspace}
+\doublespacing
+% cite package, to clean up citations in the main text. Do not remove.
+\usepackage{cite}
+\usepackage{color} 
+\usepackage{hyperref}
+\bibliographystyle{plain}
+
+% Remove brackets from numbering in List of References
+\makeatletter
+\renewcommand{\@biblabel}[1]{\quad#1.}
+\makeatother
+
 
 %opening
 \title{Using a git-based datastore for community curated phylogenies}
-\author{}
+\author{Emily Jane McTavish, Mark T. Holder ... ??}
 
 \begin{document}
 
 \maketitle
 
+Target: Bioinformatics\\
+Scope: Databases and ontologies\\
+Type: Original Papers (up to 7 pages; this is approx. 5000 words).
+Original papers that describe new research developments in computational molecular biology, for example: 
+models, algorithms, software involving new methods, biological databases and network information services, and their impact on molecular biology or computer science. 
+Actual biological data, as opposed to purely simulated data, must be used.
+
+
 \begin{abstract}
+Motivation:
+The lack of an accessible, reusable, and well curated database has hindered biological research into evolutionary questions.
 The Open Tree of Life project is collating and synthesizing hundreds of phylogenies into a unified tree of life. 
 The base data for for this project are community contributed phylogenies. 
 Via the OpenTree curator tool, these phylogenies are updated to reflect consistent tip names across studies, and accurate rooting. 
+Results:
 Using a git-based datastore to hold these phylogenies automatically version controls data as updates are made. 
 In addition, hosting this datastore on GitHub provides a straightforward and familiar method for researchers to access these data. 
-The talk will cover our implementation of wrappers around git, interaction with github, and developing tools to return readable diffs for complex data structures.
+We have developed an API ``Phylesystem'' to implement wrappers around git, interaction with GitHub, and to return readable diffs for complex data structures.
+Availability:
+Source code for the API is available ...
+The git database is available ...
 \end{abstract}
 
-\section{}
-The Open Tree of Life project is creating a synthetic phylogeney, incorporating published phylogenies from across the tree of life.
-We are using a git based datastore, mirror to github, to simulataneously track study curation and disseminate the phylogenies.
+\section{DRAFT}
+The Open Tree of Life project is creating a synthetic phylogeny, incorporating published phylogenies from across the tree of life.
+We are using a git based datastore, mirror to GitHub, to simultaneously track study curation and disseminate the phylogenies.
 
 
+\subsection{Introduction}
+ While characterizing and systematizing relationships among species has been a goal of biologists since Linnaeus \cite{Linneaus}, 
+ the recent revolution in availability of molecular data has greatly increased the rate at which phylogenetic analyses are bring performed.
+ The National Science foundation has funded many 'tree of life' efforts to resolve phylogenetic relationships among taxa within specific groups.
+ The Open tree of life project is a collaboration working to combine data from across these domain specific phylogenies into one inclusive synthetic tree of life.
+ 
+ 
+\subsection{Background}
+Recent pushes to understand the evolutionary relationships among species have resulted in a wealth of phylogenetic information. 
+In the past 5 years there have been major publications on XXXX angiosperms, ??? bird tree of life, ?? other major trees.
+Additionally, much finer resolution studies capturing relationships at a lower phylogenetic level are being published daily.
+The information contained in these phylogenies is essential not only for understanding the evolutionary history and systematics of these groups,
+but are also an essential framework for studying evolutionary processes, such as trait evolution (REF), dispersal (REF), and speciation (REF)
+among many others.
+
+Trees 
+     However,
+     TOL projects
+     Tree base and Phylografter
+
+In order for this data to be reusable for follow-up studies, or inclusion in a synthetic tree, it must be digitally available and accessible \cite{cranston_best_2014}.
+Sadly, despite recent developments in data sharing and digital repositories, the vast majorities of phylogenies are not digitally available \cite{Drew}.
+Several previous projects have attempted to curate and collate phylogenetic data, most notably TreeBase (REF) and Phylografter (REF).
+We have developed a new database for phylogenies which incorporates the trees included ind these previous efforts, 
+and builds upon their utility by allowing for community curation and tracking of changes through time, as well as a readily accessible data store.
+
+\subsection{Purpose}
+There are several requirements for phylogenetic data store.
+      - Accessible data store
+Accessibility is extremely important.
+OpenTree supports open science, and data availability.
+For a phylogenetic database to gain adoption it must be readily usable by end users.
+Licenses? UGH.
+          - Version control
+          - OTU mapping
+However, making phylogenies re-usable by researchers not involved in the original analyses often requires fairly extensive curation.
+The tip labels on trees often have meaning in the context of that analysis that are not easily translated across studies. 
+For example, the tip labels may contain abbreviations, or lab sample codes.
+Data reuse requires standardizing labels so that they are meaningful across studies.
+Taxonomic name recognition services, such as ?? Plant something, or ?? taxomachine, can attempt to automatically map names to
+operational taxonomic units, but this process also requires come subjective human intervention. 
+
+          - rerooting
+Additionally, many phylogenetic inference programs (e.g. ????) return unrooted phylogenies, 
+which researchers then manually root for inclusion in figures or inference. 
+If these rootings are not included in the shared tree file, 
+these phylogenies need to be manually rooted for inclusion in a synthetic tree or downstream analyses
+
+These curation steps require human input and are therefore somewhat subjective.
+A sustainable database requires a mechanism for correcting and updating these trees,
+while retaining provenance for individual changes.
+
+Ideally, a widely adopted database could support multiple editors curating contributed phylogenies simultaneously.
+Thus a system for merging and combining inputs in necessary.
+
+By supporting contribution and curation in an open and accessible manner, we hope to provide a database with longterm utility and widespread adoption.
+
+          - many curators!, possibly editing studies at the same time!
+          - long term used, ideally.
+
+           Implementation of database (structure):
+      - FIGURE TO REPRESENT!
+      - File Formats
+         - Explain Nexson... UGH
+         
+      - Sharded git repository
+          Describe full structure 
+          
+      - External library to index studies (is OTI described somewhere?)
+      - peyotl...
+      
+      Curation via app:
+        - main repo on server -> mirror -> github
+            ??? do pulls from github happen? wholes cycle *can* be reversed.
+        - dealing with WIP branches.
+        *Even conflicts that Git may find mergable"*
+        return merge conflicts to user
+
+ Discussion:
+   Generalizability:
+      Git may be a good option for any non-static data store.
+      
+  Future directions
+
+  
+\bibliography{Phylesystem.bib}  
+
+
+
+\section{notes}
+  --------------------------------------------------------------------
 Key Points:
 Pros
  - Versioned
  - Familiar to users
- - Comes with a lot of great machineray already enabled
+ - Comes with a lot of great machinery already enabled
 
 diffing doesn't always behave well.
 simple data structures behave oddly...
@@ -46,6 +164,78 @@ General model based decisions:
 - scales better in general.
 
 - Data is so open.
+
+
+
+ The current (as of May) data set
+ Community contributed phylogenies
+
+ - 6745 trees from 2914 published studies
+ - 1188 trees from 991 studies partly curated 
+ - 335 trees from 327 studies completely curated and included in the synthetic tree.
+
+ The problem:
+ - Large data set: Thousands of phylogenies, and always growing (hopefully!)
+ - Each phylogeny requires some hand curation, often by multiple people
+ - Need to be readily accessible, and editable by interested researchers
+
+Curation
+
+ Potential data store options:
+ - SQL database
+ - Mongo, couchDB
+ - git/github
+
+
+ We chose git!
+
+ - Trees and annotations by study in Nexson format  
+(JSON serialization of NeXML)
+ - Whole datastore is a git repo!  
+ 
+
+ Curation
+- Work in progress branch is created upon curation  
+- If study hasn't been edited by someone else, changes are automatically merged.  
+- Otherwise, merged changes are returned to curator to accept or reject
+- Updates pushed to GitHub after each commit
+ Features
+ - Tracking curation attribution  
+- Some subjective choices, edits made by many in the community over time
+
+ Curation
+
+ Features
+ These trees are the backend for OpenTree showpiece  
+ the synthetic tree!
+ - but also a useful datastore for other researchers
+ - Repo is hosted on GitHub, entire data store can be easily cloned and updated
+ - Anyone can easily download all the data!
+ 
+ Features
+- Hosting on Github  
+- Free  
+- Familar to  many in the field
+
+
+ Potential issues:
+ - Phylogenies are hard to diff - e.g. rerooting changes everything!
+ - Nexson are not a line based format
+ - Repo size limits on github
+
+
+ In the future:
+
+ - Semantic diffs  
+ - Pull requests
+ 
+  
+Generality:
+Is a git-based datastore right for your project?
+
+ - Maybe! Any of the OpenTree software team are happy to chat about pros and cons.
+
+NSF AVATOL \#1208809  
 
 
 
