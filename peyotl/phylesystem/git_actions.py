@@ -338,7 +338,9 @@ class GitAction(object):
 
         branch = self.create_or_checkout_branch(gh_user, study_id, parent_sha)
         prev_file_sha = None
-        if commit_msg is None:
+        if commit_msg:
+            commit_msg = commit_msg.strip()
+        if not commit_msg:
             msg = "Delete Study #%s via OpenTree API" % study_id
         else:
             msg = commit_msg
