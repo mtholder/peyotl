@@ -60,3 +60,34 @@ def compare_bits_as_splits(one_set, other, el_universe):
         return SplitComparison.UNROOTED_COMPAT
     return SplitComparison.UNROOTED_INCOMPATIBLE
 
+class PhyloStatement(object):
+    '''This class is defined by just a pair of sets:
+        1. A set of "include" and
+        2. an "exclude" set of IDs
+    These sets must be disjoint.
+    The "leafSet" is the union of `include` and `exclude`
+    The biological interpretation of the statement is that the members
+        of the include group share at least one common ancestor which is not
+        an ancestor of any member of the exclude group.
+    A rooted tree can be decomposed into a set of statements by taking
+        the cluster of each internal node as the include group in a different
+        PhyloStatement.
+    '''
+    def __init__(self, include, exclude=None, leafSet=None):
+        assert(bool(include))
+        self.include = include if isinstance(include, frozenset(include)) else frozenset(include)
+        if leafSet is not None:
+            self.leafSet = leafSet if isinstance(leafSet, frozenset(leafSet)) else frozenset(leafSet)
+        if exclude is None:
+            assert(leafSet is not None)
+            d = self.leafSet - self.include
+            self.exclude = frozenset(d)
+        else:
+            self.exclude = exclude if isinstance(exclude, frozenset(exclude)) else frozenset(exclude)
+            assert(self.exclude.isdisjoint(self.include))
+            u = self.exclude.union(self.include)
+            if leafSet is None:
+                self.leafSet = u
+            else:
+                assert(u == self.leafSet)
+        

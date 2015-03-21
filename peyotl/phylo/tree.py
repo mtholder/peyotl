@@ -11,6 +11,7 @@ def _write_node_info_newick(out, node, **kwargs): #TODO
     out.write(str(node._id))
 class ExtensibleObject(object):
     pass
+
 class Node(object):
     def __init__(self, _id=None):
         self._id = _id
@@ -563,6 +564,7 @@ def parse_newick(newick=None, stream=None, filepath=None, _class=TreeWithPathsIn
     nt = NewickTokenizer(stream=stream, newick=newick, filepath=filepath)
     nef = NewickEventFactory(tokenizer=nt)
     return _class(newick_events=nef)
+
 def parse_id2par_dict(id2par=None,
                       id_list=None,
                       id2par_stream=None,
