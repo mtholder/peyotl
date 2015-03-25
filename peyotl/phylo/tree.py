@@ -8,7 +8,8 @@ def _write_node_info_newick(out, node, **kwargs): #TODO
     kwargs:
         #TODO
     '''
-    out.write(str(node._id))
+    if node._id is not None:
+        out.write(str(node._id))
 class ExtensibleObject(object):
     pass
 
@@ -38,13 +39,20 @@ class Node(object):
     def is_leaf(self):
         return not bool(self._children)
     @property
+    def outdegree(self):
+        return len(self._children)
+    @property
+    def makes_phylo_statement_not_in_des(self):
+        '''Returns True if the node is not the root and has > 1 child.'''
+        return (self._parent is not None) and (len(self._children) > 1)
+    @property
     def is_first_child_of_parent(self):
         '''Returns True for *ROOT* and any node that is the first child of its parent'''
         return (self._parent is None) or (self._parent._children[0] is self)
     @property
     def is_last_child_of_parent(self):
         '''Returns True for *ROOT* and any node that is the last child of its parent'''
-        return (self._parent is None) or (self._parent._children[-1] is self)
+        return (self._parent is not None) and (self._parent._children[-1] is self)
     def before_after_apply(self, before_fn, after_fn, leaf_fn=None):
         '''Applies the functions to each node in a subtree using an traversal in which
         encountered twice: once right before its descendants, and once right
@@ -58,10 +66,9 @@ class Node(object):
                     leaf_fn(node)
                 while node.is_last_child_of_parent:
                     node = node._parent
-                    if node:
-                        after_fn(node)
-                    else:
+                    if node is None:
                         break
+                    after_fn(node)
             else:
                 before_fn(node)
                 stack.extend([i for i in reversed(node._children)])
@@ -130,43 +137,55 @@ class NodeWithPathInEdges(Node):
         else:
             self._path_ids = []
             self._path_set = set()
-class _TreeWithNodeIDs(object):
-    def __init__(self, newick_events=None):
+class _TreeBehaviors(object):
+    def leaf_id_set(self):
+        return set(self._leaf_ids)
+class _TreeWithNodeIDs(_TreeBehaviors):
+    def __init__(self, newick_events=None, node_type=Node):
         self._id2node = {}
-        self._leaves = set()
+        self._leaf_ids = set()
         self._root = None
+        self.node_type = node_type
         if newick_events is not None:
             self._build_from_newick_events(newick_events)
+
+    def has_nodes_that_make_statements(self):
+        for nd in self._id2node.values():
+            if nd.makes_phylo_statement_not_in_des:
+                return True
+        return False
     def _build_from_newick_events(self, ev):
+        nodeFactory = self.node_type
         iev = iter(ev)
         assert next(iev)['type'] == NewickEvents.OPEN_SUBTREE
-        self._root = NodeWithPathInEdges(_id=None)
+        self._root = nodeFactory(_id=None)
         curr = self._root
         prev = NewickEvents.OPEN_SUBTREE
         for event in iev:
             t = event['type']
             if t == NewickEvents.OPEN_SUBTREE:
-                n = NodeWithPathInEdges(_id=None)
+                n = nodeFactory(_id=None)
                 if prev == NewickEvents.OPEN_SUBTREE:
                     curr.add_child(n)
                 else:
                     curr.add_sib(n)
                 curr = n
             elif t == NewickEvents.TIP:
-                n = NodeWithPathInEdges(_id=event['label'])
+                n = nodeFactory(_id=event['label'])
+                assert(n != ')')
                 if prev == NewickEvents.OPEN_SUBTREE:
                     curr.add_child(n)
                 else:
                     curr.add_sib(n)
                 curr = n
-                self._id2node[n._id] = n
+                self._register_node(curr)
             else:
                 assert t == NewickEvents.CLOSE_SUBTREE
                 curr = curr._parent
                 x = event.get('label')
-                if x is not None:
+                if x is not None and x != ')':
                     curr._id = x
-                    self._id2node[x] = curr
+                    self._register_node(curr)
             prev = t
         assert curr is self._root
     @property
@@ -178,11 +197,12 @@ class _TreeWithNodeIDs(object):
         i = node._id
         self._id2node[i] = node
         if node.is_leaf:
-            self._leaves.add(i)
-        elif i in self._leaves:
-            self._leaves.remove(i)
-        for i in node._path_ids:
-            self._id2node[i] = node
+            self._leaf_ids.add(i)
+        elif i in self._leaf_ids:
+            self._leaf_ids.remove(i)
+        self._post_register_node(node)
+    def _post_register_node(self, node):
+        pass
     def do_full_check_of_invariants(self, testCase, **kwargs):
         _do_full_check_of_tree_invariants(self, testCase, **kwargs)
     def write_newick(self, out, **kwargs):
@@ -200,9 +220,19 @@ class _TreeWithNodeIDs(object):
             _write_node_info_newick(out, node, **kwargs)
         self._root.before_after_apply(before_fn=_open_newick, after_fn=_a, leaf_fn=_t)
         out.write(';\n')
+    def add_new_child(self, parent, child_id):
+        nn = self.node_type(_id=child_id)
+        parent.add_child(nn)
+        self._register_node(nn)
+    def get_newick(self, **kwargs):
+        from cStringIO import StringIO
+        outp = StringIO()
+        self.write_newick(outp, **kwargs)
+        return outp.getvalue()
+
 class TreeWithPathsInEdges(_TreeWithNodeIDs):
     def __init__(self, id_to_par_id=None, newick_events=None):
-        _TreeWithNodeIDs.__init__(self)
+        _TreeWithNodeIDs.__init__(self, node_type=NodeWithPathInEdges)
         if id_to_par_id:
             self._id2par = id_to_par_id
             self._root_tail_hits_real_root = False
@@ -210,12 +240,15 @@ class TreeWithPathsInEdges(_TreeWithNodeIDs):
             self._id2par = None
             self._root_tail_hits_real_root = False
             if newick_events is not None:
-                self._build_from_newick_events(newick_events)   
+                self._build_from_newick_events(newick_events)
+    def _post_register_node(self, node):
+        for i in node._path_ids:
+            self._id2node[i] = node
     @property
     def leaf_ids(self):
         return [i for i in self.leaf_id_iter()]
     def leaf_id_iter(self):
-        return iter(self._leaves)
+        return iter(self._leaf_ids)
     def create_leaf(self, node_id, register_node=True):
         n = NodeWithPathInEdges(_id=node_id)
         self._add_node(n, register_node=register_node)
@@ -330,8 +363,8 @@ class TreeWithPathsInEdges(_TreeWithNodeIDs):
         if mrca_id == node_for_mrca._id:
             node_for_mrca.add_child(growing)
             self._register_node(growing)
-            if mrca_id in self._leaves:
-                self._leaves.remove(mrca_id)
+            if mrca_id in self._leaf_ids:
+                self._leaf_ids.remove(mrca_id)
             return node_for_mrca
         return self._init_create_mrca(growing, node_for_mrca, mrca_id, register_hit_ids=False)
 
@@ -353,7 +386,7 @@ class TreeWithPathsInEdges(_TreeWithNodeIDs):
                 #_LOG.debug('_init_create_mrca the mrca ID ({}) is the tip of a path'.format(mrca_id))
                 hit._path_ids = growing._path_ids + hit._path_ids
                 hit._path_set.update(growing._path_set)
-                self._leaves.remove(hit._id)
+                self._leaf_ids.remove(hit._id)
                 hit._id = growing._id
                 self._register_node(hit)
             return hit
@@ -394,7 +427,7 @@ class TreeWithPathsInEdges(_TreeWithNodeIDs):
 
     @property
     def leaves(self):
-        return [self._id2node[i] for i in self._leaves]
+        return [self._id2node[i] for i in self._leaf_ids]
     def postorder_node_iter(self, nd=None, filter_fn=None):
         if nd is None:
             nd = self._root
@@ -495,7 +528,7 @@ def _do_full_check_of_tree_invariants(tree, testCase, id2par=None, leaf_ids=None
     if leaf_ids is None:
         leaf_ids = [i for i in tree.leaf_id_iter()]
     for i in leaf_ids:
-        testCase.assertIn(i, tree._leaves)
+        testCase.assertIn(i, tree._leaf_ids)
 
     if not id2par:
         for l in leaf_ids:

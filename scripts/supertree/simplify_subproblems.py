@@ -1,9 +1,14 @@
 #!/usr/bin/env python
-from peyotl.phylo.tree import _TreeWithNodeIDs, parse_newick
-from peyotl.phylo.compat import PhyloStatement
+from peyotl.supertree import OtcSupertreeSubproblem
 
 if __name__ == '__main__':
     import sys
-    if len(sys.argv) != 2:
-        sys.exit('Expecting a treefile as an argument')
-    tree = parse_newick(filepath=sys.argv[1], _class=_TreeWithNodeIDs)
+    if len(sys.argv) != 4:
+        sys.exit('''Expecting 3 arguments:
+    an input treefile
+    a simplification output directory
+    a solution directory
+''')
+    subproblem = OtcSupertreeSubproblem(filepath=sys.argv[1])
+    simplification_dir, solution_dir = sys.argv[2:]
+    r = subproblem.solve_or_simplify(solution_dir, simplification_dir)
