@@ -107,3 +107,9 @@ class PhyloStatement(object):
         eff_inc = inter_leaf_set.intersection(self.include)
         eff_other_inc = inter_leaf_set.intersection(other.include)
         return sets_are_rooted_compat(eff_inc, eff_other_inc)
+    def get_newick(self):
+        il = list(self.include)
+        il.sort()
+        el = list(self.exclude)
+        el.sort()
+        return '(({i}),{e});'.format(i=','.join(il), e=','.join(el))

@@ -4,6 +4,7 @@ from peyotl.phylo.compat import PhyloStatement
 from peyotl import get_logger
 from enum import Enum
 import shutil
+import sys
 import os
 _LOG = get_logger(__name__)
 class OtcArtifact(Enum):
@@ -87,9 +88,6 @@ class OtcPipelineContext(object):
         self.copy_files('raw', 'stage', OtcArtifact.SUBPROBLEM_INPUT, sub_id)'''
         subproblem = OtcSupertreeSubproblem(self.stage, sub_id)
         return subproblem.solve_or_simplify(self.solution, self.simple)
-class SimplificationError(Exception):
-    pass
-
 
 
 def simplify_subproblem_inputs(with_internals, without_internals):
@@ -98,8 +96,24 @@ def simplify_subproblem_inputs(with_internals, without_internals):
     sr = SimplificationRecord(with_internals, without_internals)
     return sr
 
+class Simplification(Enum):
+    REDUNDANT = 1
+    TRIVIAL = 2
+class SimplificationState(object):
+    def __init__(self, cause, list_of_list_of_statements, leaf_set):
+        self.cause = cause
+        self.list_of_statements = list_of_list_of_statements
+        self.leaf_set = leaf_set
 class SimplificationRecord(object):
+    def write_statements(self, out):
+        for n, el in enumerate(self.list_of_statements):
+            out.write('# tree {}\n'.format(self.trees_with_internals[n].source_name))
+            for nn, ps in enumerate(el):
+                out.write('  {} {}\n'.format(nn, ps.get_newick()))
+    def has_simplifications(self):
+        return len(self.snapshots) > 0
     def __init__(self, with_internals, without_internals):
+        self.snapshots = []
         self.assume_rank_based = True
         self.trees_with_internals = with_internals
         self.trees_without_internals = without_internals
@@ -124,20 +138,21 @@ class SimplificationRecord(object):
                     _LOG.debug('repeated phylo statement')
                 tl.append(tree)
             self.list_of_statements.append(new_phylo_statements)
-
         if len(in_an_include) < len(self.full_leafset):
             self.cull_exclude_only(in_an_include - self.full_leafset)
+        self.redundancy_checked = set()
         self.simplify_to_exhaustion()
     def simplify_to_exhaustion(self):
         c, r = True, False
         if self.assume_rank_based:
             r = self._remove_conflicting_with_first_tree()
         while c:
-            c = self._look_for_domintated_to_exhaustion()
+            c = self._look_for_dominated_to_exhaustion()
             if c:
                 r = True
         return r
     def _remove_conflicting_with_first_tree(self):
+        self.redundancy_checked = set()
         f_tree_statements = self.list_of_statements[0]
         some_removed = False
         self.rejected_due_to_conf_w_first = []
@@ -160,23 +175,86 @@ class SimplificationRecord(object):
         if some_removed:
             self.list_of_statements = exit_statement_list_list
         return some_removed
-    def _look_for_domintated_to_exhaustion(self):
-        self.non_redundant = set()
+    def _look_for_dominated_to_exhaustion(self):
         r = True
         some_simplification = False
         while r:
             full_leaf_id_list = list(self.full_leafset)
             full_leaf_id_list.sort()
-            r = self._look_for_domintated(full_leaf_id_list)
+            r = self._look_for_dominated(full_leaf_id_list)
             if r:
                 some_simplification = True
         return some_simplification
-    def _cull_dominated
-    def _look_for_domintated(self, full_leaf_id_list):
-        for id1 in full_leaf_id_list:
-            _LOG.debug('Checking {} for domination'.format(id1))
-            if id1 in self.non_redundant:
+    def _cull_dominated(self, to_cull):
+        self.snapshots.append(SimplificationState(Simplification.REDUNDANT, self.list_of_statements, frozenset(self.full_leafset)))
+        o2n = {}
+        nlos = []
+        list_of_statements = self.list_of_statements
+        made_trivial = set()
+        triv_list = []
+        for los in list_of_statements:
+            if not los:
+                nlos.append([])
                 continue
+            isect = los[0].leaf_set.intersection(to_cull)
+            nlos_el = []
+            if not isect:
+                for p in los:
+                    nps = PhyloStatement(p.include, leaf_set=p.leaf_set)
+                    o2n[p] = nps
+                    nlos_el.append(nps)
+            else:
+                rev_ls = frozenset(los[0].leaf_set - isect)
+                for p in los:
+                    new_inc = p.include - to_cull
+                    nps = PhyloStatement(include=new_inc, leaf_set=rev_ls)
+                    if (len(new_inc) < 2) or (new_inc == rev_ls):
+                        if nps not in made_trivial:
+                            made_trivial.add(nps)
+                            triv_list.append(nps)
+                    o2n[p] = nps
+                    nlos_el.append(nps)
+            nlos.append(nlos_el)
+        self.list_of_statements = nlos
+        ps2trees = {}
+        for k, v in self.ps2trees.items():
+            nk = o2n[k]
+            ps2trees[nk] = v
+        self.ps2trees = ps2trees
+        self.full_leafset -= to_cull
+        if made_trivial:
+            self._cull_trivial(triv_list, made_trivial)
+    def _cull_trivial(self, triv_list, triv_set):
+        for t in triv_list:
+            del self.ps2trees[t]
+        for row in self.list_of_statements:
+            ind_to_del = []
+            for n, el in enumerate(row):
+                if el in triv_set:
+                    ind_to_del.append(n)
+            while ind_to_del:
+                n = ind_to_del.pop()
+                del row[n]
+        self.snapshots.append(SimplificationState(Simplification.TRIVIAL, triv_list, frozenset(self.full_leafset)))
+    def _is_dominated_by(self, one_id, another):
+        for ps in self.ps2trees.keys():
+            if one_id in ps.leaf_set:
+                if another not in ps.leaf_set:
+                    return False
+                if one_id in ps.include:
+                    if another not in ps.include:
+                     return False
+                else:
+                    assert one_id in ps.exclude
+                    if another not in ps.exclude:
+                        return False
+        return True
+
+    def _look_for_dominated(self, full_leaf_id_list):
+        for id1 in full_leaf_id_list:
+            if id1 in self.redundancy_checked:
+                continue
+            _LOG.debug('Checking {} for domination'.format(id1))
             joint_with = None
             for ps in self.ps2trees.keys():
                 if id1 in ps.leaf_set:
@@ -196,7 +274,7 @@ class SimplificationRecord(object):
                         if len(joint_with) < 2:
                             break
                 _LOG.debug('  joint_with = {}'.format(str(joint_with)))
-            if len(joint_with) > 1:
+            if (joint_with is not None) and (len(joint_with) > 1):
                 assert(id1 in joint_with)
                 dom_by = None
                 for el in joint_with:
@@ -210,15 +288,11 @@ class SimplificationRecord(object):
                         continue
                     if self._is_dominated_by(el, dom_by):
                         to_cull.add(el)
+                _LOG.debug('Culling {}'.format(to_cull))
                 self._cull_dominated(to_cull)
+                self.redundancy_checked.update(to_cull)
                 return True
-            self.non_redundant.add(id1)
-
-
-
-
-    
-
+            self.redundancy_checked.add(id1)
 
 class OtcSupertreeSubproblem(object):
     class Status(Enum):
@@ -274,6 +348,8 @@ class OtcSupertreeSubproblem(object):
             return False, True
         _LOG.debug('Cannot solve or simplify subproblem {}'.format(self.artifact_id))
         return False, False
+    def write_simplification(self, d):
+        self._simplification.write_statements(sys.stdout)
     @property
     def can_solve(self):
         if self._status == OtcSupertreeSubproblem.Status.UNKNOWN:
@@ -311,12 +387,12 @@ class OtcSupertreeSubproblem(object):
             return
         without_internals = [in_trees[n] for n, hi in enumerate(self._has_internals) if not hi]
         print self.artifact_id
-        try:
-            self._simplification = simplify_subproblem_inputs(with_internals, without_internals)
-        except SimplificationError:
-            self._status = OtcSupertreeSubproblem.Status.CANNOT_SIMPLIFY_OR_SOLVE
-        else:
+        sr = simplify_subproblem_inputs(with_internals, without_internals)
+        if sr.has_simplifications():
+            self._simplification = sr
             self._status = OtcSupertreeSubproblem.Status.CAN_SIMPLIFY
+        else:
+            self._status = OtcSupertreeSubproblem.Status.CANNOT_SIMPLIFY_OR_SOLVE
         return
     def read_trees(self):
         if self._input_trees:
