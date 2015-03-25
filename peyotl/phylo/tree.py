@@ -131,10 +131,44 @@ class NodeWithPathInEdges(Node):
             self._path_ids = []
             self._path_set = set()
 class _TreeWithNodeIDs(object):
-    def __init__(self):
+    def __init__(self, newick_events=None):
         self._id2node = {}
         self._leaves = set()
         self._root = None
+        if newick_events is not None:
+            self._build_from_newick_events(newick_events)
+    def _build_from_newick_events(self, ev):
+        iev = iter(ev)
+        assert next(iev)['type'] == NewickEvents.OPEN_SUBTREE
+        self._root = NodeWithPathInEdges(_id=None)
+        curr = self._root
+        prev = NewickEvents.OPEN_SUBTREE
+        for event in iev:
+            t = event['type']
+            if t == NewickEvents.OPEN_SUBTREE:
+                n = NodeWithPathInEdges(_id=None)
+                if prev == NewickEvents.OPEN_SUBTREE:
+                    curr.add_child(n)
+                else:
+                    curr.add_sib(n)
+                curr = n
+            elif t == NewickEvents.TIP:
+                n = NodeWithPathInEdges(_id=event['label'])
+                if prev == NewickEvents.OPEN_SUBTREE:
+                    curr.add_child(n)
+                else:
+                    curr.add_sib(n)
+                curr = n
+                self._id2node[n._id] = n
+            else:
+                assert t == NewickEvents.CLOSE_SUBTREE
+                curr = curr._parent
+                x = event.get('label')
+                if x is not None:
+                    curr._id = x
+                    self._id2node[x] = curr
+            prev = t
+        assert curr is self._root
     @property
     def root(self):
         return self._root
@@ -176,41 +210,7 @@ class TreeWithPathsInEdges(_TreeWithNodeIDs):
             self._id2par = None
             self._root_tail_hits_real_root = False
             if newick_events is not None:
-                self._build_from_newick_events(newick_events)
-    def _build_from_newick_events(self, ev):
-        iev = iter(ev)
-        assert next(iev)['type'] == NewickEvents.OPEN_SUBTREE
-        self._root = NodeWithPathInEdges(_id=None)
-        curr = self._root
-        prev = NewickEvents.OPEN_SUBTREE
-        for event in iev:
-            t = event['type']
-            if t == NewickEvents.OPEN_SUBTREE:
-                n = NodeWithPathInEdges(_id=None)
-                if prev == NewickEvents.OPEN_SUBTREE:
-                    curr.add_child(n)
-                else:
-                    curr.add_sib(n)
-
-                curr = n
-            elif t == NewickEvents.TIP:
-                n = NodeWithPathInEdges(_id=event['label'])
-                if prev == NewickEvents.OPEN_SUBTREE:
-                    curr.add_child(n)
-                else:
-                    curr.add_sib(n)
-                curr = n
-                self._id2node[n._id] = n
-            else:
-                assert t == NewickEvents.CLOSE_SUBTREE
-                curr = curr._parent
-                x = event.get('label')
-                if x is not None:
-                    curr._id = x
-                    self._id2node[x] = curr
-            prev = t
-        assert curr is self._root
-
+                self._build_from_newick_events(newick_events)   
     @property
     def leaf_ids(self):
         return [i for i in self.leaf_id_iter()]
