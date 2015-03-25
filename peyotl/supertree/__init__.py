@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from peyotl.phylo.tree import _TreeWithNodeIDs, parse_newick
+from peyotl.phylo.tree import _TreeWithNodeIDs, parse_newick, copy_tree
 from peyotl.phylo.compat import PhyloStatement
 from peyotl import get_logger
 from enum import Enum
@@ -165,6 +165,7 @@ class OtcSupertreeSubproblem(object):
             return
         self._has_internals = [has_nodes_that_make_statements(i) for i in in_trees]
         with_internals = [in_trees[n] for n, hi in enumerate(self._has_internals) if hi]
+        print with_internals, self._has_internals
         if len(with_internals) < 2:
             print '\n'.join([i.get_newick() for i in in_trees])
             leaf_set = get_leaf_tax_id_set(in_trees)

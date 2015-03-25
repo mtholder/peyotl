@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from peyotl.utility.tokenizer import NewickEvents
 from peyotl.utility import get_logger
+import copy
 _LOG = get_logger(__name__)
 
 def _write_node_info_newick(out, node, **kwargs): #TODO
@@ -12,7 +13,29 @@ def _write_node_info_newick(out, node, **kwargs): #TODO
         out.write(str(node._id))
 class ExtensibleObject(object):
     pass
-
+def _get_node_copy(template_nd, o2n, tree):
+    n = o2n.get(template_nd)
+    if n is not None:
+        return n
+    n = tree.node_type(template_nd._id)
+    n._edge = copy.copy(template_nd._edge)
+    o2n[template_nd] = n
+    return n
+def copy_tree(tree):
+    new_tree = type(tree)()
+    if not tree.root:
+        return new_tree
+    o2n = {}
+    new_tree._root = _get_node_copy(tree.root, o2n, new_tree)
+    for nd in tree.root.preorder_iter():
+        nnd = _get_node_copy(nd, o2n, new_tree)
+        nc = [_get_node_copy(c, o2n, new_tree) for c in nd._children]
+        for c in nc:
+            nnd.add_child(c)
+    for nd in new_tree.root.preorder_iter():
+        if nd._id:
+            new_tree._register_node(nd)
+    return new_tree
 class Node(object):
     def __init__(self, _id=None):
         self._id = _id
@@ -150,7 +173,7 @@ class _TreeWithNodeIDs(_TreeBehaviors):
             self._build_from_newick_events(newick_events)
 
     def has_nodes_that_make_statements(self):
-        for nd in self._id2node.values():
+        for nd in self.root.preorder_iter():
             if nd.makes_phylo_statement_not_in_des:
                 return True
         return False
