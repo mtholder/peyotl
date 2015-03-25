@@ -80,12 +80,145 @@ class OtcPipelineContext(object):
         md5filename = sub_id + '.md5'
         raw_md5_content = self.read_filepath('raw', md5filename, True)
         full_md5_content = self.read_filepath('stage', md5filename, False)
-        if raw_md5_content == full_md5_content:
+        _LOG.warn('SKIPPING Copy')
+        '''if raw_md5_content == full_md5_content:
             _LOG.debug('Subproblem {} unchanged'.format(sub_id))
             return
-        self.copy_files('raw', 'stage', OtcArtifact.SUBPROBLEM_INPUT, sub_id)
+        self.copy_files('raw', 'stage', OtcArtifact.SUBPROBLEM_INPUT, sub_id)'''
         subproblem = OtcSupertreeSubproblem(self.stage, sub_id)
         return subproblem.solve_or_simplify(self.solution, self.simple)
+class SimplificationError(Exception):
+    pass
+
+
+
+def simplify_subproblem_inputs(with_internals, without_internals):
+    print '\n'.join([i.source_name for i in with_internals])
+    print '\n'.join([i.get_newick() for i in with_internals])
+    sr = SimplificationRecord(with_internals, without_internals)
+    return sr
+
+class SimplificationRecord(object):
+    def __init__(self, with_internals, without_internals):
+        self.assume_rank_based = True
+        self.trees_with_internals = with_internals
+        self.trees_without_internals = without_internals
+        self.list_of_statements = []
+        self.ps2trees = {}
+        self.full_leafset = set()
+        in_an_include = set()
+        for tree in with_internals:
+            phylo_statements = tree.get_phylo_statements()
+            leaves_without_statements = tree.get_leaf_ids_with_no_phylo_statements()
+            if leaves_without_statements:
+                rls = set(phylo_statements[0].leaf_set)
+                rls -= leaves_without_statements
+                in_an_include |= rls
+            self.full_leafset.update(phylo_statements[0].leaf_set)
+            new_phylo_statements = []
+            for ps in phylo_statements:
+                tl = self.ps2trees.setdefault(ps, [])
+                if not tl:
+                    new_phylo_statements.append(ps)
+                else:
+                    _LOG.debug('repeated phylo statement')
+                tl.append(tree)
+            self.list_of_statements.append(new_phylo_statements)
+
+        if len(in_an_include) < len(self.full_leafset):
+            self.cull_exclude_only(in_an_include - self.full_leafset)
+        self.simplify_to_exhaustion()
+    def simplify_to_exhaustion(self):
+        c, r = True, False
+        if self.assume_rank_based:
+            r = self._remove_conflicting_with_first_tree()
+        while c:
+            c = self._look_for_domintated_to_exhaustion()
+            if c:
+                r = True
+        return r
+    def _remove_conflicting_with_first_tree(self):
+        f_tree_statements = self.list_of_statements[0]
+        some_removed = False
+        self.rejected_due_to_conf_w_first = []
+        self.rejected_due_to_conf_w_first.append([]) # first tree is self-compatible - it is a tree!
+        exit_statement_list_list = [f_tree_statements]
+        for tree_st in self.list_of_statements[1:]:
+            retained = []
+            rejected = []
+            for ps in tree_st:
+                was_rejected = False
+                for fs in f_tree_statements:
+                    if not fs.compatible(ps):
+                        rejected.append(ps)
+                        was_rejected = True
+                        some_removed = True
+                        break
+                if not was_rejected:
+                    retained.append(ps)
+            exit_statement_list_list.append(retained)
+        if some_removed:
+            self.list_of_statements = exit_statement_list_list
+        return some_removed
+    def _look_for_domintated_to_exhaustion(self):
+        self.non_redundant = set()
+        r = True
+        some_simplification = False
+        while r:
+            full_leaf_id_list = list(self.full_leafset)
+            full_leaf_id_list.sort()
+            r = self._look_for_domintated(full_leaf_id_list)
+            if r:
+                some_simplification = True
+        return some_simplification
+    def _cull_dominated
+    def _look_for_domintated(self, full_leaf_id_list):
+        for id1 in full_leaf_id_list:
+            _LOG.debug('Checking {} for domination'.format(id1))
+            if id1 in self.non_redundant:
+                continue
+            joint_with = None
+            for ps in self.ps2trees.keys():
+                if id1 in ps.leaf_set:
+                    if joint_with is None:
+                        if id1 in ps.include:
+                            joint_with = set(ps.include)
+                        else:
+                            assert(id1 in ps.exclude)
+                            joint_with = set(ps.exclude)
+                        assert(len(joint_with) > 1)
+                    else:
+                        if id1 in ps.include:
+                            joint_with &= set(ps.include)
+                        else:
+                            assert(id1 in ps.exclude)
+                            joint_with &= set(ps.exclude)
+                        if len(joint_with) < 2:
+                            break
+                _LOG.debug('  joint_with = {}'.format(str(joint_with)))
+            if len(joint_with) > 1:
+                assert(id1 in joint_with)
+                dom_by = None
+                for el in joint_with:
+                    if el != id1:
+                        dom_by = el
+                        break
+                assert(dom_by != None)
+                to_cull = set([id1])
+                for el in joint_with:
+                    if (el is id1) or (el is dom_by):
+                        continue
+                    if self._is_dominated_by(el, dom_by):
+                        to_cull.add(el)
+                self._cull_dominated(to_cull)
+                return True
+            self.non_redundant.add(id1)
+
+
+
+
+    
+
 
 class OtcSupertreeSubproblem(object):
     class Status(Enum):
@@ -165,11 +298,8 @@ class OtcSupertreeSubproblem(object):
             return
         self._has_internals = [has_nodes_that_make_statements(i) for i in in_trees]
         with_internals = [in_trees[n] for n, hi in enumerate(self._has_internals) if hi]
-        print with_internals, self._has_internals
         if len(with_internals) < 2:
-            print '\n'.join([i.get_newick() for i in in_trees])
             leaf_set = get_leaf_tax_id_set(in_trees)
-            print leaf_set
             if len(with_internals) == 1:
                 soln = copy_tree(with_internals[0])
             else:
@@ -180,11 +310,12 @@ class OtcSupertreeSubproblem(object):
             self._status = OtcSupertreeSubproblem.Status.CAN_SOLVE
             return
         without_internals = [in_trees[n] for n, hi in enumerate(self._has_internals) if not hi]
+        print self.artifact_id
         try:
             self._simplification = simplify_subproblem_inputs(with_internals, without_internals)
         except SimplificationError:
             self._status = OtcSupertreeSubproblem.Status.CANNOT_SIMPLIFY_OR_SOLVE
-        except:
+        else:
             self._status = OtcSupertreeSubproblem.Status.CAN_SIMPLIFY
         return
     def read_trees(self):

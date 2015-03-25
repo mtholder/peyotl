@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from peyotl.utility.tokenizer import NewickEvents
+from peyotl.phylo.compat import PhyloStatement
 from peyotl.utility import get_logger
 import copy
 _LOG = get_logger(__name__)
@@ -151,6 +152,13 @@ class Node(object):
         self._children[i] = new_c
         new_c._child_index_in_parent = i
         new_c._parent = self
+    def get_id_of_outdegree_1_spike(self):
+        if self.is_leaf:
+            return self
+        if self.outdegree > 1:
+            return None
+        return self._children[0].get_id_of_outdegree_1_spike()
+
 class NodeWithPathInEdges(Node):
     def __init__(self, _id=None):
         Node.__init__(self, _id)
@@ -163,6 +171,40 @@ class NodeWithPathInEdges(Node):
 class _TreeBehaviors(object):
     def leaf_id_set(self):
         return set(self._leaf_ids)
+    def get_leaf_ids_with_no_phylo_statements(self):
+        r = set()
+        for c in self.root.child_iter():
+            x = c.get_id_of_outdegree_1_spike()
+            if x is not None:
+                r.add(x)
+        return r
+    def get_phylo_statements(self):
+        leaf_set = frozenset(self.leaf_id_set())
+        r = self.root
+        ps = []
+        internal2inc = {}
+        for nd in self.root.postorder_iter(filter_fn=lambda x: not x.is_leaf):
+            if (nd.outdegree == 1) or (nd is r):
+                continue
+            inc = None
+            child_leaves = []
+            for c in nd.child_iter():
+                if c.is_leaf:
+                    child_leaves.append(c)
+                else:
+                    if inc is None:
+                        inc = internal2inc[c] #steal the set of the first internal descendant
+                    else:
+                        inc.update(internal2inc[c])
+                    del internal2inc[c] # del to preserve memory
+            if inc is None:
+                inc = set()
+            for c in child_leaves:
+                inc.add(c._id)
+            internal2inc[nd] = inc
+            ps.append(PhyloStatement(include=inc, leaf_set=leaf_set))
+        return ps
+        assert(false)
 class _TreeWithNodeIDs(_TreeBehaviors):
     def __init__(self, newick_events=None, node_type=Node):
         self._id2node = {}
@@ -242,7 +284,7 @@ class _TreeWithNodeIDs(_TreeBehaviors):
             out.write(')')
             _write_node_info_newick(out, node, **kwargs)
         self._root.before_after_apply(before_fn=_open_newick, after_fn=_a, leaf_fn=_t)
-        out.write(';\n')
+        out.write(';')
     def add_new_child(self, parent, child_id):
         nn = self.node_type(_id=child_id)
         parent.add_child(nn)
