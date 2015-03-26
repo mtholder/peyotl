@@ -113,3 +113,7 @@ class PhyloStatement(object):
         el = list(self.exclude)
         el.sort()
         return '(({i}),{e});'.format(i=','.join(il), e=','.join(el))
+    @property
+    def is_trivial(self):
+        li = len(self.include)
+        return (li < 2) or (li == len(self.leaf_set))

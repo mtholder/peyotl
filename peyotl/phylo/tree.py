@@ -43,6 +43,26 @@ class Node(object):
         self._children = []
         self._parent = None
         self._edge = None
+    def get_newick(self, **kwargs):
+        from cStringIO import StringIO
+        outp = StringIO()
+        self.write_newick(outp, **kwargs)
+        return outp.getvalue()
+    def write_newick(self, out, **kwargs):
+        def _open_newick(node):
+            if node.is_first_child_of_parent:
+                out.write('(')
+            else:
+                out.write(',(')
+        def _t(node):
+            if not node.is_first_child_of_parent:
+                out.write(',')
+            _write_node_info_newick(out, node, **kwargs)
+        def _a(node):
+            out.write(')')
+            _write_node_info_newick(out, node, **kwargs)
+        self.before_after_apply(before_fn=_open_newick, after_fn=_a, leaf_fn=_t)
+        out.write(';')
     @property
     def parent(self):
         return self._parent
@@ -152,13 +172,25 @@ class Node(object):
         self._children[i] = new_c
         new_c._child_index_in_parent = i
         new_c._parent = self
+    def _remove_child(self, old_child):
+        _LOG.debug('{} in slot {} of {}'.format(old_child._id,
+                                                  old_child._child_index_in_parent,
+                                                  [i._id for i in self._children]))
+        i = old_child._child_index_in_parent
+        assert self._children[i] is old_child
+        del old_child._child_index_in_parent
+        del self._children[i]
     def get_id_of_outdegree_1_spike(self):
         if self.is_leaf:
             return self
         if self.outdegree > 1:
             return None
         return self._children[0].get_id_of_outdegree_1_spike()
-
+    def deepest_anc(self):
+        nd = self
+        while nd._parent is not None:
+            nd = nd._parent
+        return nd
 class NodeWithPathInEdges(Node):
     def __init__(self, _id=None):
         Node.__init__(self, _id)
@@ -271,29 +303,13 @@ class _TreeWithNodeIDs(_TreeBehaviors):
     def do_full_check_of_invariants(self, testCase, **kwargs):
         _do_full_check_of_tree_invariants(self, testCase, **kwargs)
     def write_newick(self, out, **kwargs):
-        def _open_newick(node):
-            if node.is_first_child_of_parent:
-                out.write('(')
-            else:
-                out.write(',(')
-        def _t(node):
-            if not node.is_first_child_of_parent:
-                out.write(',')
-            _write_node_info_newick(out, node, **kwargs)
-        def _a(node):
-            out.write(')')
-            _write_node_info_newick(out, node, **kwargs)
-        self._root.before_after_apply(before_fn=_open_newick, after_fn=_a, leaf_fn=_t)
-        out.write(';')
+        self._root.write_newick(out, **kwargs)
     def add_new_child(self, parent, child_id):
         nn = self.node_type(_id=child_id)
         parent.add_child(nn)
         self._register_node(nn)
     def get_newick(self, **kwargs):
-        from cStringIO import StringIO
-        outp = StringIO()
-        self.write_newick(outp, **kwargs)
-        return outp.getvalue()
+        return self._root.get_newick(**kwargs)
 
 class TreeWithPathsInEdges(_TreeWithNodeIDs):
     def __init__(self, id_to_par_id=None, newick_events=None):

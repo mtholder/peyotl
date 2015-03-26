@@ -185,7 +185,11 @@ class OtcSupertreeSubproblem(object):
         sr = simplify_subproblem_inputs(with_internals, without_internals)
         if sr.has_simplifications():
             self._simplification = sr
-            self._status = OtcSupertreeSubproblem.Status.CAN_SIMPLIFY
+            if sr.can_solve():
+                self._solution = sr.solve()
+                self._status = OtcSupertreeSubproblem.Status.CAN_SOLVE
+            else:
+                self._status = OtcSupertreeSubproblem.Status.CAN_SIMPLIFY
         else:
             self._status = OtcSupertreeSubproblem.Status.CANNOT_SIMPLIFY_OR_SOLVE
         return
