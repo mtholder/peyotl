@@ -8,7 +8,6 @@ from peyotl import get_logger
 from enum import Enum
 _LOG = get_logger(__name__)
 
-
 class SimplifyOp(object):
     class Category(Enum):
         NOT_INCLUDED = 0
@@ -19,6 +18,7 @@ class SimplifyOp(object):
         self.category = category
         self.statements = statements if isinstance(statements, tuple) else tuple(statements)
         self.leaf_set = leaf_set if isinstance(leaf_set, frozenset) else frozenset(leaf_set)
+
 class SimplificationRecord(object):
     def write_statements(self, out):
         for n, el in enumerate(self.list_of_statements):
@@ -50,7 +50,7 @@ class SimplificationRecord(object):
                 if not tl:
                     new_phylo_statements.append(ps)
                 else:
-                    _LOG.debug('repeated phylo statement')
+                    _LOG.debug('repeated phylo statement: {}'.format(ps.get_newick()))
                 tl.append(tree)
             self.list_of_statements.append(new_phylo_statements)
         if len(in_an_include) < len(self.full_leafset):
@@ -100,7 +100,11 @@ class SimplificationRecord(object):
             if r:
                 some_simplification = True
         return some_simplification
-    def _cull_dominated(self, to_cull):
+
+    def _cull_label_set(self, to_cull):
+        '''Called by _look_for_dominated to remove a set 
+        of labels from all statements.
+        '''
         o2n = {}
         nlos = []
         affected_statements = []
@@ -155,6 +159,7 @@ class SimplificationRecord(object):
                 n = ind_to_del.pop()
                 del row[n]
         self.reductions.append(SimplifyOp(SimplifyOp.Category.TRIVIAL, triv_list, frozenset(self.full_leafset)))
+
     def _is_dominated_by(self, one_id, another):
         for ps in self.ps2trees.keys():
             if one_id in ps.leaf_set:
@@ -170,6 +175,13 @@ class SimplificationRecord(object):
         return True
 
     def _look_for_dominated(self, full_leaf_id_list):
+        '''If, for every statement that includes label `a` there
+        exists another label `b` that is on the same "side" (include or exclude side of the statement)
+        of each statement, then we say that `a` is dominated by `b`.
+        Diagnosing compatibility will not require both `a` and `b`. So we may remove `a` from all 
+        statements.
+        This is called in a while loop by _look_for_dominated_to_exhaustion
+        '''
         for id1 in full_leaf_id_list:
             if id1 in self.redundancy_checked:
                 continue
@@ -208,7 +220,7 @@ class SimplificationRecord(object):
                     if self._is_dominated_by(el, dom_by):
                         to_cull.add(el)
                 _LOG.debug('Culling {}'.format(to_cull))
-                self._cull_dominated(to_cull)
+                self._cull_label_set(to_cull)
                 self.redundancy_checked.update(to_cull)
                 return True
             self.redundancy_checked.add(id1)

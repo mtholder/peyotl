@@ -87,14 +87,24 @@ def read_logging_config(**kwargs):
     _READING_LOGGING_CONF = False
     return _LOGGING_CONF
 
-
+_LOGGERS = {}
 def get_logger(name="peyotl"):
     """
     Returns a logger with name set as given, and configured
     to the level given by the environment variable _LOGGING_LEVEL_ENVAR.
     """
+    global _LOGGERS
+    logger = _LOGGERS.get(name)
+    if logger is not None:
+        return logger
+    is_sub = '.' in name
+    if is_sub:
+        par = '.'.join(name.split('.')[:-1])
+        get_logger(par)
+    print 'Creating logger for ', name
     logger = logging.getLogger(name)
-    if len(logger.handlers) == 0:
+    _LOGGERS[name] = logger
+    if len(logger.handlers) == 0 and not is_sub:
         lc = _LOGGING_CONF
         if 'level' not in lc:
             if _LOGGING_LEVEL_ENVAR in os.environ:
