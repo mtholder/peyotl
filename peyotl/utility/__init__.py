@@ -101,7 +101,6 @@ def get_logger(name="peyotl"):
     if is_sub:
         par = '.'.join(name.split('.')[:-1])
         get_logger(par)
-    print 'Creating logger for ', name
     logger = logging.getLogger(name)
     _LOGGERS[name] = logger
     if len(logger.handlers) == 0 and not is_sub:
