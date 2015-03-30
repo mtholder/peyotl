@@ -24,16 +24,20 @@ class SimplifyOp(object):
             self.leaf_set = leaf_set if isinstance(leaf_set, frozenset) else frozenset(leaf_set)
 class DominatedLabelsSimplifyOp(SimplifyOp):
     def __init__(self, statements, culled):
+        _LOG.debug('creating DominatedLabelsSimplifyOp')
         SimplifyOp.__init__(self, SimplifyOp.Category.DOMINATED, statements, culled)
     def roll_back(self, solver):
+        _LOG.debug('DominatedLabelsSimplifyOp.roll_back')
         for ps in self.statements:
             solver.attempt_add_statement(ps)
 
 
 class TrivialStatementSimplifyOp(SimplifyOp):
     def __init__(self, statements):
+        _LOG.debug('creating TrivialStatementSimplifyOp')
         SimplifyOp.__init__(self, SimplifyOp.Category.TRIVIAL, statements)
     def roll_back(self, solver):
+        _LOG.debug('TrivialStatementSimplifyOp.roll_back')
         for ps in self.statements:
             r = solver.attempt_add_statement(ps)
             assert r
@@ -78,9 +82,11 @@ class TreeBuildingSolver(object):
         n = self._new_internal_node()
         self._attach_unattached_to_par(n, ps.include)
         return n
+    def includes_prohibited(self, nd, ps):
+        return intersection_not_empty(nd.des, ps.exclude)
     def _other_ps_allow_nd_as_inc_mrca(self, nps, ps):
         if intersection_not_empty(nps.exclude, ps.include):
-            return False
+            False
         return not intersection_not_empty(nps.include, ps.exclude)
     def _any_other_ps_allow_nd_as_inc_mrca(self, nd, ps):
         for nps in nd.ps_list:
@@ -92,14 +98,21 @@ class TreeBuildingSolver(object):
             return connected[0]
         nd = connected.pop()
         cids = set([i._id for i in connected])
+        cids = cids.intersection(self._attached_leaves.keys())
         while True:
             if cids <= nd.des:
                 mrca = nd
                 break
-            if not self._any_other_ps_allow_nd_as_inc_mrca(nd, ps):
+            if self.includes_prohibited(nd, ps):
                 return None
+            #if not self._any_other_ps_allow_nd_as_inc_mrca(nd, ps):
+            #    _LOG.debug('_any_other_ps_allow_nd_as_inc_mrca failed for {}'.format(nd.get_newick()))
+            #    return None
+            if nd._parent is None:
+                _LOG.debug(str(cids) + ' is not <= ' + str(nd.des))
+                assert False
             nd = nd._parent
-            assert(nd is not None)
+            
         checked = set()
         for lin_to_check in connected:
             nd = lin_to_check
@@ -107,8 +120,12 @@ class TreeBuildingSolver(object):
                 if nd in checked:
                     break
                 checked.add(nd)
-                if not self._any_other_ps_allow_nd_as_inc_mrca(nd, ps):
+                if self.includes_prohibited(nd, ps):
                     return None
+            
+                #if not self._any_other_ps_allow_nd_as_inc_mrca(nd, ps):
+                #    _LOG.debug('_any_other_ps_allow_nd_as_inc_mrca failed for other leaf des{}'.format(nd.get_newick()))
+                #    return None
         return mrca
     def _merge_node(self, donor, recipient):
         if donor.is_leaf:
@@ -144,6 +161,7 @@ class TreeBuildingSolver(object):
         for tree_root, leaves in by_tree_in_forest.items():
             r = self._connected_trace_back_to_find_mrca(leaves, ps)
             if r is None:
+                _LOG.debug('_connected_trace_back_to_find_mrca returning None')
                 return None
             mrcas_by_tree[tree_root] = r
             if not r.is_leaf:
@@ -152,19 +170,22 @@ class TreeBuildingSolver(object):
         wo_par = []
         for mr in mrcas_by_tree.values():
             if mr._parent is not None:
-                if mr._parent._parent is not None:
-                    raise GreedySolverFailedError() # can't deal with non-trivial forest merges
+                #if mr._parent._parent is not None:
+                #    _LOG.debug(' first complex case' + mr._parent._parent.get_newick())
+                #    raise GreedySolverFailedError() # can't deal with non-trivial forest merges
                 w_par.append(mr)
             else:
                 wo_par.append(mr)
         needs_new_par = (len(w_par) == 0)
         needs_intervening = []
         does_not_need_intervening = []
-        for m in w_par:
+        for m in mrcas_by_tree.values():
             if not self._any_other_ps_allow_nd_as_inc_mrca(m, ps):
-                if not self._can_resolve_to_allow(ps):
+                if not self._can_resolve_to_allow(m, ps):
+                    _LOG.debug('_can_resolve_to_allow False for ' + m.get_newick())
                     return None
                 if m._parent is not None:
+                    _LOG.debug(' complex case')
                     raise GreedySolverFailedError() # can't deal with non-trivial forest merges
                 needs_new_par = True
                 needs_intervening.append(m)
@@ -182,6 +203,8 @@ class TreeBuildingSolver(object):
                 assert mrca.des
         if needs_new_par:
             mrca = self._new_internal_node()
+        else:
+            assert mrca.des
         to_merge_to_par = []
         for m in needs_intervening:
             tmp = self._resolve_to_allow(m, mrca, ps)
@@ -190,6 +213,7 @@ class TreeBuildingSolver(object):
             if m._parent != None:
                 to_merge_to_par.append(m._parent)
             self._merge_node(m, mrca)
+            assert mrca.des
         assert mrca.des
         if to_merge_to_par:
             fp = mrca._parent
@@ -237,11 +261,62 @@ class TreeBuildingSolver(object):
             self._add_set_of_unattached_leaves(ucl)
             self._attach_unattached_to_par(m, ual)
         _LOG.debug('m.des = ' + str(m.des))
+        self._propagate_des_back(m)
         self.added_statements.append(ps)
         m.ps_list.append(ps)
         d = m.deepest_anc()
         _LOG.debug('Attached to: {}'.format(d.get_newick()))
         return True
+    def _propagate_des_back(self, nd):
+        c = nd._parent
+        while c is not None:
+            c.des.update(nd.des)
+            c = c._parent
+    def get_tree_roots(self):
+        r = set()
+        labels_seen = set()
+        n_attach = len(self._attached_leaves)
+        for k, n in self._attached_leaves.items():
+            if k not in labels_seen:
+                d = n.deepest_anc()
+                labels_seen.update(d.des)
+                r.add(d)
+                if len(labels_seen) >= n_attach:
+                    break
+        return r
+    def finalize(self):
+        tree_roots = self.get_tree_roots()
+        if len(tree_roots) > 1:
+            checked = set()
+            while True:
+                mf = False
+                mp = None
+                for el in tree_roots:
+                    if el in checked:
+                        continue
+                    for sel in tree_roots:
+                        if (sel is not el) and (sel not in checked):
+                            if self._could_be_merged(el, sel):
+                                mp = (esl, sel)
+                                break
+                    if mp is None:
+                        checked.add(mp)
+                    else:
+                        break
+                if mp is None:
+                    break
+                el, sel = mp
+                self._merge_roots(el, sel)
+                tree_roots.remove(sel)
+        if len(tree_roots) > 1:
+            self.tree.root = list(tree_roots)[0]
+        else:
+            if len(tree_roots) > 1:
+                assert(self.tree.is_leaf) #odd, that 
+                for c in tree_roots:
+                    self._add_child(self.tree.root, c)
+        self._attach_unattached_to_par(self.tree.root, self._unattached_leaves.keys())
+
 
 class SimplificationRecord(object):
     def write_statements(self, out):
@@ -261,7 +336,9 @@ class SimplificationRecord(object):
                     tbs.attempt_add_statement(ps)
             for reduction in self.reductions[-1::-1]:
                 reduction.roll_back(tbs)
+            tbs.finalize()
         except GreedySolverFailedError:
+            assert False
             self._solver = False
             return False
         self._solver
