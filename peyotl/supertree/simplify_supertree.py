@@ -140,7 +140,27 @@ class TreeBuildingSolver(object):
             recipient.ps_list.extend(donor.ps_list)
             donor.ps_list = []
             donor._children = []
-
+    def _can_resolve_to_allow(self, nd, ps):
+        for c in nd.child_iter():
+            if (c.des & ps.include) and (c.des & ps.exclude):
+                return False
+        return True
+    def _steal_children_as_if_resolving(self, nd, nn, ps):
+        c_to_move = []
+        c_to_retain = []
+        for c in nd.child_iter():
+            if c.des & ps.include:
+                if c.des & ps.exclude:
+                    assert False
+                c_to_move.append(c)
+            else:
+                c_to_retain.append(c)
+        assert(len(c_to_retain) > 0)
+        assert(len(c_to_move) > 1)
+        for c in c_to_move:
+            nd._remove_child(c)
+            self._add_child(nn, c)
+        return nd
     def _trace_back_to_find_mrca(self, attached_leaf, ps):
         d = attached_leaf.deepest_anc()
         by_tree_in_forest = {
@@ -207,10 +227,10 @@ class TreeBuildingSolver(object):
             assert mrca.des
         to_merge_to_par = []
         for m in needs_intervening:
-            tmp = self._resolve_to_allow(m, mrca, ps)
+            tmp = self._steal_children_as_if_resolving(m, mrca, ps)
             to_merge_to_par.append(tmp)
         for m in does_not_need_intervening:
-            if m._parent != None:
+            if m._parent is not None:
                 to_merge_to_par.append(m._parent)
             self._merge_node(m, mrca)
             assert mrca.des
@@ -250,7 +270,6 @@ class TreeBuildingSolver(object):
         m = self._find_mrca(ps)
         if m is None:
             if self._bail_on_reject:
-                assert False
                 raise GreedySolverFailedError();
             _LOG.debug('Rejecting for lack of MRCA: {}'.format(ps.get_newick()))
             self.rejected_statements.append(ps)
@@ -284,6 +303,16 @@ class TreeBuildingSolver(object):
                 if len(labels_seen) >= n_attach:
                     break
         return r
+    def _could_be_merged(self, x, y):
+        '''return True if none of the phylo_statements in x or y exclude the other'''
+        for ps in x.ps_list:
+            if y.des & ps.exclude:
+                return False
+        for ps in y.ps_list:
+            if x.des & ps.exclude:
+                return False
+        return True
+
     def finalize(self):
         tree_roots = self.get_tree_roots()
         if len(tree_roots) > 1:
@@ -297,7 +326,7 @@ class TreeBuildingSolver(object):
                     for sel in tree_roots:
                         if (sel is not el) and (sel not in checked):
                             if self._could_be_merged(el, sel):
-                                mp = (esl, sel)
+                                mp = (el, sel)
                                 break
                     if mp is None:
                         checked.add(mp)
@@ -309,7 +338,7 @@ class TreeBuildingSolver(object):
                 self._merge_roots(el, sel)
                 tree_roots.remove(sel)
         if len(tree_roots) > 1:
-            self.tree.root = list(tree_roots)[0]
+            self.tree._root = list(tree_roots)[0]
         else:
             if len(tree_roots) > 1:
                 assert(self.tree.is_leaf) #odd, that 
@@ -338,7 +367,6 @@ class SimplificationRecord(object):
                 reduction.roll_back(tbs)
             tbs.finalize()
         except GreedySolverFailedError:
-            assert False
             self._solver = False
             return False
         self._solver
@@ -371,9 +399,10 @@ class SimplificationRecord(object):
                 tl.append(tree)
             self.statement_list_list.append(new_phylo_statements)
         if len(in_an_include) < len(self.full_leafset):
-            self.cull_exclude_only(in_an_include - self.full_leafset)
+            self._cull_exclude_only(in_an_include - self.full_leafset)
         self.redundancy_checked = set()
         self.simplify_to_exhaustion()
+
     def simplify_to_exhaustion(self):
         c, r = True, False
         if self.assume_rank_based:
@@ -475,7 +504,10 @@ class SimplificationRecord(object):
                 del row[n]
         sop = TrivialStatementSimplifyOp(triv_list)
         self.reductions.append(sop)
-
+    def _cull_exclude_only(self, in_exclude_only):
+        '''Sent set of leaves that are only in exclude statements.
+        We can attach these the base of the solution.'''
+        self._cull_label_set(in_exclude_only)
     def _is_dominated_by(self, one_id, another):
         for ps in self.ps2trees.keys():
             if one_id in ps.leaf_set:
@@ -511,16 +543,15 @@ class SimplificationRecord(object):
                         else:
                             assert(id1 in ps.exclude)
                             joint_with = set(ps.exclude)
-                        assert(len(joint_with) > 1)
                     else:
                         if id1 in ps.include:
                             joint_with &= set(ps.include)
                         else:
                             assert(id1 in ps.exclude)
                             joint_with &= set(ps.exclude)
-                        if len(joint_with) < 2:
-                            break
-                _LOG.debug('  joint_with = {}'.format(str(joint_with)))
+                    if len(joint_with) < 2:
+                        break
+                #_LOG.debug('  joint_with = {}'.format(str(joint_with)))
             if (joint_with is not None) and (len(joint_with) > 1):
                 assert(id1 in joint_with)
                 dom_by = None

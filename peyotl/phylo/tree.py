@@ -176,10 +176,12 @@ class Node(object):
         _LOG.debug('{} in slot {} of {}'.format(old_child._id,
                                                   old_child._child_index_in_parent,
                                                   [i._id for i in self._children]))
-        i = old_child._child_index_in_parent
-        assert self._children[i] is old_child
+        oi = old_child._child_index_in_parent
+        assert self._children[oi] is old_child
         del old_child._child_index_in_parent
-        del self._children[i]
+        del self._children[oi]
+        for i in range(oi, len(self._children)):
+            self._children[i]._child_index_in_parent = i
     def get_id_of_outdegree_1_spike(self):
         if self.is_leaf:
             return self

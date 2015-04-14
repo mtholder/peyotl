@@ -81,11 +81,10 @@ class OtcPipelineContext(object):
         md5filename = sub_id + '.md5'
         raw_md5_content = self.read_filepath('raw', md5filename, True)
         full_md5_content = self.read_filepath('stage', md5filename, False)
-        _LOG.warn('SKIPPING Copy')
-        '''if raw_md5_content == full_md5_content:
+        if raw_md5_content == full_md5_content:
             _LOG.debug('Subproblem {} unchanged'.format(sub_id))
             return
-        self.copy_files('raw', 'stage', OtcArtifact.SUBPROBLEM_INPUT, sub_id)'''
+        self.copy_files('raw', 'stage', OtcArtifact.SUBPROBLEM_INPUT, sub_id)
         subproblem = OtcSupertreeSubproblem(self.stage, sub_id)
         return subproblem.solve_or_simplify(self.solution, self.simple)
 
