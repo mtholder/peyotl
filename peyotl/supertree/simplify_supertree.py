@@ -345,6 +345,11 @@ class TreeBuildingSolver(object):
                 for c in tree_roots:
                     self._add_child(self.tree.root, c)
         self._attach_unattached_to_par(self.tree.root, self._unattached_leaves.keys())
+    def _merge_roots(self, recipient, donor):
+        clist = [c for c in donor.child_iter()]
+        for c in clist:
+            donor._remove_child(c)
+            self._add_child(recipient, c)
 
 
 class SimplificationRecord(object):
