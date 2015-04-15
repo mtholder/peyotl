@@ -9,6 +9,14 @@ import os
 _LOG = get_logger(__name__)
 class OtcArtifact(Enum):
     SUBPROBLEM_INPUT = 1
+class SimplificationSummary(Enum):
+    ONE_INPUT = 1
+    ZERO_INPUT_WITH_INTERNALS = 2
+    ONE_INPUT_WITH_INTERNALS = 3
+    TWO_INPUTS_WITH_INTERNALS = 4
+    SOLVED_BY_GREEDY = 5
+    SIMPLIED = 6
+    NOT_SOLVABLE_OR_SIMPLIFIED = 7
 
 _SUBPROBLEM_INPUT_SUFFIXES = ('.tre', '.md5', '-tree-names.txt')
 
@@ -49,6 +57,7 @@ class OtcPipelineContext(object):
                 v = getattr(self, k)
                 if v is not None:
                     setattr(self, k, os.path.abspath(v))
+        self.summary_stats = {}
     def read_filepath(self, dir_type, filename, required=False):
         d = getattr(self, dir_type)
         fp = os.path.join(d, filename)
@@ -86,7 +95,10 @@ class OtcPipelineContext(object):
             return
         self.copy_files('raw', 'stage', OtcArtifact.SUBPROBLEM_INPUT, sub_id)
         subproblem = OtcSupertreeSubproblem(self.stage, sub_id)
-        return subproblem.solve_or_simplify(self.solution, self.simple)
+        r = subproblem.solve_or_simplify(self.solution, self.simple)
+        ssv = subproblem.simplification_summary.value
+        self.summary_stats.setdefault(ssv, set()).add(sub_id)
+        return r
 
 class OtcSupertreeSubproblem(object):
     class Status(Enum):
@@ -100,6 +112,7 @@ class OtcSupertreeSubproblem(object):
                 `filepath` OR
                 `input_dir` AND `artifact_id`
         '''
+        self.simplification_summary = None
         if filepath is None:
             self.artifact_id = artifact_id
             self.input_dir = input_dir
@@ -163,22 +176,31 @@ class OtcSupertreeSubproblem(object):
         in_trees = self._input_trees
         num_input_trees = len(in_trees)
         if num_input_trees == 1:
+            self.simplification_summary = SimplificationSummary.ONE_INPUT
             self._solution = in_trees[0]
             self._status = OtcSupertreeSubproblem.Status.CAN_SOLVE
             return
         self._has_internals = [has_nodes_that_make_statements(i) for i in in_trees]
         with_internals = [in_trees[n] for n, hi in enumerate(self._has_internals) if hi]
-        if len(with_internals) < 2:
+        num_with_internals = len(with_internals)
+        if num_with_internals < 3:
             leaf_set = get_leaf_tax_id_set(in_trees)
-            if len(with_internals) == 1:
-                soln = copy_tree(with_internals[0])
+            if num_with_internals == 2:
+                _LOG.debug('num_with_internals == 2 should be special-cased...')
+                self.simplification_summary = SimplificationSummary.TWO_INPUTS_WITH_INTERNALS
             else:
-                soln = _TreeWithNodeIDs()
-                soln._root = soln.node_type(_id=None)
-            add_missing_leaves_to_root(soln, leaf_set)
-            self._solution = soln
-            self._status = OtcSupertreeSubproblem.Status.CAN_SOLVE
-            return
+                if len(with_internals) == 1:
+                    soln = copy_tree(with_internals[0])
+                    self.simplification_summary = SimplificationSummary.ONE_INPUT_WITH_INTERNALS
+                else:
+                    soln = _TreeWithNodeIDs()
+                    soln._root = soln.node_type(_id=None)
+                    self.simplification_summary = SimplificationSummary.ZERO_INPUT_WITH_INTERNALS
+                add_missing_leaves_to_root(soln, leaf_set)
+                self._solution = soln
+                self._status = OtcSupertreeSubproblem.Status.CAN_SOLVE
+                return
+
         without_internals = [in_trees[n] for n, hi in enumerate(self._has_internals) if not hi]
         print self.artifact_id
         sr = simplify_subproblem_inputs(with_internals, without_internals)
@@ -187,10 +209,13 @@ class OtcSupertreeSubproblem(object):
             if sr.can_solve():
                 self._solution = sr.solve()
                 self._status = OtcSupertreeSubproblem.Status.CAN_SOLVE
+                self.simplification_summary = SimplificationSummary.SOLVED_BY_GREEDY
             else:
                 self._status = OtcSupertreeSubproblem.Status.CAN_SIMPLIFY
+                self.simplification_summary = SimplificationSummary.SIMPLIED
         else:
             self._status = OtcSupertreeSubproblem.Status.CANNOT_SIMPLIFY_OR_SOLVE
+            self.simplification_summary = SimplificationSummary.NOT_SOLVABLE_OR_SIMPLIFIED
         return
     def read_trees(self):
         if self._input_trees:
