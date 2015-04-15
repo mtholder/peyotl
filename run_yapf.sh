@@ -7,5 +7,5 @@ done
 for f in $(cat dev/to-format-list.txt)
 do
     echo "formatting $f"
-    yapf -i "$f"
+    yapf --style=google -i "$f"
 done
