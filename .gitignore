@@ -11,3 +11,5 @@ setuptools-*
 requests-*egg
 .eggs
 dev/external_deps.txt
+*.db
+*.cdb
