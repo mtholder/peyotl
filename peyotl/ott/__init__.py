@@ -133,6 +133,7 @@ _CACHES = {'ottid2parentottid': ('ottID2parentOttId', 'ott ID-> parent\'s ott ID
            'ottid2uniq': ('ottID2uniq', 'ott ID -> uniqname for those IDs that have a uniqname field', ),
            'uniq2ottid': ('uniq2ottID', 'uniqname -> ott ID for those IDs that have a uniqname', ),
            'name2ottid': ('name2ottID', 'maps a taxon name -> ott ID ', ),
+           'lcname2name': ('lcname2name', 'maps a lower case taxon name -> name or list of names ', ),
            'homonym2ottid': ('homonym2ottID', 'maps a taxon name -> tuple of OTT IDs ', ),
            'nonhomonym2ottid': ('nonhomonym2ottID', 'maps a taxon name -> single OTT ID ', ),
            'ottid2names': ('ottID2names', 'ottID to a name or list/tuple of names', ),
@@ -180,6 +181,7 @@ class OTT(object):
         self._flag_set_id2flag_set = None
         self._taxonomic_sources = None
         self._ncbi_2_ott_id = None
+        self._lcname_to_name = None
     def create_ncbi_to_ott(self):
         ncbi2ott = {}
         for ott_id, info in self.ott_id_to_info.items():
@@ -305,6 +307,11 @@ class OTT(object):
             self._ott_id_to_info = self._load_pickled('ottID2info')
         return self._ott_id_to_info
     @property
+    def lcname_to_name(self):
+        if self._lcname_to_name is None:
+            self._lcname_to_name = self._load_pickled('lcname2name')
+        return self._lcname_to_name
+    @property
     def ott_id_to_names(self):
         if self._ott_id_to_names is None:
             self._ott_id_to_names = self._load_pickled('ottID2names')
@@ -322,9 +329,12 @@ class OTT(object):
             return name_or_name_list
         return name_or_name_list[0]
     def get_ott_ids(self, name):
+        return self.name_to_ott_id.get(name)
+    @property
+    def name_to_ott_id(self):
         if self._name2ott_ids is None:
             self._name2ott_ids = self._load_pickled('name2ottID')
-        return self._name2ott_ids.get(name)
+        return self._name2ott_ids
     @property
     def root_name(self):
         if self._root_name is None:
@@ -574,6 +584,17 @@ class OTT(object):
         _write_pickle(out_dir, 'ottID2uniq', id2uniq)
         _write_pickle(out_dir, 'uniq2ottID', uniq2id)
         _write_pickle(out_dir, 'name2ottID', name2id)
+        # create a mapping of lower-case name -> {name OR list of names}
+        lcname2name = {}
+        for k in name2id.iterkeys():
+            lk = k.lower()
+            x = lcname2name.setdefault(lk, k)
+            if x is not k:
+                if isinstance(x, list):
+                    x.append(k)
+                else:
+                    lcname2name[lk] = [x, k]
+        _write_pickle(out_dir, 'lcname2name', lcname2name)
         _write_pickle(out_dir, 'homonym2ottID', homonym2id)
         _write_pickle(out_dir, 'nonhomonym2ottID', nonhomonym2id)
         _write_pickle(out_dir, 'ottID2names', id2name)
@@ -737,15 +758,21 @@ if __name__ == '__main__':
     o = OTT()
     #print('taxonomic sources = "{}"'.format('", "'.join([iii for iii in o.taxonomic_sources])))
     #print(o.ncbi(1115784))
-    o.write_newick(out, label_style=OTULabelStyleEnum.CURRENT_LABEL_OTT_ID, prune_flags=_TREEMACHINE_PRUNE_FLAGS)
+    '''o.write_newick(out, label_style=OTULabelStyleEnum.CURRENT_LABEL_OTT_ID, prune_flags=_TREEMACHINE_PRUNE_FLAGS)
     out.write('\n')
-    '''fstrs = ['{k:d}: {v}'.format(k=k, v=v) for k, v in o.flag_set_id_to_flag_set.items()]
+    fstrs = ['{k:d}: {v}'.format(k=k, v=v) for k, v in o.flag_set_id_to_flag_set.items()]
     print('flag_set_id_to_flag_set =\n  {}'.format('\n  '.join(fstrs)))
     for ott_id, info in o.ott_id_to_info.items():
         if 'ncbi' in info:
             print('OTT {o:d} => NCBI {n:d}'.format(o=ott_id, n=info['ncbi']))
-    print(len(o.ott_id2par_ott_id), 'ott IDs')
-    print('call')
+    '''
+    print(len(o.lcname_to_name), 'ott lcname_to_name')
+    for v in o.lcname_to_name.itervalues():
+        if isinstance(v, list):
+            print(v)
+    print(len(o.name_to_ott_id), 'ott name_to_ott_id')
+    print(len(o.ott_id_to_info), 'ott ott_id_to_info')
+    '''print('call')
     print(o.get_anc_lineage(593937)) # This is the OTT id of a species in the Asterales system
     print(o.root_name)
     o.induced_tree([458721, 883864, 128315])
