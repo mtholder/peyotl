@@ -31,6 +31,13 @@ You probably want to be using a virtualenv. Then you can:
 
 For full(er) documentation, check out our [http://opentreeoflife.github.io/peyotl/](http://opentreeoflife.github.io/peyotl/) documentation site.
 
+Use of the (experimental) peyotl/ott/fuzzy.py requires you to:
+  1. install a slightly tweaked version of SimString swig python bindings from http://chokkan.org/software/simstring
+  2. create a database of the names in OTT using code similar to the sample_unicode example in SimString, and 
+  3. `pip install python-Levenshtein`
+
+
+
 # Testing
 
 Use:
@@ -74,6 +81,7 @@ peyotl includes the `ez_setup.py` tool from [setuptools](https://pypi.python.org
     alter the python sourcee code itself. By installing the package you enable the python
     interpreter to find the code included in this package for interacting with open tree of life
     data and web services.
+
 
 
 
