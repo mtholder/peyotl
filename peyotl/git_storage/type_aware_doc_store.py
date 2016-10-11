@@ -20,6 +20,7 @@ except:
     anyjson = Wrapper()
     anyjson.loads = json.loads
 from peyotl.git_storage import ShardedDocStore
+from peyotl.git_storage.helper import get_repos
 from peyotl.git_storage.git_shard import FailedShardCreationError
 from peyotl.utility import get_logger
 
@@ -58,7 +59,6 @@ class TypeAwareDocStore(ShardedDocStore):
             'remote_map' - a dictionary of remote name to prefix (the repo name + '.git' will be
                 appended to create the URL for pushing).
         """
-        from peyotl.phylesystem.helper import get_repos, _get_phylesystem_parent_with_source
         ShardedDocStore.__init__(self,
                                  prefix_from_doc_id=prefix_from_doc_id)
         self.assumed_doc_version = assumed_doc_version
@@ -67,9 +67,7 @@ class TypeAwareDocStore(ShardedDocStore):
         elif repos_par is not None:
             self._filepath_args = 'repos_par = {}'.format(repr(repos_par))
         else:
-            fmt = '<No arg> default phylesystem_parent from {}'
-            a = _get_phylesystem_parent_with_source(**kwargs)[1]
-            self._filepath_args = fmt.format(a)
+            self._filepath_args = '<No arg> default phylesystem_parent from env/config cascade'
         push_mirror_repos_par = None
         push_mirror_remote_map = {}
         if mirror_info:
@@ -85,7 +83,7 @@ class TypeAwareDocStore(ShardedDocStore):
                         e = e_fmt.format(push_mirror_repos_par)
                         raise ValueError(e)
         if repos_dict is None:
-            repos_dict = get_repos(repos_par, **kwargs)
+            repos_dict = get_repos(repos_par)
         shards = []
         repo_name_list = list(repos_dict.keys())
         repo_name_list.sort()

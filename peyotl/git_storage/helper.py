@@ -1,32 +1,30 @@
-from peyotl.utility import get_logger
-import json
-
-try:
-    import anyjson
-except:
-    class Wrapper(object):
-        pass
-
-
-    anyjson = Wrapper()
-    anyjson.loads = json.loads
-from peyotl.phylesystem.helper import _get_phylesystem_parent
+from peyotl.utility import expand_path, get_logger, get_config_setting
 import os
-from threading import Lock
+
+
+def get_phylesystem_parent_list():
+    try:
+        phylesystem_parent = expand_path(get_config_setting('phylesystem', 'parent'))
+    except:
+        raise ValueError('No [phylesystem] "parent" specified in config or environmental variables')
+    # TEMP hardcoded assumption that : does not occur in a path name
+    # if present is a separator between parent dirs...
+    return phylesystem_parent.split(':')
+
 
 _LOG = get_logger(__name__)
 
 
-def get_repos(par_list=None, **kwargs):
+def get_repos(par_list=None):
     """Returns a dictionary of name -> filepath
-    `name` is the repo name based on the dir name (not the git repo). It is not
+    `name` is the repo name based on the dir name (not the get repo). It is not
         terribly useful, but it is nice to have so that any mirrored repo directory can
         use the same naming convention.
     `filepath` will be the full path to the repo directory (it will end in `name`)
     """
     _repos = {}  # key is repo name, value repo location
     if par_list is None:
-        par_list = _get_phylesystem_parent(**kwargs)
+        par_list = get_phylesystem_parent_list()
     elif not isinstance(par_list, list):
         par_list = [par_list]
     for p in par_list:
