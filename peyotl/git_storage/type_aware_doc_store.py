@@ -8,17 +8,7 @@ try:
     from cStringIO import StringIO
 except ImportError:
     from io import StringIO
-import json
-
-try:
-    import anyjson
-except:
-    class Wrapper(object):
-        pass
-
-
-    anyjson = Wrapper()
-    anyjson.loads = json.loads
+import anyjson
 from peyotl.git_storage import ShardedDocStore
 from peyotl.git_storage.helper import get_repos
 from peyotl.git_storage.git_shard import FailedShardCreationError
@@ -96,15 +86,15 @@ class TypeAwareDocStore(ShardedDocStore):
                     push_mirror_repo_path = expected_push_mirror_repo_path
             try:
                 # assumes uniform __init__ arguments for all GitShard subclasses
-                shard = git_shard_class(repo_name,
-                                        repo_filepath,
-                                        assumed_doc_version,
-                                        git_ssh,
-                                        pkey,
-                                        git_action_class,
-                                        push_mirror_repo_path,
-                                        new_doc_prefix,
-                                        infrastructure_commit_author)
+                shard = git_shard_class(name=repo_name,
+                                        path=repo_filepath,
+                                        assumed_doc_version=assumed_doc_version,
+                                        git_ssh=git_ssh,
+                                        pkey=pkey,
+                                        git_action_class=git_action_class,
+                                        push_mirror_repo_path=push_mirror_repo_path,
+                                        new_doc_prefix=new_doc_prefix,
+                                        infrastructure_commit_author=infrastructure_commit_author)
             except FailedShardCreationError as x:
                 f = 'SKIPPING repo "{d}" (not a {c}). Details:\n  {e}'
                 f = f.format(d=repo_filepath, c=git_shard_class.__name__, e=str(x))

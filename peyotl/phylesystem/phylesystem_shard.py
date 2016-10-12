@@ -119,26 +119,27 @@ class PhylesystemShard(TypeAwareGitShard):
                  pkey=None,
                  git_action_class=PhylesystemGitAction,
                  push_mirror_repo_path=None,
-                 new_study_prefix=None,
+                 new_doc_prefix=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                 **kwargs):
-        self.max_file_size = get_config_setting('phylesystem', 'max_file_size')
+                 max_file_size=None):
+        if max_file_size is None:
+            max_file_size = get_config_setting('phylesystem', 'max_file_size')
         TypeAwareGitShard.__init__(self,
-                                   name,
-                                   path,
-                                   doc_holder_subpath,
-                                   assumed_doc_version,
-                                   diagnose_repo_nexml2json,  # version detection
-                                   refresh_study_index,  # populates 'study_index'
-                                   git_ssh,
-                                   pkey,
-                                   git_action_class,
-                                   push_mirror_repo_path,
-                                   infrastructure_commit_author,
-                                   **kwargs)
+                                   name=name,
+                                   path=path,
+                                   doc_holder_subpath=doc_holder_subpath,
+                                   assumed_doc_version=assumed_doc_version,
+                                   detect_doc_version_fn=diagnose_repo_nexml2json,  # version detection
+                                   refresh_doc_index_fn=refresh_study_index,  # populates 'study_index'
+                                   git_ssh=git_ssh,
+                                   pkey=pkey,
+                                   git_action_class=git_action_class,
+                                   push_mirror_repo_path=push_mirror_repo_path,
+                                   infrastructure_commit_author=infrastructure_commit_author,
+                                   max_file_size=max_file_size)
         self._doc_counter_lock = Lock()
         self._next_study_id = None
-        self._new_study_prefix = new_study_prefix
+        self._new_study_prefix = new_doc_prefix
         if self._new_study_prefix is None:
             prefix_file = os.path.join(path, 'new_study_prefix')
             if os.path.exists(prefix_file):

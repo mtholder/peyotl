@@ -65,7 +65,7 @@ class TypeAwareGitShard(GitShard):
                  git_action_class=None,
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                 **kwargs):
+                 max_file_size=None):
         GitShard.__init__(self, name)
         self.filepath_for_doc_id_fn = None  # overwritten in refresh_doc_index_fn
         self.id_alias_list_fn = None  # overwritten in refresh_doc_index_fn
@@ -105,15 +105,13 @@ class TypeAwareGitShard(GitShard):
                 _LOG.warn(f)
             except:
                 pass
-        max_file_size = kwargs.get('max_file_size')
-        if max_file_size is None:
-            if max_file_size is not None:
-                try:
-                    max_file_size = int(max_file_size)
-                except:
-                    m = 'Configuration-base value of max_file_size was "{}". Expecting an integer.'
-                    m = m.format(max_file_size)
-                    raise RuntimeError(m)
+        if max_file_size is not None:
+            try:
+                max_file_size = int(max_file_size)
+            except:
+                m = 'Configuration-base value of max_file_size was "{}". Expecting an integer.'
+                m = m.format(max_file_size)
+                raise RuntimeError(m)
         self.max_file_size = max_file_size
         self.assumed_doc_version = assumed_doc_version
         self._known_prefixes = None

@@ -8,15 +8,7 @@ from peyotl.utility import get_logger
 from peyotl.utility.str_util import (slugify, increment_slug)
 import json
 
-try:
-    import anyjson
-except:
-    class Wrapper(object):
-        pass
-
-
-    anyjson = Wrapper()
-    anyjson.loads = json.loads
+import anyjson
 from peyotl.git_storage import ShardedDocStore, \
     TypeAwareDocStore
 from peyotl.amendments.amendments_shard import (TaxonomicAmendmentsShardProxy, TaxonomicAmendmentsShard)

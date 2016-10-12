@@ -94,8 +94,7 @@ class _Phylesystem(TypeAwareDocStore):
                                    git_shard_class=PhylesystemShard,
                                    mirror_info=mirror_info,
                                    new_doc_prefix=new_study_prefix,
-                                   infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                                   **kwargs)
+                                   infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>')
         self._new_study_prefix = self._growing_shard._new_study_prefix  # TODO:shard-edits?
         self._growing_shard._determine_next_study_id()
         if with_caching:

@@ -35,6 +35,7 @@ def get_repos(par_list=None):
             #  - add optional list arg `allowed_repo_names`?
             #  - let the FailedShardCreationError work harmlessly?
             #  - treat this function as truly for phylesystem only?
+            # noinspection PyTypeChecker
             if os.path.isdir(os.path.join(p, name + '/.git')):
                 _repos[name] = os.path.abspath(os.path.join(p, name))
     if len(_repos) == 0:

@@ -1,15 +1,5 @@
 from peyotl.utility import expand_path, get_logger, get_config_setting
-import json
-
-try:
-    import anyjson
-except:
-    class Wrapper(object):
-        pass
-
-
-    anyjson = Wrapper()
-    anyjson.loads = json.loads
+import anyjson
 from peyotl.phylesystem.git_actions import get_filepath_for_namespaced_id, get_filepath_for_simple_id
 from peyotl.git_storage import get_phylesystem_parent_list, get_repos
 import os
