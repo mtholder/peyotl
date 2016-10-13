@@ -63,8 +63,7 @@ class _Phylesystem(TypeAwareDocStore):
                  git_action_class=PhylesystemGitAction,
                  mirror_info=None,
                  new_study_prefix=None,
-                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                 **kwargs):
+                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
         """
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
@@ -90,11 +89,11 @@ class _Phylesystem(TypeAwareDocStore):
                                    assumed_doc_version=repo_nexml2json,
                                    git_ssh=git_ssh,
                                    pkey=pkey,
-                                   git_action_class=PhylesystemGitAction,
+                                   git_action_class=git_action_class,
                                    git_shard_class=PhylesystemShard,
                                    mirror_info=mirror_info,
                                    new_doc_prefix=new_study_prefix,
-                                   infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>')
+                                   infrastructure_commit_author=infrastructure_commit_author)
         self._new_study_prefix = self._growing_shard._new_study_prefix  # TODO:shard-edits?
         self._growing_shard._determine_next_study_id()
         if with_caching:

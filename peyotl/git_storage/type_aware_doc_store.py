@@ -30,8 +30,7 @@ class TypeAwareDocStore(ShardedDocStore):
                  git_shard_class=None,  # requires a *type-specific* GitShard subclass
                  mirror_info=None,
                  new_doc_prefix=None,
-                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                 **kwargs):
+                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
         """
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
