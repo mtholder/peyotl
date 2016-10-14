@@ -63,7 +63,8 @@ class _Phylesystem(TypeAwareDocStore):
                  git_action_class=PhylesystemGitAction,
                  mirror_info=None,
                  new_study_prefix=None,
-                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
+                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
+                 shard_mirror_pair_list=None):
         """
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
@@ -93,7 +94,8 @@ class _Phylesystem(TypeAwareDocStore):
                                    git_shard_class=PhylesystemShard,
                                    mirror_info=mirror_info,
                                    new_doc_prefix=new_study_prefix,
-                                   infrastructure_commit_author=infrastructure_commit_author)
+                                   infrastructure_commit_author=infrastructure_commit_author,
+                                   shard_mirror_pair_list=shard_mirror_pair_list)
         self._new_study_prefix = self._growing_shard._new_study_prefix  # TODO:shard-edits?
         self._growing_shard._determine_next_study_id()
         if with_caching:
@@ -300,3 +302,7 @@ def Phylesystem(repos_dict=None,
                                         new_study_prefix=new_study_prefix,
                                         infrastructure_commit_author=infrastructure_commit_author)
     return _THE_PHYLESYSTEM
+
+def create_phylesystem_umbrella(shard_mirror_pair_list, new_study_prefix):
+    return _Phylesystem(shard_mirror_pair_list=shard_mirror_pair_list,
+                        new_study_prefix=new_study_prefix)

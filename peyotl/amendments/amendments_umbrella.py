@@ -369,3 +369,7 @@ def TaxonomicAmendmentStore(repos_dict=None,
                                                                   mirror_info=mirror_info,
                                                                   infrastructure_commit_author=infrastructure_commit_author)
     return _THE_TAXONOMIC_AMENDMENT_STORE
+
+
+def create_taxonomic_amendments_umbrella(shard_mirror_pair_list):
+    return _TaxonomicAmendmentStore(shard_mirror_pair_list=shard_mirror_pair_list)

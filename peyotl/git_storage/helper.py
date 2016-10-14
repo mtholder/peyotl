@@ -14,6 +14,24 @@ def get_phylesystem_parent_list():
 
 _LOG = get_logger(__name__)
 
+def dir_to_repos_dict(dir):
+    """Returns a map of subdir name to full path for all subdirectories
+    of `dir` that contain a `.git` subdirectory"""
+    repos = {}
+    absdir = expand_path(dir)
+    if not os.path.isdir(absdir):
+        raise ValueError('Docstore parent "{p}" is not a directory'.format(p=absdir))
+    for name in os.listdir(absdir):
+        # TODO: Add an option to filter just phylesystem repos (or any specified type?) here!
+        #  - add optional list arg `allowed_repo_names`?
+        #  - let the FailedShardCreationError work harmlessly?
+        #  - treat this function as truly for phylesystem only?
+        # noinspection PyTypeChecker
+        subdir = os.path.join(absdir, name)
+        if os.path.isdir(os.path.join(subdir, '.git')):
+            repos[name] = subdir
+    return repos
+
 
 def get_repos(par_list=None):
     """Returns a dictionary of name -> filepath
@@ -28,16 +46,8 @@ def get_repos(par_list=None):
     elif not isinstance(par_list, list):
         par_list = [par_list]
     for p in par_list:
-        if not os.path.isdir(p):
-            raise ValueError('Docstore parent "{p}" is not a directory'.format(p=p))
-        for name in os.listdir(p):
-            # TODO: Add an option to filter just phylesystem repos (or any specified type?) here!
-            #  - add optional list arg `allowed_repo_names`?
-            #  - let the FailedShardCreationError work harmlessly?
-            #  - treat this function as truly for phylesystem only?
-            # noinspection PyTypeChecker
-            if os.path.isdir(os.path.join(p, name + '/.git')):
-                _repos[name] = os.path.abspath(os.path.join(p, name))
+        r = dir_to_repos_dict(p)
+        _repos.update(r)
     if len(_repos) == 0:
         raise ValueError('No git repos in {parent}'.format(parent=str(par_list)))
     return _repos

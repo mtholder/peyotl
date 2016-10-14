@@ -30,7 +30,8 @@ class TypeAwareDocStore(ShardedDocStore):
                  git_shard_class=None,  # requires a *type-specific* GitShard subclass
                  mirror_info=None,
                  new_doc_prefix=None,
-                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
+                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
+                 shard_mirror_pair_list=None):
         """
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
@@ -51,26 +52,29 @@ class TypeAwareDocStore(ShardedDocStore):
         ShardedDocStore.__init__(self,
                                  prefix_from_doc_id=prefix_from_doc_id)
         self.assumed_doc_version = assumed_doc_version
-        if repos_dict is not None:
-            self._filepath_args = 'repos_dict = {}'.format(repr(repos_dict))
-        elif repos_par is not None:
-            self._filepath_args = 'repos_par = {}'.format(repr(repos_par))
+        if shard_mirror_pair_list is not None:
+            self._filepath_args = 'shard_mirror_pair_list = {}'.format(repr(shard_mirror_pair_list))
         else:
-            self._filepath_args = '<No arg> default phylesystem_parent from env/config cascade'
-        push_mirror_repos_par = None
-        push_mirror_remote_map = {}
-        if mirror_info:
-            push_mirror_info = mirror_info.get('push', {})
-            if push_mirror_info:
-                push_mirror_repos_par = push_mirror_info['parent_dir']
-                push_mirror_remote_map = push_mirror_info.get('remote_map', {})
-                if push_mirror_repos_par:
-                    if not os.path.exists(push_mirror_repos_par):
-                        os.makedirs(push_mirror_repos_par)
-                    if not os.path.isdir(push_mirror_repos_par):
-                        e_fmt = 'Specified push_mirror_repos_par, "{}", is not a directory'
-                        e = e_fmt.format(push_mirror_repos_par)
-                        raise ValueError(e)
+            if repos_dict is not None:
+                self._filepath_args = 'repos_dict = {}'.format(repr(repos_dict))
+            elif repos_par is not None:
+                self._filepath_args = 'repos_par = {}'.format(repr(repos_par))
+            else:
+                self._filepath_args = '<No arg> default phylesystem_parent from env/config cascade'
+            push_mirror_repos_par = None
+            push_mirror_remote_map = {}
+            if mirror_info:
+                push_mirror_info = mirror_info.get('push', {})
+                if push_mirror_info:
+                    push_mirror_repos_par = push_mirror_info['parent_dir']
+                    push_mirror_remote_map = push_mirror_info.get('remote_map', {})
+                    if push_mirror_repos_par:
+                        if not os.path.exists(push_mirror_repos_par):
+                            os.makedirs(push_mirror_repos_par)
+                        if not os.path.isdir(push_mirror_repos_par):
+                            e_fmt = 'Specified push_mirror_repos_par, "{}", is not a directory'
+                            e = e_fmt.format(push_mirror_repos_par)
+                            raise ValueError(e)
         if repos_dict is None:
             repos_dict = get_repos(repos_par)
         shards = []
