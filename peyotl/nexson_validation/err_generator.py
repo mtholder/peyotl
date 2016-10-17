@@ -10,11 +10,7 @@
 from peyotl.nexson_validation.warning_codes import NexsonWarningCodes
 from peyotl.utility import get_logger
 
-try:
-    # noinspection PyCompatibility
-    from cStringIO import StringIO
-except ImportError:
-    from io import StringIO
+from peyotl.utility.imports import StringIO
 import codecs
 import json
 

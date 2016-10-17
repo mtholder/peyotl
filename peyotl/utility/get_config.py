@@ -112,12 +112,7 @@ def get_raw_default_config_and_read_file_list():
     with _CONFIG_LOCK:
         if _CONFIG is not None:
             return _CONFIG, _READ_DEFAULT_FILES
-        try:
-            # noinspection PyCompatibility
-            from ConfigParser import SafeConfigParser
-        except ImportError:
-            # noinspection PyCompatibility,PyUnresolvedReferences
-            from configparser import ConfigParser as SafeConfigParser  # pylint: disable=F0401
+        from peyotl.utility.imports import SafeConfigParser
         cfg = SafeConfigParser()
         read_files = cfg.read(get_default_config_filename())
         _CONFIG, _READ_DEFAULT_FILES = cfg, read_files
@@ -329,12 +324,7 @@ def get_test_config(overrides=None):
     the peyotl configuration, and the settings in the `overrides` dict
     having the highest priority.
     """
-    try:
-        # noinspection PyCompatibility
-        from ConfigParser import SafeConfigParser
-    except ImportError:
-        # noinspection PyCompatibility,PyUnresolvedReferences
-        from configparser import ConfigParser as SafeConfigParser  # pylint: disable=F0401
+    from peyotl.utility.imports import SafeConfigParser
     _test_conf_fn = os.path.abspath('test.conf')
     _test_conf = SafeConfigParser()
     _test_conf.read(_test_conf_fn)

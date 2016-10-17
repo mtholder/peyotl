@@ -3,11 +3,7 @@ like PhylesystemProxy by introducing more business rules and differences between
 in the store (eg, Nexson studies in Phylesystem, tree collections in TreeCollectionStore)."""
 import os
 
-try:
-    # noinspection PyCompatibility
-    from cStringIO import StringIO
-except ImportError:
-    from io import StringIO
+from peyotl.utility.imports import StringIO
 import anyjson
 from peyotl.git_storage import ShardedDocStore
 from peyotl.git_storage.helper import get_repos
