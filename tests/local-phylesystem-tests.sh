@@ -23,7 +23,7 @@ refresh_and_test_local_git tests/local_repos_tests/test_study_del.py
 refresh_and_test_local_git tests/local_repos_tests/test_git_workflows.py tiny_max_file_size
 refresh_and_test_local_git tests/local_repos_tests/test_phylesystem_api.py
 
-# The following test needs to have mirrors created as a part of the setup 
+# The following test needs to have mirrors created as a part of the setup
 refresh_and_test_local_git_with_mirrors tests/local_repos_tests/test_reduce_dup_doc_store.py
 
 # This test uses the (deprecated) feature of creating push mirrors when wrapping

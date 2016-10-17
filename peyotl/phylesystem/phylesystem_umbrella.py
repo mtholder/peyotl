@@ -305,4 +305,5 @@ def Phylesystem(repos_dict=None,
 
 def create_phylesystem_umbrella(shard_mirror_pair_list, new_study_prefix):
     return _Phylesystem(shard_mirror_pair_list=shard_mirror_pair_list,
-                        new_study_prefix=new_study_prefix)
+                        new_study_prefix=new_study_prefix,
+                        git_action_class=PhylesystemGitAction)

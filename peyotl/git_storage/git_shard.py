@@ -91,10 +91,9 @@ class TypeAwareGitShard(GitShard):
         self.parent_path = os.path.split(path)[0] + '/'
         self.git_dir = dot_git
         self.push_mirror_repo_path = push_mirror_repo_path
-        if assumed_doc_version is None:
+        if (assumed_doc_version is None) and (detect_doc_version_fn is not None):
             _LOG = get_logger('TypeAwareGitShard')
             try:
-                # pass this shard to a type-specific test
                 assumed_doc_version = detect_doc_version_fn(self)
             except IndexError as x:
                 # no documents in this shard!

@@ -372,4 +372,5 @@ def TaxonomicAmendmentStore(repos_dict=None,
 
 
 def create_taxonomic_amendments_umbrella(shard_mirror_pair_list):
-    return _TaxonomicAmendmentStore(shard_mirror_pair_list=shard_mirror_pair_list)
+    return _TaxonomicAmendmentStore(shard_mirror_pair_list=shard_mirror_pair_list,
+                                    git_action_class=TaxonomicAmendmentsGitAction)

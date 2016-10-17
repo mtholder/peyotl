@@ -371,6 +371,13 @@ class GitActionBase(object):
         if `doc_ids_to_check` is passed in, it should be an iterable list of
             IDs. Only IDs in this list will be returned.
         """
+        _LOG.debug("CMD: {}".format(' '.join([self.gitdir,
+                    self.gitwd,
+                    "diff-tree",
+                    "--name-only",
+                    "-r",
+                    ancestral_commit_sha,
+                    "master"])))
         try:
             x = git(self.gitdir,
                     self.gitwd,

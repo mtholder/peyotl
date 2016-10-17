@@ -76,6 +76,7 @@ class TypeAwareDocStore(ShardedDocStore):
                     # assumes uniform __init__ arguments for all GitShard subclasses
                     shard = git_shard_class(name=repo_name,
                                             path=repo_filepath,
+                                            git_action_class=git_action_class,
                                             push_mirror_repo_path=push_mirror_repo_path,
                                             new_doc_prefix=new_doc_prefix)
                     shards.append(shard)

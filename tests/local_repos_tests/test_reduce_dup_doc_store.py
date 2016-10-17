@@ -30,6 +30,8 @@ class TestPhylesystem(unittest.TestCase):
 
     def testInit(self):
         self.assertEqual(2, len(self.wrapper.phylesystem._shards))
+        self.assertEqual(1, len(self.wrapper.taxon_amendments._shards))
+        self.assertEqual(1, len(self.wrapper.tree_collections._shards))
 
     def testStudyIndexing(self):
         p = self.wrapper.phylesystem
@@ -41,6 +43,8 @@ class TestPhylesystem(unittest.TestCase):
         p =self.wrapper.phylesystem
         self.assertTrue(p.get_public_url('xy_10').endswith('xy_10.json'))
         self.assertTrue(p.get_public_url('zz_112').endswith('zz_112.json'))
+        a = self.wrapper.taxon_amendments
+        self.assertTrue(a.get_public_url('additions-5000000-5000003').endswith('-5000003.json'))
 
     def testStudyIds(self):
         p = self.wrapper.phylesystem
@@ -77,6 +81,44 @@ class TestPhylesystem(unittest.TestCase):
         for study_id, n in p.iter_study_objs():
             count += 1
         self.assertEqual(count, len(k))
+
+    def testAmendmentIndexing(self):
+        a = self.wrapper.taxon_amendments
+        k = list(a._doc2shard_map.keys())
+        k.sort()
+        expected = ['additions-5000000-5000003']
+        # TODO: populate with more test data?
+        self.assertEqual(k, expected)
+
+    def testAmendmentIds(self):
+        a = self.wrapper.taxon_amendments
+        k = list(a.get_doc_ids())
+        k.sort()
+        expected = ['additions-5000000-5000003']  # TODO: add more docs, to test sorting?
+        self.assertEqual(k, expected)
+
+
+    def testChangedAmendments(self):
+        a = self.wrapper.taxon_amendments
+        a.pull()  # get the full git history
+        # this SHA only affected other files (not docs)
+        # REMINDER: This will list all changed files *since* the stated SHA; results
+        # will probably change if more work is done in the mini_amendments repo!
+        # TODO: add a test with the HEAD commit SHA that should get no changes
+        # check for known changed amendments in this repo (ignoring other changed files)
+        changed = a.get_changed_docs('59e6d2d2ea62aa1ce784d29bdd43e74aa80d07d4')
+        _LOG.debug('changed = {}'.format(changed))
+        self.assertEqual({u'additions-5000000-5000003.json'}, changed)
+        # check a doc that changed (against whitelist)
+        changed = a.get_changed_docs('59e6d2d2ea62aa1ce784d29bdd43e74aa80d07d4',
+                                          [u'additions-5000000-5000003.json'])
+        self.assertEqual({u'additions-5000000-5000003.json'}, changed)
+        # checking a bogus doc id should work, but find nothing
+        changed = a.get_changed_docs('59e6d2d2ea62aa1ce784d29bdd43e74aa80d07d4',
+                                          [u'non-existing-amendment.json'])
+        self.assertEqual(set(), changed)
+        # passing a foreign (or nonsense) SHA should raise a ValueError
+        self.assertRaises(ValueError, a.get_changed_docs, 'bogus-SHA')
 
 
 if __name__ == "__main__":

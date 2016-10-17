@@ -304,4 +304,5 @@ def TreeCollectionStore(repos_dict=None,
     return _THE_TREE_COLLECTION_STORE
 
 def create_tree_collection_umbrella(shard_mirror_pair_list):
-    return _TreeCollectionStore(shard_mirror_pair_list=shard_mirror_pair_list)
+    return _TreeCollectionStore(shard_mirror_pair_list=shard_mirror_pair_list,
+                                git_action_class=TreeCollectionsGitAction)
