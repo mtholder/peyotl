@@ -76,12 +76,13 @@ class TypeAwareDocStore(ShardedDocStore):
             push_mirror_repos_par, push_mirror_remote_map = None, {}
             for repo_filepath, push_mirror_repo_path in shard_mirror_pair_list:
                 try:
-                    repo_name = os.path.split(repo_filepath)
+                    repo_name = os.path.split(repo_filepath)[1]
                     # assumes uniform __init__ arguments for all GitShard subclasses
                     shard = git_shard_class(name=repo_name,
                                             path=repo_filepath,
                                             push_mirror_repo_path=push_mirror_repo_path,
                                             new_doc_prefix=new_doc_prefix)
+                    shards.append(shard)
                 except FailedShardCreationError as x:
                     f = 'SKIPPING repo "{d}" (not a {c}). Details:\n  {e}'
                     f = f.format(d=repo_filepath, c=git_shard_class.__name__, e=str(x))

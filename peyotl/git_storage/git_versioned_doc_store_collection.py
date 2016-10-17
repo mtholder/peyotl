@@ -125,14 +125,14 @@ class GitVersionedDocStoreCollection(object):
         if not by_type:
             raise ValueError('repo_parent "{}" does not contain any git shards'.format(repo_parent))
         for type_name, blob in by_type.items():
-            factory, shard_mirror_path_list = blob
+            factory, shard_mirror_pair_list = blob
             if type_name == 'phylogenetic studies':
-                self.phylesystem = factory(shard_mirror_path_list=shard_mirror_path_list,
+                self.phylesystem = factory(shard_mirror_pair_list=shard_mirror_pair_list,
                                            new_study_prefix=phylesystem_study_id_prefix)
             elif type_name == 'tree collections':
-                self.tree_collections = factory(shard_mirror_path_list)
+                self.tree_collections = factory(shard_mirror_pair_list)
             elif type_name == 'taxonomic amendments':
-                self.taxon_amendments = factory(shard_mirror_path_list)
+                self.taxon_amendments = factory(shard_mirror_pair_list)
             else:
                 assert False, 'Unrecognized doc type: {}'.format(type_name)
 
