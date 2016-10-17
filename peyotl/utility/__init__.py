@@ -3,7 +3,7 @@
 """Simple utility functions that do not depend on any other part of
 peyotl.
 """
-from peyotl.utility.input_output import (download, expand_path, open_for_group_write, parse_study_tree_list,
+from peyotl.utility.input_output import (download, expand_path, expand_abspath, parse_study_tree_list,
                                          write_to_filepath)
 from peyotl.utility.str_util import is_str_type
 import peyotl.utility.get_logger

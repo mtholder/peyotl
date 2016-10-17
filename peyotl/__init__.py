@@ -11,6 +11,7 @@ __version__ = '0.1.4dev'  # sync with setup.py
 from peyotl.utility import (get_config_setting,
                             get_config_object,
                             expand_path,
+                            expand_abspath,
                             get_logger)
 from peyotl.utility.input_output import pretty_dict_str
 

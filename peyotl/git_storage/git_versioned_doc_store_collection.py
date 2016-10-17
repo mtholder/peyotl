@@ -4,7 +4,7 @@
 and create the Python objects that provide an interface for them.
 """
 from __future__ import print_function
-from peyotl.utility import get_logger, expand_path
+from peyotl.utility import get_logger, expand_abspath
 from peyotl.git_storage.helper import dir_to_repos_dict
 from peyotl.collections_store.collections_umbrella import create_tree_collection_umbrella
 from peyotl.amendments.amendments_umbrella import create_taxonomic_amendments_umbrella
@@ -12,18 +12,20 @@ from peyotl.phylesystem.phylesystem_umbrella import create_phylesystem_umbrella
 from peyotl.git_storage.git_action import read_remotes_config
 import os
 import threading
+
 _DOCSTORE_SUBDIR_NAME_TO_TYPE = {'amendments': ('taxonomic amendments', create_taxonomic_amendments_umbrella),
                                  'collections-by-owner': ('tree collections', create_tree_collection_umbrella),
                                  'study': ('phylogenetic studies', create_phylesystem_umbrella)
-                                }
-_DOCSTORE_TYPE_NAME = [i[0] for i in _DOCSTORE_SUBDIR_NAME_TO_TYPE.values()]
+                                 }
+_DOCSTORE_TYPE_NAME = [_i[0] for _i in _DOCSTORE_SUBDIR_NAME_TO_TYPE.values()]
 
 _LOG = get_logger(__name__)
 _UMBRELLA_SINGLETON_MAP = {}
 _UMBRELLA_SINGLETON_MAP_LOCK = threading.Lock()
 
-def group_subdirs_by_docstore_type(dir):
-    """When `dir` is a parent of git repos, this function will
+
+def group_subdirs_by_docstore_type(directory):
+    """When `directory` is a parent of git repos, this function will
     return a dict mapping a string from ['taxonomic amendments',
     'tree collections', 'phylogenetic studies'] to a tuple that holds
     the factory function for an umbrella type at element 0 and
@@ -37,7 +39,7 @@ def group_subdirs_by_docstore_type(dir):
         directories are not returned.
     """
     by_type = {}
-    potential_shards = dir_to_repos_dict(dir)
+    potential_shards = dir_to_repos_dict(directory)
     for d in potential_shards.values():
         diagnosed_type = []
         for subdir_name, type_diag in _DOCSTORE_SUBDIR_NAME_TO_TYPE.items():
@@ -55,28 +57,28 @@ def group_subdirs_by_docstore_type(dir):
     return by_type
 
 
-def group_subdirs_and_mirrors_by_docstore_type(dir, mirror_dir=None):
-    """Takes a parent "shards" dir and returns a dict with keys that
+def group_subdirs_and_mirrors_by_docstore_type(parent, mirror_dir=None):
+    """Takes a parent "shards" parent and returns a dict with keys that
     are strings from the list ['taxonomic amendments', 'tree collections', 'phylogenetic studies']
     and values which are a list of:
         The "umbrella" type for the git-based doc store, and
         a list of pairs of directories. One element for each shard of that type. The first
-            element in each list is subdir of `dir` that is a git repo of this type. The
+            element in each list is subdir of `parent` that is a git repo of this type. The
             second element is None (if there is no push mirror for that shard) and the
             path to the mirror repo (if there is a push mirror for the shard)
 
-    The `mirror_dir` argument is the parent of the mirror repos. If it is None, then `dir`/mirror
+    The `mirror_dir` argument is the parent of the mirror repos. If it is None, then `parent`/mirror
     is used.
 
-    If an appropriate git repo is found in the mirror dir for a doctore type, then a mirror must be
+    If an appropriate git repo is found in the mirror parent for a doctore type, then a mirror must be
         set up to pull from the non-mirror and to push to a remote called GitHubRemote. Improper
         mirroring set up will result in a RuntimeError being raised.
     """
-    dir = expand_path(dir)
-    sub_by_type = group_subdirs_by_docstore_type(dir)
+    parent = expand_abspath(parent)
+    sub_by_type = group_subdirs_by_docstore_type(parent)
     if mirror_dir is None:
-        mirror_dir = os.path.join(dir, 'mirror')
-    mirror_dir = expand_path(mirror_dir)
+        mirror_dir = os.path.join(parent, 'mirror')
+    mirror_dir = expand_abspath(mirror_dir)
     if os.path.isdir(mirror_dir):
         mirror_sub_by_type = group_subdirs_by_docstore_type(mirror_dir)
     else:
@@ -115,9 +117,10 @@ def group_subdirs_and_mirrors_by_docstore_type(dir, mirror_dir=None):
         grouped[t_name] = gv
     return grouped
 
+
 class GitVersionedDocStoreCollection(object):
     def __init__(self, repo_parent, phylesystem_study_id_prefix='ot_'):
-        self.repo_parent = expand_path(repo_parent)
+        self.repo_parent = expand_abspath(repo_parent)
         self.taxon_amendments = None
         self.tree_collections = None
         self.phylesystem = None
@@ -136,8 +139,9 @@ class GitVersionedDocStoreCollection(object):
             else:
                 assert False, 'Unrecognized doc type: {}'.format(type_name)
 
+
 def create_doc_store_wrapper(shards_dir, phylesystem_study_id_prefix='ot_'):
-    ap =expand_path(shards_dir)
+    ap = expand_abspath(shards_dir)
     with _UMBRELLA_SINGLETON_MAP_LOCK:
         umb = _UMBRELLA_SINGLETON_MAP.get(ap)
         if umb is None:
@@ -145,3 +149,34 @@ def create_doc_store_wrapper(shards_dir, phylesystem_study_id_prefix='ot_'):
                                                  phylesystem_study_id_prefix=phylesystem_study_id_prefix)
             _UMBRELLA_SINGLETON_MAP[ap] = umb
     return umb
+
+
+def clone_mirrors(repo_parent, remote_url_prefix, name_set=None):
+    """Looks for all of the git-versioned doc stores in `repo_parent` that
+        do not have push mirrors.
+    Clones each to push to `remote_url_prefix`/repo_name.git
+    If `name_set` is not None, then only repo_names in name_set will be cloned.
+    """
+    from peyotl.git_storage import GitActionBase
+    repo_parent = expand_abspath(repo_parent)
+    x = group_subdirs_and_mirrors_by_docstore_type(repo_parent)
+    mirror_dir = os.path.join(repo_parent, 'mirror')
+    for fact_shard_mirror_pairs in x.values():
+        shard_mirror_pairs_list = fact_shard_mirror_pairs[1]
+        for repo_filepath, mirror_path in shard_mirror_pairs_list:
+            if mirror_path is None:
+                if not os.path.isdir(mirror_dir):
+                    os.makedirs(mirror_dir)
+                repo_name = os.path.split(repo_filepath)[-1]
+                if (name_set is not None) and (repo_name not in name_set):
+                    continue
+                expected_push_mirror_repo_path = os.path.join(mirror_dir, repo_name)
+                GitActionBase.clone_repo(mirror_dir,
+                                         repo_name,
+                                         repo_filepath)
+                if not os.path.isdir(expected_push_mirror_repo_path):
+                    e_msg = 'git clone in mirror bootstrapping did not produce a directory at {}'
+                    e = e_msg.format(expected_push_mirror_repo_path)
+                    raise ValueError(e)
+                remote_url = remote_url_prefix + '/' + repo_name + '.git'
+                GitActionBase.add_remote(expected_push_mirror_repo_path, 'GitHubRemote', remote_url)

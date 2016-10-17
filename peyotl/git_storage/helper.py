@@ -1,10 +1,10 @@
-from peyotl.utility import expand_path, get_logger, get_config_setting
+from peyotl.utility import expand_abspath, get_logger, get_config_setting
 import os
 
 
 def get_phylesystem_parent_list():
     try:
-        phylesystem_parent = expand_path(get_config_setting('phylesystem', 'parent'))
+        phylesystem_parent = expand_abspath(get_config_setting('phylesystem', 'parent'))
     except:
         raise ValueError('No [phylesystem] "parent" specified in config or environmental variables')
     # TEMP hardcoded assumption that : does not occur in a path name
@@ -18,7 +18,7 @@ def dir_to_repos_dict(dir):
     """Returns a map of subdir name to full path for all subdirectories
     of `dir` that contain a `.git` subdirectory"""
     repos = {}
-    absdir = expand_path(dir)
+    absdir = expand_abspath(dir)
     if not os.path.isdir(absdir):
         raise ValueError('Docstore parent "{p}" is not a directory'.format(p=absdir))
     for name in os.listdir(absdir):
