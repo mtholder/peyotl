@@ -141,6 +141,10 @@ class GitVersionedDocStoreCollection(object):
 
 
 def create_doc_store_wrapper(shards_dir, phylesystem_study_id_prefix='ot_'):
+    """Factory function for a GitVersionedDocStoreCollection for a shards_dir.
+    Each shards_dir maps to a singleton instance of GitVersionedDocStoreCollection.
+    The `phylesystem_study_id_prefix` becomes the Phylesystem's new_study_prefix.
+    """
     ap = expand_abspath(shards_dir)
     with _UMBRELLA_SINGLETON_MAP_LOCK:
         umb = _UMBRELLA_SINGLETON_MAP.get(ap)

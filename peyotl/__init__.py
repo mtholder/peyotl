@@ -27,6 +27,7 @@ from peyotl.nexson_syntax import (can_convert_nexson_forms,
 from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
 from peyotl.utility.str_util import UNICODE, is_str_type
 from peyotl.phylo.entities import OTULabelStyleEnum
+from peyotl.git_storage.git_versioned_doc_store_collection import create_doc_store_wrapper
 
 
 def gen_otu_dict(nex_obj, nexson_version=None):
