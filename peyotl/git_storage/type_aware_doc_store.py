@@ -143,8 +143,12 @@ class TypeAwareDocStore(ShardedDocStore):
                         mga.fetch(remote_name)
                 shards.append(shard)
         assert len(shards) > 0
-        # TODO: should probably use the presence of the next_id file as the indication of which shard is growing
-        self._growing_shard = shards[-1]  # generalize with config...
+        #  New convention: only one shard has a
+        #   `new_study_prefix`, so only one shard can generate new IDs. There should only be one shard
+        #   with `can_mint_new_docs() set to True
+        growing_shards = [i for i in shards if i.can_mint_new_docs()]
+        assert len(growing_shards) == 1
+        self._growing_shard = growing_shards[-1]
         self._shards = shards
         self._prefix2shard = {}
         for shard in shards:

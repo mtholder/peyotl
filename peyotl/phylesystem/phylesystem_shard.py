@@ -99,8 +99,6 @@ def refresh_study_index(shard, initializing=False):
                 a[alias] = v
         d = a
         shard.has_aliases = True
-        if initializing:
-            shard.infer_study_prefix()
     else:
         shard.has_aliases = False
     shard.study_index = d
@@ -136,24 +134,13 @@ class PhylesystemShard(TypeAwareGitShard):
                                    git_action_class=git_action_class,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author,
-                                   max_file_size=max_file_size)
+                                   max_file_size=max_file_size,
+                                   new_doc_prefix=new_doc_prefix)
         self._doc_counter_lock = Lock()
-        self._next_study_id = None
-        self._new_study_prefix = new_doc_prefix
-        if self._new_study_prefix is None:
-            prefix_file = os.path.join(path, 'new_study_prefix')
-            if os.path.exists(prefix_file):
-                with open(prefix_file, 'r') as f:
-                    pre_content = f.read().strip()
-                valid_pat = re.compile('^[a-zA-Z0-9]+_$')
-                if len(pre_content) != 3 or not valid_pat.match(pre_content):
-                    raise FailedShardCreationError('Expecting prefix in new_study_prefix file to be two '
-                                                   'letters followed by an underscore')
-                self._new_study_prefix = pre_content
-            else:
-                self._new_study_prefix = 'ot_'  # ot_ is the default if there is no file
         self._id_minting_file = os.path.join(path, 'next_study_id.json')
         self.filepath_for_global_resource_fn = lambda frag: os.path.join(path, frag)
+    def can_mint_new_docs(self):
+        return self._new_doc_prefix is not None
 
     # rename some generic members in the base class, for clarity and backward compatibility
     @property
@@ -180,7 +167,7 @@ class PhylesystemShard(TypeAwareGitShard):
 
     @property
     def new_study_prefix(self):
-        return self._new_study_prefix
+        return self._new_doc_prefix
 
     @property
     def study_index(self):
@@ -251,7 +238,7 @@ class PhylesystemShard(TypeAwareGitShard):
         """
         if self._doc_counter_lock is None:
             self._doc_counter_lock = Lock()
-        prefix = self._new_study_prefix
+        prefix = self._new_doc_prefix
         lp = len(prefix)
         n = 0
         # this function holds the lock for quite awhile,
@@ -306,19 +293,6 @@ class PhylesystemShard(TypeAwareGitShard):
                 p.add(name[:3])
         return p
 
-    def infer_study_prefix(self):
-        prefix_file = os.path.join(self.path, 'new_study_prefix')
-        if os.path.exists(prefix_file):
-            with open(prefix_file, 'rU') as f:
-                pre_content = f.read().strip()
-            valid_pat = re.compile('^[a-zA-Z0-9]+_$')
-            if len(pre_content) != 3 or not valid_pat.match(pre_content):
-                raise FailedShardCreationError('Expecting prefix in new_study_prefix file to be two '
-                                               'letters followed by an underscore')
-            self._new_study_prefix = pre_content
-        else:
-            self._new_study_prefix = 'ot_'  # ot_ is the default if there is no file
-
     def _mint_new_study_id(self):
         """Checks out master branch as a side effect"""
         # studies created by the OpenTree API start with ot_,
@@ -328,7 +302,7 @@ class PhylesystemShard(TypeAwareGitShard):
         # @TODO. This form of incrementing assumes that
         #   this codebase is the only service minting
         #   new study IDs!
-        return "{p}{c:d}".format(p=self._new_study_prefix, c=c)
+        return "{p}{c:d}".format(p=self._new_doc_prefix, c=c)
 
     def create_git_action_for_new_study(self, new_study_id=None):
         """Checks out master branch as a side effect"""

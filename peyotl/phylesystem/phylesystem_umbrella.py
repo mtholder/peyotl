@@ -81,7 +81,7 @@ class _Phylesystem(TypeAwareDocStore):
             'remote_map' - a dictionary of remote name to prefix (the repo name + '.git' will be
                 appended to create the URL for pushing).
         """
-        self._new_study_prefix = None
+        self._new_doc_prefix = None
         TypeAwareDocStore.__init__(self,
                                    prefix_from_doc_id=prefix_from_study_id,
                                    repos_dict=repos_dict,
@@ -96,7 +96,7 @@ class _Phylesystem(TypeAwareDocStore):
                                    new_doc_prefix=new_study_prefix,
                                    infrastructure_commit_author=infrastructure_commit_author,
                                    shard_mirror_pair_list=shard_mirror_pair_list)
-        self._new_study_prefix = self._growing_shard._new_study_prefix  # TODO:shard-edits?
+        self._new_doc_prefix = self._growing_shard.new_doc_prefix  # TODO:shard-edits?
         self._growing_shard._determine_next_study_id()
         if with_caching:
             self._cache_region = _make_phylesystem_cache_region()
@@ -174,17 +174,8 @@ class _Phylesystem(TypeAwareDocStore):
                          new_study_id=None):
         placeholder_added = False
         if new_study_id is not None:
-            if new_study_id.startswith(self._new_study_prefix):
-                m = 'Document IDs with the "{}" prefix can only be automatically generated.'
-                m = m.format(self._new_study_prefix)
-                raise ValueError(m)
-            if not STUDY_ID_PATTERN.match(new_study_id):
-                raise ValueError('Document ID does not match the expected pattern of alphabeticprefix_numericsuffix')
-            with self._index_lock:
-                if new_study_id in self._doc2shard_map:
-                    raise ValueError('Document ID is already in use!')
-                self._doc2shard_map[new_study_id] = None
-                placeholder_added = True
+            raise NotImplementedError("Creating new studies with pre-assigned IDs was only supported when "
+                                      "Open Tree of Life was still ingesting trees from phylografter.")
         try:
             gd, new_study_id = self.create_git_action_for_new_study(new_study_id=new_study_id)
             try:

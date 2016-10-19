@@ -32,9 +32,9 @@ refresh_and_test_local_git_with_mirrors tests/local_repos_tests/test_reduce_dup_
 #   of a (as-yet-unwritten) script to create the mirrors.
 refresh_and_test_local_git tests/local_repos_tests/test_phylesystem_mirror.py
 
-# This resets the head on the remote. A dangerous operation, but this is just a testing repo.
+# This resets the head on the remote. A dangerous operation, but this is just a testing repo...
 cd peyotl/test/data/mini_par/mirror/mini_phyl
-git push -f GitHubRemote 2d59ab892ddb3d09d4b18c91470b8c1c4cca86dc:master
+git push -f GitHubRemote baa76d4af8d197107b3ee6f81d45e1fd41b2c4b9:master
 cd - >/dev/null 2>&1
 
 exit ${num_fails}
