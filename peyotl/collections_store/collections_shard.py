@@ -30,7 +30,7 @@ class TreeCollectionsShardProxy(GitShard):
         for collection in config['collections']:
             kl = collection['keys']
             if len(kl) > 1:
-                self.has_aliases = True
+                _LOG.warn("aliases not supported in shards")
             for k in collection['keys']:
                 complete_path = '{p}/{s}/{r}'.format(p=self.path, s=doc_holder_subpath, r=collection['relpath'])
                 d[k] = (self.name, self.path, complete_path)
@@ -55,7 +55,6 @@ def create_id2collection_info(path, tag):
 
 def refresh_collection_index(shard, initializing=False):
     d = create_id2collection_info(shard.doc_dir, shard.name)
-    shard.has_aliases = False
     shard._doc_index = d
 
 

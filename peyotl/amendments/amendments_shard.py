@@ -31,7 +31,7 @@ class TaxonomicAmendmentsShardProxy(GitShard):
         for amendment in config['amendments']:
             kl = amendment['keys']
             if len(kl) > 1:
-                self.has_aliases = True
+                _LOG.warn("aliases not supported in shards")
             for k in amendment['keys']:
                 complete_path = '{p}/{s}/{r}'.format(p=self.path, s=doc_holder_subpath, r=amendment['relpath'])
                 d[k] = (self.name, self.path, complete_path)
@@ -56,7 +56,6 @@ def create_id2amendment_info(path, tag):
 
 def refresh_amendment_index(shard, initializing=False):
     d = create_id2amendment_info(shard.doc_dir, shard.name)
-    shard.has_aliases = False
     shard._doc_index = d
 
 

@@ -104,10 +104,10 @@ class _Phylesystem(TypeAwareDocStore):
             self._cache_region = None
         self._cache_hits = 0
 
-    def get_study_ids(self, include_aliases=False):
+    def get_study_ids(self):
         k = []
         for shard in self._shards:
-            k.extend(shard.get_study_ids(include_aliases=include_aliases))
+            k.extend(shard.get_study_ids())
         return k
 
     # rename some generic members in the base class, for clarity and backward compatibility

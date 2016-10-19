@@ -69,7 +69,6 @@ class TypeAwareGitShard(GitShard):
                  new_doc_prefix=None):
         GitShard.__init__(self, name)
         self.filepath_for_doc_id_fn = None  # overwritten in refresh_doc_index_fn
-        self.id_alias_list_fn = None  # overwritten in refresh_doc_index_fn
         self._infrastructure_commit_author = infrastructure_commit_author
         self._locked_refresh_doc_index = refresh_doc_index_fn
         self._master_branch_repo_lock = Lock()
@@ -131,18 +130,11 @@ class TypeAwareGitShard(GitShard):
         return True # phylesystem shards can only mint new IDs if they have a new_doc_prefix file, overridden.
 
     def delete_doc_from_index(self, doc_id):
-        try:
-            # some types use aliases, e.g. '123', 'pg_123'
-            alias_list = self.id_alias_list_fn(doc_id)  # pylint: disable=E1102
-        except:
-            # simpler types don't use aliases
-            alias_list = [doc_id]
         with self._index_lock:
-            for i in alias_list:
-                try:
-                    del self._doc_index[i]
-                except:
-                    pass
+            try:
+                del self._doc_index[doc_id]
+            except:
+                pass
 
     def create_git_action(self):
         return self._ga_class(repo=self.path,
@@ -186,20 +178,6 @@ class TypeAwareGitShard(GitShard):
                            remote=remote_name)
         return True
 
-    def _is_alias(self, doc_id):
-        try:
-            # some types use aliases, e.g. '123', 'pg_123'
-            alias_list = self.id_alias_list_fn(doc_id)  # pylint: disable=E1102
-        except:
-            # simpler types don't use aliases
-            return False
-        # some types use aliases, e.g. '123', 'pg_123'
-        if len(alias_list) > 1:
-            ml = max([len(i) for i in alias_list])
-            if ml > len(doc_id):
-                return True
-        return False
-
     def iter_doc_filepaths(self, **kwargs):  # pylint: disable=W0613
         """Returns a pair: (doc_id, absolute filepath of document file)
         for each document in this repository.
@@ -207,8 +185,7 @@ class TypeAwareGitShard(GitShard):
         """
         with self._index_lock:
             for doc_id, info in self._doc_index.items():
-                if not self._is_alias(doc_id):
-                    yield doc_id, info[-1]
+                yield doc_id, info[-1]
 
     # TODO:type-specific? Where and how is this used?
     def iter_doc_objs(self, **kwargs):
@@ -219,14 +196,13 @@ class TypeAwareGitShard(GitShard):
         _LOG = get_logger('TypeAwareGitShard')
         try:
             for doc_id, fp in self.iter_doc_filepaths(**kwargs):
-                if not self._is_alias(doc_id):
-                    # TODO:hook for type-specific parser?
-                    with codecs.open(fp, 'r', 'utf-8') as fo:
-                        try:
-                            nex_obj = anyjson.loads(fo.read())
-                            yield (doc_id, nex_obj)
-                        except Exception:
-                            pass
+                # TODO:hook for type-specific parser?
+                with codecs.open(fp, 'r', 'utf-8') as fo:
+                    try:
+                        nex_obj = anyjson.loads(fo.read())
+                        yield (doc_id, nex_obj)
+                    except Exception:
+                        pass
         except Exception as x:
             f = 'iter_doc_filepaths FAILED with this error:\n{}'
             f = f.format(str(x))

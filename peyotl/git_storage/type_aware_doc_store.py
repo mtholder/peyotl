@@ -306,18 +306,11 @@ class TypeAwareDocStore(ShardedDocStore):
                 except KeyError:
                     pass
                 else:
-                    _shard.delete_doc_from_index(doc_id)
                     try:
-                        # complex types use aliases (clean these up)
-                        alias_list = _shard.id_alias_list_fn(doc_id)
-                    except:
-                        # it's a simple type, with no alias list
-                        alias_list = [doc_id]
-                    for alias in alias_list:
-                        try:
-                            del self._doc2shard_map[alias]
-                        except KeyError:
-                            pass
+                        del self._doc2shard_map[doc_id]
+                    except KeyError:
+                        pass
+                    _shard.delete_doc_from_index(doc_id)
         return ret
 
     def iter_doc_objs(self, **kwargs):
@@ -392,8 +385,8 @@ class TypeAwareDocStore(ShardedDocStore):
             return ret
         raise ValueError('No docstore shard returned changed documents for the SHA')
 
-    def get_doc_ids(self, include_aliases=False):
+    def get_doc_ids(self):
         k = []
         for shard in self._shards:
-            k.extend(shard.get_doc_ids(include_aliases=include_aliases))
+            k.extend(shard.get_doc_ids())
         return k

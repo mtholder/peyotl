@@ -3,30 +3,17 @@ import re
 import json
 import codecs
 from threading import Lock
-from peyotl.utility import get_config_setting
+from peyotl.utility import get_config_setting, get_logger
 from peyotl.git_storage.git_shard import (GitShard,
                                           TypeAwareGitShard,
                                           FailedShardCreationError,
                                           _invert_dict_list_val)
 
-# _LOG = get_logger(__name__)
+_LOG = get_logger(__name__)
 # class PhylesystemShardBase(object):
 
 doc_holder_subpath = 'study'
 
-
-def _get_filtered_study_ids(shard, include_aliases=False):
-    """Optionally filters out aliases from standard doc-id list"""
-    from peyotl.phylesystem.helper import DIGIT_PATTERN
-    k = shard.get_doc_ids()
-    if shard.has_aliases and (not include_aliases):
-        x = []
-        for i in k:
-            if DIGIT_PATTERN.match(i) or ((len(i) > 1) and (i[-2] == '_')):
-                pass
-            else:
-                x.append(i)
-        return x
 
 
 class PhylesystemShardProxy(GitShard):
@@ -40,7 +27,7 @@ class PhylesystemShardProxy(GitShard):
         for study in config['studies']:
             kl = study['keys']
             if len(kl) > 1:
-                self.has_aliases = True
+                _LOG.warn("ID aliases are no longer supported withing the Shards")
             for k in study['keys']:
                 d[k] = (self.name, self.path, self.path + '/study/' + study['relpath'])
         self.study_index = d
@@ -70,8 +57,8 @@ class PhylesystemShardProxy(GitShard):
     def new_study_prefix(self, val):
         self.new_doc_prefix = val
 
-    def get_study_ids(self, include_aliases=False):
-        return _get_filtered_study_ids(self, include_aliases)
+    def get_study_ids(self):
+        return self.get_doc_ids()
 
 
 def diagnose_repo_nexml2json(shard):
@@ -86,21 +73,10 @@ def diagnose_repo_nexml2json(shard):
 
 def refresh_study_index(shard, initializing=False):
     from peyotl.phylesystem.helper import create_id2study_info, \
-        diagnose_repo_study_id_convention
+        get_filepath_for_namespaced_id
     d = create_id2study_info(shard.doc_dir, shard.name)
-    rc_dict = diagnose_repo_study_id_convention(shard.path)
-    shard.filepath_for_doc_id_fn = rc_dict['fp_fn']
-    shard.id_alias_list_fn = rc_dict['id2alias_list']
-    if rc_dict['convention'] != 'simple':
-        a = {}
-        for k, v in d.items():
-            alias_list = shard.id_alias_list_fn(k)
-            for alias in alias_list:
-                a[alias] = v
-        d = a
-        shard.has_aliases = True
-    else:
-        shard.has_aliases = False
+    shard.filepath_for_doc_id_fn = get_filepath_for_namespaced_id
+    shard.has_aliases = False
     shard.study_index = d
 
 
@@ -185,8 +161,8 @@ class PhylesystemShard(TypeAwareGitShard):
     def repo_nexml2json(self, val):
         self.assumed_doc_version = val
 
-    def get_study_ids(self, include_aliases=False):
-        return _get_filtered_study_ids(self, include_aliases)
+    def get_study_ids(self):
+        return self.get_doc_ids()
 
     # Type-specific configuration for backward compatibility
     # (config is visible to API consumers via /phylesystem_config)

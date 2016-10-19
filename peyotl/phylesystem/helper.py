@@ -37,36 +37,6 @@ def _initialize_study_index(repos_par=None, **kwargs):
 
 DIGIT_PATTERN = re.compile(r'^\d')
 
-
-def namespaced_get_alias(study_id):
-    if DIGIT_PATTERN.match(study_id):
-        if len(study_id) == 1:
-            return [study_id, '0' + study_id, 'pg_' + study_id]
-        elif len(study_id) == 2 and study_id[0] == '0':
-            return [study_id, study_id[1], 'pg_' + study_id]
-        return [study_id, 'pg_' + study_id]
-    if study_id.startswith('pg_'):
-        if len(study_id) == 4:
-            return [study_id[-2:], study_id[-1], study_id]
-        elif (len(study_id) == 5) and study_id[-2] == '0':
-            return [study_id[-2:], study_id[-1], study_id]
-        return [study_id[3:], study_id]
-    return [study_id]
-
-
-def diagnose_repo_study_id_convention(repo_dir):
-    s = os.path.join(repo_dir, 'study')
-    sl = os.listdir(s)
-    for f in sl:
-        if DIGIT_PATTERN.match(f):
-            return {'convention': 'simple',
-                    'fp_fn': get_filepath_for_simple_id,
-                    'id2alias_list': lambda x: [x], }
-    return {'convention': 'namespaced',
-            'fp_fn': get_filepath_for_namespaced_id,
-            'id2alias_list': namespaced_get_alias, }
-
-
 _CACHE_REGION_CONFIGURED = False
 _REGION = None
 
