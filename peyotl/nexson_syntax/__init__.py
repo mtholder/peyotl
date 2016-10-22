@@ -941,7 +941,19 @@ def get_subtree_otus(nexson, tree_id, subtree_id=None, return_format='otu_id'):
         else:
             for edge, info in outgoing_edges.items():
                 todo.add(info.get('@target'))
-    return(otuset)
+    return otuset
+
+
+def get_otu_mapping(nexson, unmapped_return='unmapped'):
+    assert(return_format in ['otu_id', 'ottid'])
+    otu_map = {}
+    for otuid in nexson['nexml'][u'otusById']:
+        for otu in nexson[u'nexml'][u'otusById'][otuid]['otuById']
+            orig = data['nexml'][u'otusById']['otus1']['otuById'][otu]['^ot:originalLabel']
+            mapped = data['nexml'][u'otusById']['otus1']['otuById'][otu].get( '^ot:ottTaxonName', unmapped_return)
+            ott_id = data['nexml'][u'otusById']['otus1']['otuById'][otu].get( '^ot:ottId', unmapped_return)
+        name_dict[orig] = (mapped, ott_id)
+    return otu_map
 
 
 def nexson_frag_write_newick(out,
