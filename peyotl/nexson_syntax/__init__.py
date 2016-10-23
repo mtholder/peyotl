@@ -908,7 +908,12 @@ def convert_tree_to_newick(tree,
     flush_utf_8_writer(out)
     return sio.getvalue()
 
-def get_subtree_otus(nexson, tree_id, subtree_id=None, return_format='otu_id'):
+def get_subtree_otus(nexson,
+                     tree_id,
+                     subtree_id=None,
+                     return_format='otu_id'):
+    """Returns the set of otus found in a subtree, by otu_id
+    """
     assert(return_format in ['otu_id', 'ottid'])
     tree = extract_tree_nexson(nexson, tree_id)[0][1]
     ingroup_node_id = tree.get('^ot:inGroupClade')
@@ -944,15 +949,18 @@ def get_subtree_otus(nexson, tree_id, subtree_id=None, return_format='otu_id'):
     return otuset
 
 
-def get_otu_mapping(nexson, unmapped_return='unmapped'):
-    assert(return_format in ['otu_id', 'ottid'])
+def get_otu_mapping(nexson,
+                    unmapped_return=None):
+    """returns a dictionary with keys that are the original string labels on the tree,
+    and values are a tuple of (ott_name, ott_id)
+    """
     otu_map = {}
     for otuid in nexson['nexml'][u'otusById']:
-        for otu in nexson[u'nexml'][u'otusById'][otuid]['otuById']
-            orig = data['nexml'][u'otusById']['otus1']['otuById'][otu]['^ot:originalLabel']
-            mapped = data['nexml'][u'otusById']['otus1']['otuById'][otu].get( '^ot:ottTaxonName', unmapped_return)
-            ott_id = data['nexml'][u'otusById']['otus1']['otuById'][otu].get( '^ot:ottId', unmapped_return)
-        name_dict[orig] = (mapped, ott_id)
+        for otu in nexson[u'nexml'][u'otusById'][otuid]['otuById']:
+            orig = nexson['nexml'][u'otusById'][otuid]['otuById'][otu]['^ot:originalLabel']
+            mapped = nexson['nexml'][u'otusById'][otuid]['otuById'][otu].get( '^ot:ottTaxonName', unmapped_return)
+            ott_id = nexson['nexml'][u'otusById'][otuid]['otuById'][otu].get( '^ot:ottId', unmapped_return)
+            otu_map[orig] = (mapped, ott_id)
     return otu_map
 
 
