@@ -100,7 +100,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
                                    git_action_class=TaxonomicAmendmentsGitAction,
                                    git_shard_class=TaxonomicAmendmentsShard,
                                    mirror_info=mirror_info,
-                                   new_doc_prefix=None,
                                    infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                                    **kwargs)
         self._growing_shard._determine_next_ott_id()

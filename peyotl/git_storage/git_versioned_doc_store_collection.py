@@ -119,7 +119,7 @@ def group_subdirs_and_mirrors_by_docstore_type(parent, mirror_dir=None):
 
 
 class GitVersionedDocStoreCollection(object):
-    def __init__(self, repo_parent, phylesystem_study_id_prefix='ot_'):
+    def __init__(self, repo_parent):
         self.repo_parent = expand_abspath(repo_parent)
         self.taxon_amendments = None
         self.tree_collections = None
@@ -130,8 +130,7 @@ class GitVersionedDocStoreCollection(object):
         for type_name, blob in by_type.items():
             factory, shard_mirror_pair_list = blob
             if type_name == 'phylogenetic studies':
-                self.phylesystem = factory(shard_mirror_pair_list=shard_mirror_pair_list,
-                                           new_study_prefix=phylesystem_study_id_prefix)
+                self.phylesystem = factory(shard_mirror_pair_list=shard_mirror_pair_list)
             elif type_name == 'tree collections':
                 self.tree_collections = factory(shard_mirror_pair_list)
             elif type_name == 'taxonomic amendments':
@@ -140,17 +139,15 @@ class GitVersionedDocStoreCollection(object):
                 assert False, 'Unrecognized doc type: {}'.format(type_name)
 
 
-def create_doc_store_wrapper(shards_dir, phylesystem_study_id_prefix='ot_'):
+def create_doc_store_wrapper(shards_dir):
     """Factory function for a GitVersionedDocStoreCollection for a shards_dir.
     Each shards_dir maps to a singleton instance of GitVersionedDocStoreCollection.
-    The `phylesystem_study_id_prefix` becomes the Phylesystem's new_study_prefix.
     """
     ap = expand_abspath(shards_dir)
     with _UMBRELLA_SINGLETON_MAP_LOCK:
         umb = _UMBRELLA_SINGLETON_MAP.get(ap)
         if umb is None:
-            umb = GitVersionedDocStoreCollection(repo_parent=ap,
-                                                 phylesystem_study_id_prefix=phylesystem_study_id_prefix)
+            umb = GitVersionedDocStoreCollection(repo_parent=ap)
             _UMBRELLA_SINGLETON_MAP[ap] = umb
     return umb
 

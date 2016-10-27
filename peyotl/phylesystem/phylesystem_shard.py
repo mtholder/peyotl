@@ -53,10 +53,6 @@ class PhylesystemShardProxy(GitShard):
     def new_study_prefix(self):
         return self.new_doc_prefix
 
-    @new_study_prefix.setter
-    def new_study_prefix(self, val):
-        self.new_doc_prefix = val
-
     def get_study_ids(self):
         return self.get_doc_ids()
 
@@ -93,7 +89,6 @@ class PhylesystemShard(TypeAwareGitShard):
                  pkey=None,
                  git_action_class=PhylesystemGitAction,
                  push_mirror_repo_path=None,
-                 new_doc_prefix=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                  max_file_size=None):
         if max_file_size is None:
@@ -110,11 +105,11 @@ class PhylesystemShard(TypeAwareGitShard):
                                    git_action_class=git_action_class,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author,
-                                   max_file_size=max_file_size,
-                                   new_doc_prefix=new_doc_prefix)
+                                   max_file_size=max_file_size)
         self._doc_counter_lock = Lock()
         self._id_minting_file = os.path.join(path, 'next_study_id.json')
         self.filepath_for_global_resource_fn = lambda frag: os.path.join(path, frag)
+        self._next_study_id = None
     def can_mint_new_docs(self):
         return self._new_doc_prefix is not None
 
@@ -231,16 +226,14 @@ class PhylesystemShard(TypeAwareGitShard):
                         except:
                             pass
             nsi_contents = self._read_master_branch_resource(self._id_minting_file, is_json=True)
-            if nsi_contents:
+            try:
                 self._next_study_id = nsi_contents['next_study_id']
-                if self._next_study_id <= n:
-                    m = 'next_study_id in {} is set lower than the ID of an existing study!'
-                    m = m.format(self._id_minting_file)
-                    raise RuntimeError(m)
-            else:
-                # legacy support for repo with no next_study_id.json file
-                self._next_study_id = n
-                self._advance_new_study_id()  # this will trigger the creation of the file
+            except:
+                raise RuntimeError("Could not read 'next_study_id' from {}".format(self._id_minting_file))
+            if self._next_study_id <= n:
+                m = 'next_study_id in {} is set lower than the ID of an existing study!'
+                m = m.format(self._id_minting_file)
+                raise RuntimeError(m)
 
     def _advance_new_study_id(self):
         """ ASSUMES the caller holds the _doc_counter_lock !

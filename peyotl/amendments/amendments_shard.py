@@ -72,7 +72,6 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
                  pkey=None,
                  git_action_class=PhylesystemGitAction,
                  push_mirror_repo_path=None,
-                 new_doc_prefix=None,  # IGNORED in this shard type
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
         TypeAwareGitShard.__init__(self,
                                    name=name,

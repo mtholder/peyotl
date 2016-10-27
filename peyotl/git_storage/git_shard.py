@@ -1,11 +1,13 @@
 """Base class for individual shard (repo) used in a doc store.
    Subclasses will accommodate each type."""
+import re
 import os
 import codecs
 import anyjson
 from threading import Lock
 from peyotl.utility import get_logger, write_to_filepath
 from peyotl.utility.input_output import read_as_json, write_as_json
+
 
 
 class FailedShardCreationError(ValueError):
@@ -23,7 +25,7 @@ class GitShard(object):
         self.path = ' '
         # ' ' mimics place of the abspath of repo in path -> relpath mapping
         self.has_aliases = False
-
+        self._new_doc_prefix = None
     # pylint: disable=E1101
     def get_rel_path_fragment(self, doc_id):
         """For `doc_id` returns the path from the
@@ -48,6 +50,10 @@ class GitShard(object):
             k = self._doc_index.keys()
         return list(k)
 
+    @property
+    def new_doc_prefix(self):
+        return self._new_doc_prefix
+
 
 class TypeAwareGitShard(GitShard):
     """Adds hooks for type-specific behavior in subclasses.
@@ -65,8 +71,7 @@ class TypeAwareGitShard(GitShard):
                  git_action_class=None,
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                 max_file_size=None,
-                 new_doc_prefix=None):
+                 max_file_size=None):
         GitShard.__init__(self, name)
         self.filepath_for_doc_id_fn = None  # overwritten in refresh_doc_index_fn
         self._infrastructure_commit_author = infrastructure_commit_author
@@ -114,18 +119,16 @@ class TypeAwareGitShard(GitShard):
         self.max_file_size = max_file_size
         self.assumed_doc_version = assumed_doc_version
         self._known_prefixes = None
-        self._new_doc_prefix = new_doc_prefix
         for prefix_filename in ['new_study_prefix', 'new_doc_prefix']:
-            if self._new_doc_prefix is None:
-                prefix_filepath = os.path.join(path, prefix_filename)
-                if os.path.exists(prefix_filepath):
-                    with open(prefix_filepath, 'r') as f:
-                        pre_content = f.read().strip()
-                    valid_pat = re.compile('^[a-zA-Z0-9]+_$')
-                    if len(pre_content) != 3 or not valid_pat.match(pre_content):
-                        raise FailedShardCreationError('Expecting prefix in {} file to be two '
-                                                       'letters followed by an underscore'.format(prefix_filename))
-                    self._new_doc_prefix = pre_content
+            prefix_filepath = os.path.join(path, prefix_filename)
+            if os.path.exists(prefix_filepath):
+                with open(prefix_filepath, 'r') as f:
+                    pre_content = f.read().strip()
+                valid_pat = re.compile('^[a-zA-Z0-9]+_$')
+                if len(pre_content) != 3 or not valid_pat.match(pre_content):
+                    raise FailedShardCreationError('Expecting prefix in {} file to be two '
+                                                   'letters followed by an underscore'.format(prefix_filename))
+                self._new_doc_prefix = pre_content
     def can_mint_new_docs(self):
         return True # phylesystem shards can only mint new IDs if they have a new_doc_prefix file, overridden.
 

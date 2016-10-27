@@ -27,7 +27,7 @@ repo_par = get_test_repo_parent()
                  'See http://opentreeoflife.github.io/peyotl/maintainer/ ')
 class TestPhylesystem(unittest.TestCase):
     def setUp(self):
-        self.wrapper = create_doc_store_wrapper(repo_par, phylesystem_study_id_prefix='zz_')
+        self.wrapper = create_doc_store_wrapper(repo_par)
 
     def testInit(self):
         self.assertEqual(2, len(self.wrapper.phylesystem._shards))

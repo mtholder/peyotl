@@ -41,7 +41,6 @@ class TypeAwareDocStore(ShardedDocStore):
                  git_action_class=None,  # requires a *type-specific* GitActionBase subclass
                  git_shard_class=None,  # requires a *type-specific* GitShard subclass
                  mirror_info=None,
-                 new_doc_prefix=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                  shard_mirror_pair_list=None):
         """
@@ -77,8 +76,7 @@ class TypeAwareDocStore(ShardedDocStore):
                     shard = git_shard_class(name=repo_name,
                                             path=repo_filepath,
                                             git_action_class=git_action_class,
-                                            push_mirror_repo_path=push_mirror_repo_path,
-                                            new_doc_prefix=new_doc_prefix)
+                                            push_mirror_repo_path=push_mirror_repo_path)
                     shards.append(shard)
                 except FailedShardCreationError as x:
                     f = 'SKIPPING repo "{d}" (not a {c}). Details:\n  {e}'
@@ -113,7 +111,6 @@ class TypeAwareDocStore(ShardedDocStore):
                                             pkey=pkey,
                                             git_action_class=git_action_class,
                                             push_mirror_repo_path=push_mirror_repo_path,
-                                            new_doc_prefix=new_doc_prefix,
                                             infrastructure_commit_author=infrastructure_commit_author)
                 except FailedShardCreationError as x:
                     f = 'SKIPPING repo "{d}" (not a {c}). Details:\n  {e}'

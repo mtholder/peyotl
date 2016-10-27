@@ -62,7 +62,6 @@ class _Phylesystem(TypeAwareDocStore):
                  pkey=None,
                  git_action_class=PhylesystemGitAction,
                  mirror_info=None,
-                 new_study_prefix=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                  shard_mirror_pair_list=None):
         """
@@ -93,7 +92,6 @@ class _Phylesystem(TypeAwareDocStore):
                                    git_action_class=git_action_class,
                                    git_shard_class=PhylesystemShard,
                                    mirror_info=mirror_info,
-                                   new_doc_prefix=new_study_prefix,
                                    infrastructure_commit_author=infrastructure_commit_author,
                                    shard_mirror_pair_list=shard_mirror_pair_list)
         self._new_doc_prefix = self._growing_shard.new_doc_prefix  # TODO:shard-edits?
@@ -133,11 +131,7 @@ class _Phylesystem(TypeAwareDocStore):
 
     @property
     def new_study_prefix(self):
-        return self.new_doc_prefix
-
-    @new_study_prefix.setter
-    def new_study_prefix(self, val):
-        self.new_doc_prefix = val
+        return self._new_doc_prefix
 
     @property
     def get_blob_sha_for_study_id(self):
@@ -269,7 +263,7 @@ def Phylesystem(repos_dict=None,
                 pkey=None,
                 git_action_class=PhylesystemGitAction,
                 mirror_info=None,
-                new_study_prefix=None,
+                new_study_prefix=None, # Unused, TEMP deprecated
                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
     """Factory function for a _Phylesystem object.
 
@@ -290,11 +284,9 @@ def Phylesystem(repos_dict=None,
                                         pkey=pkey,
                                         git_action_class=git_action_class,
                                         mirror_info=mirror_info,
-                                        new_study_prefix=new_study_prefix,
                                         infrastructure_commit_author=infrastructure_commit_author)
     return _THE_PHYLESYSTEM
 
-def create_phylesystem_umbrella(shard_mirror_pair_list, new_study_prefix):
+def create_phylesystem_umbrella(shard_mirror_pair_list):
     return _Phylesystem(shard_mirror_pair_list=shard_mirror_pair_list,
-                        new_study_prefix=new_study_prefix,
                         git_action_class=PhylesystemGitAction)

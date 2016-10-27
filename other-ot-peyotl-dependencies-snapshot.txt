@@ -74,7 +74,7 @@ _PHYLESYSTEM = Phylesystem(repos_par=repo_parent,
                                                     'remote_map': {'GitHubRemote': git_hub_remote,},
                                                    }
                                            },
-                               new_study_prefix=STR_FROM_CONFIG})
+                               new_study_prefix=STR_FROM_CONFIG}) #
 _TREE_COLLECTION_STORE = TreeCollectionStore(repos_par=repo_parent,
                                                  git_ssh=git_ssh,
                                                  pkey=pkey,

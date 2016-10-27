@@ -105,7 +105,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
                                    git_action_class=TreeCollectionsGitAction,
                                    git_shard_class=TreeCollectionsShard,
                                    mirror_info=mirror_info,
-                                   new_doc_prefix=None,
                                    infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                                    **kwargs)
 
