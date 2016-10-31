@@ -63,6 +63,8 @@ class TreeCollectionsShard(TypeAwareGitShard):
     Raises a ValueError if the directory does not appear to be a TreeCollectionsShard.
     Raises a RuntimeError for errors associated with misconfiguration."""
     from peyotl.phylesystem.git_actions import PhylesystemGitAction
+    document_type = 'tree_collection'
+
     def __init__(self,
                  name,
                  path,

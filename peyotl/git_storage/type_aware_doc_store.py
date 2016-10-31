@@ -30,6 +30,8 @@ def parse_mirror_info(mirror_info):
     return push_mirror_repos_par, push_mirror_remote_map
 
 class TypeAwareDocStore(ShardedDocStore):
+    document_type = 'generic'
+
     def __init__(self,
                  prefix_from_doc_id,
                  repos_dict=None,
@@ -194,19 +196,44 @@ class TypeAwareDocStore(ShardedDocStore):
                    return_WIP_map=False):
         ga = self.create_git_action(doc_id)
         with ga.lock():
-            # _LOG.debug('pylesystem.return_doc({s}, {b}, {c}...)'.format(s=doc_id, b=branch, c=commit_sha))
+            return self._return_doc_already_locked(ga,
+                                                   doc_id=doc_id,
+                                                   branch=branch,
+                                                   commit_sha=commit_sha,
+                                                   return_WIP_map=return_WIP_map)
 
-            blob = ga.return_document(doc_id,
-                                      branch=branch,
-                                      commit_sha=commit_sha,
-                                      return_WIP_map=return_WIP_map)
-            content = blob[0]
-            if content is None:
-                raise KeyError('Document {} not found'.format(doc_id))
-            nexson = anyjson.loads(blob[0])
-            if return_WIP_map:
-                return nexson, blob[1], blob[2]
-            return nexson, blob[1]
+    return_document = return_doc
+
+    def return_document_and_history(self, doc_id, branch='master', commit_sha=None, return_WIP_map=True):
+        """Returns a pair the first element is the tuple returned by return_document and the second
+        is the response from get_version_history_for_doc_id.
+
+        This is done with one holding of the lock.
+
+        TODO: need to pass in some args to get the history only up to commit_sha"""
+        ga = self.create_git_action(doc_id)
+        with ga.lock():
+            doc = self._return_doc_already_locked(ga,
+                                                  doc_id=doc_id,
+                                                  branch=branch,
+                                                  commit_sha=commit_sha,
+                                                  return_WIP_map=return_WIP_map)
+            docpath = ga.path_for_doc(doc_id)
+            history = ga.get_version_history_for_file(docpath)
+        return doc, history
+
+    def _return_doc_already_locked(self, ga, doc_id, branch, commit_sha, return_WIP_map):
+        blob = ga.return_document(doc_id,
+                                  branch=branch,
+                                  commit_sha=commit_sha,
+                                  return_WIP_map=return_WIP_map)
+        content = blob[0]
+        if content is None:
+            raise KeyError('Document {} not found'.format(doc_id))
+        nexson = anyjson.loads(blob[0])
+        if return_WIP_map:
+            return nexson, blob[1], blob[2]
+        return nexson, blob[1]
 
     def get_blob_sha_for_doc_id(self, doc_id, head_sha):
         ga = self.create_git_action(doc_id)
@@ -387,3 +414,48 @@ class TypeAwareDocStore(ShardedDocStore):
         for shard in self._shards:
             k.extend(shard.get_doc_ids())
         return k
+
+    def is_plausible_transformation(self, subresource_request):
+        """This function takes a dict describing a transformation to be applied to a document.
+        Returns one of the following tuples:
+            (False, REASON_STRING, None) to indicate the transformation of documents from this doc store is impossible,
+            (True, None, SYNTAX_STRING) to indicate the documents stored in this store need no transformation, OR
+            (True, callable, SYNTAX_STRING) to indicate that the transformation may possible, and if the callable is
+                called with a document object, the transformation will be attempted.
+                the callable should raise:
+                    a ValueError if the transformation is not possible for the document object supplied, or
+                    a KeyError to indicate that the requested part of the document was not found in document
+        where SYNTAX_STRING  is 'JSON', 'XML', 'NEXUS'... and
+        REASON_STRING is a sentence that describes why the transformation is not possible.
+
+        Used in phylesystem-api, to see if the requested transformation is possible for this type of document.
+        and then to accomplish the transformation after the document is fetched. The motivation is to
+        avoid holding the lock to the repository too long.
+
+        `subresource_request` can hold the following keys on inut
+            * output_format: mapping to a dict which can contain any of the following. all absent -> no transformation
+                    {'schema': format name or None,
+                              'type_ext': file extension or None
+                              'schema_version': default '0.0.0' or the param['output_nexml2json'], }
+            * subresource_req_dict['subresource_type'] = string
+            * subresource_id = string or (string, string) set of IDs
+
+        The default behavior is to only return:
+           - (True, None, "JSON") if no transformation is requested, OR
+           - (False, None, None) otherwise.
+        The phylesystem umbrella overrides this to allow fetching parts of the document.
+        """
+        impossible = (False, "No transformations of {} documents are supported.".format(self.document_type), None)
+        plausible = (True, None, "JSON")
+        if subresource_request.get('subresource_type') or subresource_request.get('subresource_id'):
+            return impossible
+        out_fmt = subresource_request.get('output_format')
+        if not out_fmt:
+            return plausible
+        schema = out_fmt.get('schema')
+        if schema is not None and schema.upper() != 'JSON':
+            return impossible
+        type_ext = out_fmt.get('type_ext')
+        if type_ext is not None and type_ext.upper() != 'JSON':
+            return impossible
+        return plausible

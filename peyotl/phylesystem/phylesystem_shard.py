@@ -81,6 +81,8 @@ class PhylesystemShard(TypeAwareGitShard):
     Raises a ValueError if the directory does not appear to be a PhylesystemShard.
     Raises a RuntimeError for errors associated with misconfiguration."""
     from peyotl.phylesystem.git_actions import PhylesystemGitAction
+    document_type = 'study'
+
     def __init__(self,
                  name,
                  path,

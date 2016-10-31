@@ -67,6 +67,7 @@ class _TreeCollectionStore(TypeAwareDocStore):
     """Wrapper around a set of sharded git repos.
     """
     id_regex = COLLECTION_ID_PATTERN
+    document_type = 'tree_collection'
     def __init__(self,
                  repos_dict=None,
                  repos_par=None,

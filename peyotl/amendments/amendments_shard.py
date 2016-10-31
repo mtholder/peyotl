@@ -64,6 +64,8 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
     Raises a ValueError if the directory does not appear to be a TaxonomicAmendmentsShard.
     Raises a RuntimeError for errors associated with misconfiguration."""
     from peyotl.phylesystem.git_actions import PhylesystemGitAction
+    document_type = 'taxon_amendment'
+
     def __init__(self,
                  name,
                  path,
