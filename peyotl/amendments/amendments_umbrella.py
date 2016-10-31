@@ -61,7 +61,7 @@ class TaxonomicAmendmentStoreProxy(ShardedDocStore):
 class _TaxonomicAmendmentStore(TypeAwareDocStore):
     """Wrapper around a set of sharded git repos.
     """
-
+    id_regex = AMENDMENT_ID_PATTERN
     def __init__(self,
                  repos_dict=None,
                  repos_par=None,

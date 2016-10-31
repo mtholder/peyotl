@@ -7,7 +7,7 @@ import anyjson
 from threading import Lock
 from peyotl.utility import get_logger, write_to_filepath
 from peyotl.utility.input_output import read_as_json, write_as_json
-
+_LOG = get_logger(__name__)
 
 
 class FailedShardCreationError(ValueError):
@@ -196,7 +196,6 @@ class TypeAwareGitShard(GitShard):
         for each document in this repository.
         Order is arbitrary.
         """
-        _LOG = get_logger('TypeAwareGitShard')
         try:
             for doc_id, fp in self.iter_doc_filepaths(**kwargs):
                 # TODO:hook for type-specific parser?
@@ -205,6 +204,7 @@ class TypeAwareGitShard(GitShard):
                         nex_obj = anyjson.loads(fo.read())
                         yield (doc_id, nex_obj)
                     except Exception:
+                        _LOG.warn('Loading of doc {} from {} failed in iter_doc_obj'.format(doc_id, fp))
                         pass
         except Exception as x:
             f = 'iter_doc_filepaths FAILED with this error:\n{}'

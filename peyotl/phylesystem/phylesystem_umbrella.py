@@ -52,6 +52,7 @@ class PhylesystemProxy(ShardedDocStore):
 class _Phylesystem(TypeAwareDocStore):
     """Wrapper around a set of sharded git repos, with business rules specific to Nexson studies.
     """
+    id_regex = STUDY_ID_PATTERN
 
     def __init__(self,
                  repos_dict=None,
