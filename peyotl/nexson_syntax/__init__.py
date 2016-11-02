@@ -329,6 +329,18 @@ class PhyloSchema(object):
         elif self.format_code == PhyloSchema.NEWICK:
             return 'Newick'
 
+    @property
+    def syntax_type(self):
+        if self.format_code == PhyloSchema.NEXSON:
+            return 'JSON'
+        elif self.format_code == PhyloSchema.NEXML:
+            return 'XML'
+        elif self.format_code == PhyloSchema.NEXUS:
+            return 'TEXT'
+        elif self.format_code == PhyloSchema.NEWICK:
+            return 'TEXT'
+        assert False
+
     def can_convert_from(self, src_schema=None):  # pylint: disable=W0613
         if self.format_code == PhyloSchema.NEXSON:
             return self.content != 'subtree'
