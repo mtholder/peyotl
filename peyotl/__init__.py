@@ -82,3 +82,4 @@ __all__ = ['utility',
            'struct_diff',
            'evaluate_tree',
            ]
+from peyotl.phylesystem import NexsonDocSchema

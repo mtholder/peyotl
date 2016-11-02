@@ -8,6 +8,7 @@ from peyotl.git_storage.git_shard import (GitShard,
                                           TypeAwareGitShard,
                                           FailedShardCreationError,
                                           _invert_dict_list_val)
+from peyotl.nexson_syntax import PhyloSchema
 
 _LOG = get_logger(__name__)
 # class PhylesystemShardBase(object):
@@ -15,6 +16,7 @@ _LOG = get_logger(__name__)
 doc_holder_subpath = 'study'
 
 class NexsonDocSchema(object):
+    optional_output_detail_keys = ('tip_label', 'bracket_ingroup')
     def __init__(self, schema_version='1.2.1'):
         self.schema_version = schema_version
         self.document_type = 'study'
@@ -36,17 +38,25 @@ class NexsonDocSchema(object):
             rt = 'study'
         si = subresource_request.get('subresource_id')
         out_fmt_dict = subresource_request.get('output_format')
-        schema_name, type_ext, schema_version = None, None, None
-        if out_fmt_dict:
-            schema_name = out_fmt_dict.get('schema')
-            type_ext = out_fmt_dict.get('type_ext')
-            schema_version = out_fmt_dict.get('schema_version')
+        if not out_fmt_dict:
+            out_fmt_dict = {}
+
+        schema_name = out_fmt_dict.get('schema')
+        type_ext = out_fmt_dict.get('type_ext')
+        schema_version = out_fmt_dict.get('schema_version')
+        detail_kwargs = {}
+        for k in self.optional_output_detail_keys:
+            x = out_fmt_dict.get(k)
+            if x is not None:
+                detail_kwargs[k] = x
+
         schema = PhyloSchema(schema=schema_name,
                              content=rt,
                              content_id=si,
                              output_nexml2json=schema_version,
                              repo_nexml2json=self.schema_version,
-                             type_ext=type_ext)
+                             type_ext=type_ext,
+                             **detail_kwargs)
         if not schema.can_convert_from():
             msg = 'Cannot convert from {s} to {d}'.format(s=self.schema_version,
                                                           d=schema.description)

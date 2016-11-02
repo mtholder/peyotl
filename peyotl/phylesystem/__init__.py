@@ -6,6 +6,7 @@ __all__ = ['git_actions',
            'helper',
            'phylesystem_shard',
            'phylesystem_umbrella']
+from peyotl.phylesystem.phylesystem_shard import NexsonDocSchema
 from peyotl.phylesystem.phylesystem_umbrella import (Phylesystem,
                                                      PhylesystemProxy,
                                                      STUDY_ID_PATTERN)
