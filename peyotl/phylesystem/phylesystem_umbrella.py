@@ -34,10 +34,6 @@ class PhylesystemProxy(ShardedDocStore):
     def __init__(self, config):
         ShardedDocStore.__init__(self,
                                  prefix_from_doc_id=prefix_from_study_id)
-        self.repo_nexml2json = config.get('repo_nexml2json', None)
-        if self.repo_nexml2json is None:
-            # TODO: remove this fallback for older remote phylesystem config
-            self.repo_nexml2json = config.get('assumed_doc_version', None)
         self._shards = []
         for s in config.get('shards', []):
             self._shards.append(PhylesystemShardProxy(s))
@@ -60,7 +56,6 @@ class _Phylesystem(TypeAwareDocStore):
                  repos_dict=None,
                  repos_par=None,
                  with_caching=True,
-                 repo_nexml2json=None,
                  git_ssh=None,
                  pkey=None,
                  git_action_class=PhylesystemGitAction,
@@ -71,8 +66,6 @@ class _Phylesystem(TypeAwareDocStore):
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
         `with_caching` should be True for non-debugging uses.
-        `repo_nexml2json` is optional. If specified all PhylesystemShard repos are assumed to store
-            files of this version of nexson syntax.
         `git_ssh` is the path of an executable for git-ssh operations.
         `pkey` is the PKEY that has to be in the env for remote, authenticated operations to work
         `git_action_class` is a subclass of GitActionBase to use. the __init__ syntax must be compatible
@@ -89,7 +82,6 @@ class _Phylesystem(TypeAwareDocStore):
                                    repos_dict=repos_dict,
                                    repos_par=repos_par,
                                    with_caching=with_caching,
-                                   assumed_doc_version=repo_nexml2json,
                                    git_ssh=git_ssh,
                                    pkey=pkey,
                                    git_action_class=git_action_class,
@@ -150,11 +142,7 @@ class _Phylesystem(TypeAwareDocStore):
 
     @property
     def repo_nexml2json(self):
-        return self.assumed_doc_version
-
-    @repo_nexml2json.setter
-    def repo_nexml2json(self, val):
-        self.assumed_doc_version = val
+        return self.doc_schema.schema_version
 
     def _mint_new_study_id(self):
         """Checks out master branch of the shard as a side effect"""
@@ -166,7 +154,6 @@ class _Phylesystem(TypeAwareDocStore):
 
     def ingest_new_study(self,
                          new_study_nexson,
-                         repo_nexml2json,
                          auth_info,
                          new_study_id=None):
         placeholder_added = False
@@ -179,7 +166,7 @@ class _Phylesystem(TypeAwareDocStore):
                 nexml = new_study_nexson['nexml']
                 nexml['^ot:studyId'] = new_study_id
                 bundle = validate_and_convert_nexson(new_study_nexson,
-                                                     repo_nexml2json,
+                                                     self.doc_schema.schema_version,
                                                      allow_invalid=True)
                 nexson, annotation, nexson_adaptor = bundle[0], bundle[1], bundle[3]
                 r = self.annotate_and_write(git_data=gd,
@@ -230,63 +217,6 @@ class _Phylesystem(TypeAwareDocStore):
             _LOG.debug('set cache for ' + key)
         return annot_event
 
-    def write_configuration(self, out, secret_attrs=False):
-        """Type-specific configuration for backward compatibility"""
-        key_order = ['repo_nexml2json',
-                     'number_of_shards',
-                     'initialization', ]
-        cd = self.get_configuration_dict(secret_attrs=secret_attrs)
-        for k in key_order:
-            if k in cd:
-                out.write('  {} = {}'.format(k, cd[k]))
-        for n, shard in enumerate(self._shards):
-            out.write('Shard {}:\n'.format(n))
-            shard.write_configuration(out)
-
-    def get_configuration_dict(self, secret_attrs=False):
-        """Type-specific configuration for backward compatibility"""
-        cd = {'repo_nexml2json': self.repo_nexml2json,
-              'number_of_shards': len(self._shards),
-              'initialization': self._filepath_args,
-              'shards': [],
-              }
-        for i in self._shards:
-            cd['shards'].append(i.get_configuration_dict(secret_attrs=secret_attrs))
-        return cd
-
-
-    def _is_plausible_transformation_or_raise(self, subresource_request):
-        """See TypeAwareDocStore._is_plausible_transformation_or_raise
-        """
-        _LOG.debug('phylesystem.is_plausible_transformation({})'.format(subresource_request))
-        sub_res_set = {'meta', 'tree', 'subtree', 'otus', 'otu', 'otumap', 'file'}
-        rt = subresource_request.get('subresource_type')
-        if rt:
-            if rt not in sub_res_set:
-                return False, 'extracting "{}" out of a study is not supported.'.format(rt), None
-        else:
-            rt = 'study'
-        si = subresource_request.get('subresource_id')
-        out_fmt_dict = subresource_request.get('output_format')
-        schema_name, type_ext, schema_version = None, None, None
-        if out_fmt_dict:
-            schema_name = out_fmt_dict.get('schema')
-            type_ext = out_fmt_dict.get('type_ext')
-            schema_version = out_fmt_dict.get('schema_version')
-        schema = PhyloSchema(schema=schema_name,
-                             content=rt,
-                             content_id=si,
-                             output_nexml2json=schema_version,
-                             repo_nexml2json=self.repo_nexml2json,
-                             type_ext=type_ext)
-        if not schema.can_convert_from():
-            msg = 'Cannot convert from {s} to {d}'.format(s=self.repo_nexml2json,
-                                                          d=schema.description)
-            return False, msg, None
-        syntax_str = schema.syntax_type
-        def transform_closure(document_obj):
-            return schema.convert(document_obj)
-        return True, transform_closure, syntax_str
 
 
 _THE_PHYLESYSTEM = None
@@ -295,7 +225,6 @@ _THE_PHYLESYSTEM = None
 def Phylesystem(repos_dict=None,
                 repos_par=None,
                 with_caching=True,
-                repo_nexml2json=None,
                 git_ssh=None,
                 pkey=None,
                 git_action_class=PhylesystemGitAction,
@@ -309,14 +238,11 @@ def Phylesystem(repos_dict=None,
     If you need distinct _Phylesystem objects, you'll need to
     call that class directly.
     """
-    if not repo_nexml2json:
-        repo_nexml2json = get_config_setting('phylesystem', 'repo_nexml2json')
     global _THE_PHYLESYSTEM
     if _THE_PHYLESYSTEM is None:
         _THE_PHYLESYSTEM = _Phylesystem(repos_dict=repos_dict,
                                         repos_par=repos_par,
                                         with_caching=with_caching,
-                                        repo_nexml2json=repo_nexml2json,
                                         git_ssh=git_ssh,
                                         pkey=pkey,
                                         git_action_class=git_action_class,

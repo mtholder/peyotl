@@ -63,7 +63,6 @@ class TestTaxonomicAmendmentsAPI(unittest.TestCase):
     def testConfig(self):
         taa = TaxonomicAmendmentsAPI(self.domains, get_from='api')
         x = taa.store_config
-        self.assertTrue('assumed_doc_version' in x.keys())
         # TODO: add testExternalURL and support for this call in amendments API?
 
 

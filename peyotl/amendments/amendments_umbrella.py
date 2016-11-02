@@ -68,7 +68,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
                  repos_dict=None,
                  repos_par=None,
                  with_caching=True,
-                 assumed_doc_version=None,
                  git_ssh=None,
                  pkey=None,
                  git_action_class=TaxonomicAmendmentsGitAction,
@@ -79,8 +78,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
         `with_caching` should be True for non-debugging uses.
-        `assumed_doc_version` is optional. If specified all TaxonomicAmendmentsShard repos are assumed to store
-            files of this version of nexson syntax.
         `git_ssh` is the path of an executable for git-ssh operations.
         `pkey` is the PKEY that has to be in the env for remote, authenticated operations to work
         `git_action_class` is a subclass of GitActionBase to use. the __init__ syntax must be compatible
@@ -96,8 +93,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
                                    repos_dict=repos_dict,
                                    repos_par=repos_par,
                                    with_caching=with_caching,
-                                   assumed_doc_version=assumed_doc_version,
-                                   git_ssh=git_ssh,
                                    pkey=pkey,
                                    git_action_class=TaxonomicAmendmentsGitAction,
                                    git_shard_class=TaxonomicAmendmentsShard,
@@ -105,6 +100,7 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
                                    infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                                    **kwargs)
         self._growing_shard._determine_next_ott_id()
+
 
     # rename some generic members in the base class, for clarity and backward compatibility
     @property
@@ -301,11 +297,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
         last_ottid = amendment['TODO']
         return slugify('{s}-{f}-{l}'.format(s=amendment_subtype, f=first_ottid, l=last_ottid))
 
-    def _is_valid_amendment_id(self, test_id):
-        """Test for the expected format '{subtype}-{first ottid}-{last-ottid}', return T/F
-        N.B. This does not test for a working GitHub username!"""
-        return bool(AMENDMENT_ID_PATTERN.match(test_id))
-
     def _is_existing_id(self, test_id):
         """Test to see if this id is non-unique (already exists in a shard)"""
         return test_id in self.get_amendment_ids()
@@ -345,7 +336,6 @@ _THE_TAXONOMIC_AMENDMENT_STORE = None
 def TaxonomicAmendmentStore(repos_dict=None,
                             repos_par=None,
                             with_caching=True,
-                            assumed_doc_version=None,
                             git_ssh=None,
                             pkey=None,
                             git_action_class=TaxonomicAmendmentsGitAction,
@@ -363,7 +353,6 @@ def TaxonomicAmendmentStore(repos_dict=None,
         _THE_TAXONOMIC_AMENDMENT_STORE = _TaxonomicAmendmentStore(repos_dict=repos_dict,
                                                                   repos_par=repos_par,
                                                                   with_caching=with_caching,
-                                                                  assumed_doc_version=assumed_doc_version,
                                                                   git_ssh=git_ssh,
                                                                   pkey=pkey,
                                                                   git_action_class=git_action_class,

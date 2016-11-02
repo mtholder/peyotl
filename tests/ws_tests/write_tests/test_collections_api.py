@@ -3,7 +3,7 @@ import os
 import unittest
 
 from peyotl.api import TreeCollectionsAPI
-from peyotl.collections_store import get_empty_collection
+from peyotl.collections_store import TreeCollectionsDocSchema
 from peyotl.test.support import raise_http_error_with_more_detail
 from peyotl.test.support.pathmap import get_test_ot_service_domains
 from peyotl.utility import get_logger
@@ -35,7 +35,7 @@ class TestTreeCollectionsAPI(unittest.TestCase):
             # keep generating ids until we find a new one
             expected_id = increment_slug(expected_id)
         # generate a new collection and name it
-        cjson = get_empty_collection()
+        cjson = TreeCollectionsDocSchema().create_empty_doc()
         cjson['name'] = test_collection_name
         # N.B. this name already exists! should force a new, serial id
         cslug = slugify(cjson['name'])
@@ -59,7 +59,7 @@ class TestTreeCollectionsAPI(unittest.TestCase):
         cid = 'jimallman/doomed-collection'
         if cid not in cl:
             # add our dummy collection so just we can delete it
-            cjson = get_empty_collection()
+            cjson = TreeCollectionsDocSchema().create_empty_doc()
             commit_msg = 'Creating temporary collection via API wrapper'
             result = tca.post_collection(cjson,
                                          cid,

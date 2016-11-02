@@ -72,7 +72,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
                  repos_dict=None,
                  repos_par=None,
                  with_caching=True,
-                 assumed_doc_version=None,
                  git_ssh=None,
                  pkey=None,
                  git_action_class=TreeCollectionsGitAction,
@@ -83,8 +82,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
         `with_caching` should be True for non-debugging uses.
-        `assumed_doc_version` is optional. If specified all TreeCollectionsShard repos are assumed to store
-            files of this version of nexson syntax.
         `git_ssh` is the path of an executable for git-ssh operations.
         `pkey` is the PKEY that has to be in the env for remote, authenticated operations to work
         `git_action_class` is a subclass of GitActionBase to use. the __init__ syntax must be compatible
@@ -100,7 +97,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
                                    repos_dict=repos_dict,
                                    repos_par=repos_par,
                                    with_caching=with_caching,
-                                   assumed_doc_version=assumed_doc_version,
                                    git_ssh=git_ssh,
                                    pkey=pkey,
                                    git_action_class=TreeCollectionsGitAction,
@@ -233,11 +229,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
         internal_name = collection['name']
         return slugify(internal_name)
 
-    def _is_valid_collection_id(self, test_id):
-        """Test for the expected format '{owner_id}/{slug}', return T/F
-        N.B. This does not test for a working GitHub username!"""
-        return bool(COLLECTION_ID_PATTERN.match(test_id))
-
     def _is_existing_id(self, test_id):
         """Test to see if this id is non-unique (already exists in a shard)"""
         return test_id in self.get_collection_ids()
@@ -277,7 +268,6 @@ _THE_TREE_COLLECTION_STORE = None
 def TreeCollectionStore(repos_dict=None,
                         repos_par=None,
                         with_caching=True,
-                        assumed_doc_version=None,
                         git_ssh=None,
                         pkey=None,
                         git_action_class=TreeCollectionsGitAction,
@@ -295,7 +285,6 @@ def TreeCollectionStore(repos_dict=None,
         _THE_TREE_COLLECTION_STORE = _TreeCollectionStore(repos_dict=repos_dict,
                                                           repos_par=repos_par,
                                                           with_caching=with_caching,
-                                                          assumed_doc_version=assumed_doc_version,
                                                           git_ssh=git_ssh,
                                                           pkey=pkey,
                                                           git_action_class=git_action_class,

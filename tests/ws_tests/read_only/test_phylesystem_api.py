@@ -44,8 +44,7 @@ class TestPhylesystemAPI(unittest.TestCase):
     def testConfig(self):
         pa = PhylesystemAPI(self.domains, get_from='api')
         x = pa.phylesystem_config
-        self.assertTrue(('repo_nexml2json' in x.keys()) or ('assumed_doc_version' in x.keys()))
-        # TODO: remove 'assumed_doc_version' once the preset API domain has newer code
+        self.assertTrue('repo_nexml2json' in x.keys())
 
     def testExternalURL(self):
         # N.B. that the URL for this API call is an odd one, e.g.

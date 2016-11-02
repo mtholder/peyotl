@@ -14,7 +14,49 @@ _LOG = get_logger(__name__)
 
 doc_holder_subpath = 'study'
 
+class NexsonDocSchema(object):
+    def __init__(self, schema_version='1.2.1'):
+        self.schema_version = schema_version
+        self.document_type = 'study'
+        self.schema_name = 'NexSON'
+    def __repr__(self):
+        return 'NexsonDocSchema(schema_version={})'.format(self.schema_version)
 
+
+    def is_plausible_transformation_or_raise(self, subresource_request):
+        """See TypeAwareDocStore._is_plausible_transformation_or_raise
+        """
+        _LOG.debug('phylesystem.is_plausible_transformation({})'.format(subresource_request))
+        sub_res_set = {'meta', 'tree', 'subtree', 'otus', 'otu', 'otumap', 'file'}
+        rt = subresource_request.get('subresource_type')
+        if rt:
+            if rt not in sub_res_set:
+                return False, 'extracting "{}" out of a study is not supported.'.format(rt), None
+        else:
+            rt = 'study'
+        si = subresource_request.get('subresource_id')
+        out_fmt_dict = subresource_request.get('output_format')
+        schema_name, type_ext, schema_version = None, None, None
+        if out_fmt_dict:
+            schema_name = out_fmt_dict.get('schema')
+            type_ext = out_fmt_dict.get('type_ext')
+            schema_version = out_fmt_dict.get('schema_version')
+        schema = PhyloSchema(schema=schema_name,
+                             content=rt,
+                             content_id=si,
+                             output_nexml2json=schema_version,
+                             repo_nexml2json=self.schema_version,
+                             type_ext=type_ext)
+        if not schema.can_convert_from():
+            msg = 'Cannot convert from {s} to {d}'.format(s=self.schema_version,
+                                                          d=schema.description)
+            return False, msg, None
+        syntax_str = schema.syntax_type
+
+        def transform_closure(document_obj):
+            return schema.convert(document_obj)
+
+        return True, transform_closure, syntax_str
 
 class PhylesystemShardProxy(GitShard):
     """Proxy for shard when interacting with external resources if given the configuration of a remote Phylesystem
@@ -22,7 +64,7 @@ class PhylesystemShardProxy(GitShard):
 
     def __init__(self, config):
         GitShard.__init__(self, config['name'])
-        self.repo_nexml2json = config['repo_nexml2json']
+        self.doc_schema = NexsonDocSchema()
         d = {}
         for study in config['studies']:
             kl = study['keys']
@@ -35,11 +77,7 @@ class PhylesystemShardProxy(GitShard):
     # rename some generic members in the base class, for clarity and backward compatibility
     @property
     def repo_nexml2json(self):
-        return self.assumed_doc_version
-
-    @repo_nexml2json.setter
-    def repo_nexml2json(self, val):
-        self.assumed_doc_version = val
+        return self.doc_schema.schema_version
 
     @property
     def study_index(self):
@@ -57,14 +95,15 @@ class PhylesystemShardProxy(GitShard):
         return self.get_doc_ids()
 
 
-def diagnose_repo_nexml2json(shard):
+def _diagnose_repo_nexml2json(shard):
     """Optimistic test for Nexson version in a shard (tests first study found)"""
     with shard._index_lock:
         fp = next(iter(shard.study_index.values()))[2]
     with codecs.open(fp, mode='r', encoding='utf-8') as fo:
         fj = json.load(fo)
         from peyotl.nexson_syntax import detect_nexson_version
-        return detect_nexson_version(fj)
+        shard.doc_schema.schema_version = detect_nexson_version(fj)
+        return
 
 
 def refresh_study_index(shard, initializing=False):
@@ -86,7 +125,6 @@ class PhylesystemShard(TypeAwareGitShard):
     def __init__(self,
                  name,
                  path,
-                 assumed_doc_version=None,
                  git_ssh=None,
                  pkey=None,
                  git_action_class=PhylesystemGitAction,
@@ -99,8 +137,7 @@ class PhylesystemShard(TypeAwareGitShard):
                                    name=name,
                                    path=path,
                                    doc_holder_subpath=doc_holder_subpath,
-                                   assumed_doc_version=assumed_doc_version,
-                                   detect_doc_version_fn=diagnose_repo_nexml2json,  # version detection
+                                   doc_schema=NexsonDocSchema(),
                                    refresh_doc_index_fn=refresh_study_index,  # populates 'study_index'
                                    git_ssh=git_ssh,
                                    pkey=pkey,
@@ -112,6 +149,8 @@ class PhylesystemShard(TypeAwareGitShard):
         self._id_minting_file = os.path.join(path, 'next_study_id.json')
         self.filepath_for_global_resource_fn = lambda frag: os.path.join(path, frag)
         self._next_study_id = None
+        # _diagnose_repo_nexml2json(self) # needed if we return to supporting >1 NexSON version in a repo
+
     def can_mint_new_docs(self):
         return self._new_doc_prefix is not None
 
@@ -152,57 +191,10 @@ class PhylesystemShard(TypeAwareGitShard):
 
     @property
     def repo_nexml2json(self):
-        return self.assumed_doc_version
-
-    @repo_nexml2json.setter
-    def repo_nexml2json(self, val):
-        self.assumed_doc_version = val
+        return self.doc_schema.schema_version
 
     def get_study_ids(self):
         return self.get_doc_ids()
-
-    # Type-specific configuration for backward compatibility
-    # (config is visible to API consumers via /phylesystem_config)
-    def write_configuration(self, out, secret_attrs=False):
-        """Type-specific configuration for backward compatibility"""
-        key_order = ['name', 'path', 'git_dir', 'study_dir', 'repo_nexml2json',
-                     'git_ssh', 'pkey', 'has_aliases', '_next_study_id',
-                     'number of studies']
-        cd = self.get_configuration_dict(secret_attrs=secret_attrs)
-        for k in key_order:
-            if k in cd:
-                out.write('  {} = {}'.format(k, cd[k]))
-        out.write('  studies in alias groups:\n')
-        for o in cd['studies']:
-            out.write('    {} ==> {}\n'.format(o['keys'], o['relpath']))
-
-    def get_configuration_dict(self, secret_attrs=False):
-        """Type-specific configuration for backward compatibility"""
-        rd = {'name': self.name,
-              'path': self.path,
-              'git_dir': self.git_dir,
-              'repo_nexml2json': self.repo_nexml2json,  # assumed_doc_version
-              'study_dir': self.doc_dir,
-              'git_ssh': self.git_ssh, }
-        if self._next_study_id is not None:
-            rd['_next_study_id'] = self._next_study_id,
-        if secret_attrs:
-            rd['pkey'] = self.pkey
-        with self._index_lock:
-            si = self.study_index
-        r = _invert_dict_list_val(si)
-        key_list = list(r.keys())
-        rd['number of studies'] = len(key_list)
-        key_list.sort()
-        m = []
-        for k in key_list:
-            v = r[k]
-            fp = k[2]
-            assert fp.startswith(self.doc_dir)
-            rp = fp[len(self.doc_dir) + 1:]
-            m.append({'keys': v, 'relpath': rp})
-        rd['studies'] = m
-        return rd
 
     def _determine_next_study_id(self):
         """Return the numeric part of the newest study_id

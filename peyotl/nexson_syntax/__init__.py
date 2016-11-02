@@ -176,12 +176,15 @@ def create_content_spec(**kwargs):
         content, content_id = _sniff_content_from_kwargs(**kwargs)
     if content is None:
         content = 'study'
+    rn = kwargs.get('repo_nexml2json')
+    if rn is None:
+        rn = '1.2.1'
     return PhyloSchema(content=content,
                        content_id=content_id,
                        format_str=format_str,
                        version=nexson_version,
                        otu_label=otu_label,
-                       repo_nexml2json=kwargs.get('repo_nexml2json'),
+                       repo_nexml2json=rn,
                        bracket_ingroup=bool(kwargs.get('bracket_ingroup', False)),
                        cull_nonmatching=kwargs.get('cull_nonmatching'))
 

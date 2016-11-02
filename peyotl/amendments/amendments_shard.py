@@ -4,8 +4,8 @@ from threading import Lock
 from peyotl.utility import (get_logger,
                             get_config_setting)
 from peyotl.git_storage.git_shard import (GitShard,
-                                          TypeAwareGitShard,
-                                          _invert_dict_list_val)
+                                          TypeAwareGitShard)
+from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
 
 _LOG = get_logger(__name__)
 
@@ -19,14 +19,29 @@ def filepath_for_amendment_id(repo_dir, amendment_id):
     _LOG.warn(">>>> filepath_for_amendment_id: full path is {}".format(full_path_to_file))
     return full_path_to_file
 
+class TaxonomicAmendmentDocSchema(SimpleJSONDocSchema):
+    def __init__(self):
+        SimpleJSONDocSchema.__init__(self, document_type='taxon amendment JSON')
+    def __repr__(self):
+        return 'TaxonomicAmendmentDocSchema()'
+    def create_empty_doc(self):
+        import datetime
+        amendment = {
+            "id": "",  # assigned when new ottids are minted
+            "curator": {"login": "", "name": ""},
+            "date_created": datetime.datetime.utcnow().date().isoformat(),
+            "user_agent": "",
+            "study_id": "",
+            "taxa": [],
+        }
+        return amendment
 
 class TaxonomicAmendmentsShardProxy(GitShard):
     """Proxy for shard when interacting with external resources if given the configuration of a remote Phylesystem
     """
 
     def __init__(self, config):
-        GitShard.__init__(self, config['name'])
-        self.assumed_doc_version = config['assumed_doc_version']
+        GitShard.__init__(self, config['name'], doc_schema=TaxonomicAmendmentDocSchema())
         d = {}
         for amendment in config['amendments']:
             kl = amendment['keys']
@@ -69,7 +84,6 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
     def __init__(self,
                  name,
                  path,
-                 assumed_doc_version=None,
                  git_ssh=None,
                  pkey=None,
                  git_action_class=PhylesystemGitAction,
@@ -79,8 +93,7 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
                                    name=name,
                                    path=path,
                                    doc_holder_subpath=doc_holder_subpath,
-                                   assumed_doc_version=assumed_doc_version,
-                                   detect_doc_version_fn=None,  # version detection
+                                   doc_schema=TaxonomicAmendmentDocSchema(),
                                    refresh_doc_index_fn=refresh_amendment_index,  # populates _doc_index
                                    git_ssh=git_ssh,
                                    pkey=pkey,
@@ -106,32 +119,6 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
         if self._known_prefixes is None:
             self._known_prefixes = self._diagnose_prefixes()
         return self._known_prefixes
-
-    # Type-specific configuration for backward compatibility
-    # (config is visible to API consumers via /phylesystem_config)
-    def write_configuration(self, out, secret_attrs=False):
-        """Generic configuration, may be overridden by type-specific version"""
-        key_order = ['name', 'path', 'git_dir', 'doc_dir', 'assumed_doc_version',
-                     'git_ssh', 'pkey', 'has_aliases', '_next_ott_id',
-                     'number of amendments']
-        cd = self.get_configuration_dict(secret_attrs=secret_attrs)
-        for k in key_order:
-            if k in cd:
-                out.write('  {} = {}'.format(k, cd[k]))
-        out.write('  amendments in alias groups:\n')
-        for o in cd['amendments']:
-            out.write('    {} ==> {}\n'.format(o['keys'], o['relpath']))
-
-    def get_configuration_dict(self, secret_attrs=False):
-        """Overrides superclass method and renames some properties"""
-        cd = super(TaxonomicAmendmentsShard, self).get_configuration_dict(secret_attrs=secret_attrs)
-        # "rename" some keys in the dict provided
-        cd['number of amendments'] = cd.pop('number of documents')
-        cd['amendments'] = cd.pop('documents')
-        # add keys particular to this shard subclass
-        if self._next_ott_id is not None:
-            cd['_next_ott_id'] = self._next_ott_id,
-        return cd
 
     def _determine_next_ott_id(self):
         """Read an initial value (int) from our stored counter (file)

@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 # from peyotl.nexson_syntax import detect_nexson_version, get_empty_nexson
-from peyotl.collections_store import get_empty_collection
+from peyotl.collections_store import TreeCollectionsDocSchema
 from peyotl.utility.str_util import UNICODE
 from peyotl.collections_store.validation import validate_collection
 from peyotl.test.support import pathmap
@@ -73,7 +73,7 @@ class TestCollectionValidator(unittest.TestCase):
                     _LOG.warn('Expected output file "{f}" not found'.format(f=efn))
 
     def testCreated(self):
-        c = get_empty_collection()
+        c = TreeCollectionsDocSchema().create_empty_doc()
         aa = validate_collection(c)
         errors = aa[0]
         self.assertTrue(len(errors) == 0)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from peyotl.collections_store import get_empty_collection
+from peyotl.collections_store import TreeCollectionsDocSchema
 from peyotl.collections_store.validation import validate_collection
 from peyotl import write_as_json
 import sys
@@ -18,7 +18,7 @@ with open(inp_fn, 'rU') as inp:
         study_id, tree_frag = '_'.join(s[:-1]), s[-1]
         tree_id = 'tree' + tree_frag
         lines.append((study_id, tree_id))
-c = get_empty_collection()
+c = TreeCollectionsDocSchema.create_empty_doc()
 d = c['decisions']
 for pair in lines:
     d.append({'SHA': '',

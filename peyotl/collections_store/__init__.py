@@ -2,32 +2,18 @@
 """Basic functions for creating and manipulating collection JSON.
 """
 
-
-def get_empty_collection():
-    collection = {
-        "url": "",
-        "name": "",
-        "description": "",
-        "creator": {"login": "", "name": ""},
-        "contributors": [],
-        "decisions": [],
-        "queries": []
-    }
-    return collection
-
-
 __all__ = ['git_actions',
            'helper',
            'validation',
            'collections_shard',
            'collections_umbrella']
+from peyotl.collections_store.collections_shard import TreeCollectionsDocSchema
 from peyotl.collections_store.collections_umbrella import (TreeCollectionStore,
                                                            TreeCollectionStoreProxy,
                                                            OWNER_ID_PATTERN,
                                                            COLLECTION_ID_PATTERN)
 from peyotl.utility.input_output import read_as_json
 from peyotl.utility.str_util import is_str_type
-
 
 
 def collection_to_included_trees(collection):
@@ -44,7 +30,7 @@ def collection_to_included_trees(collection):
 
 
 def concatenate_collections(collection_list):
-    r = get_empty_collection()
+    r = TreeCollectionsDocSchema().create_empty_doc()
     r_decisions = r['decisions']
     r_contributors = r['contributors']
     r_queries = r['queries']

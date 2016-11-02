@@ -18,7 +18,7 @@ class FailedShardCreationError(ValueError):
 class GitShard(object):
     """Bare-bones functionality needed by both normal and proxy shards."""
 
-    def __init__(self, name):
+    def __init__(self, name, doc_schema=None):
         self._index_lock = Lock()
         self._doc_index = {}
         self.name = name
@@ -26,6 +26,7 @@ class GitShard(object):
         # ' ' mimics place of the abspath of repo in path -> relpath mapping
         self.has_aliases = False
         self._new_doc_prefix = None
+        self.doc_schema = doc_schema
     # pylint: disable=E1101
     def get_rel_path_fragment(self, doc_id):
         """For `doc_id` returns the path from the
@@ -63,8 +64,7 @@ class TypeAwareGitShard(GitShard):
                  name,
                  path,
                  doc_holder_subpath='',
-                 assumed_doc_version=None,
-                 detect_doc_version_fn=None,
+                 doc_schema=None,
                  refresh_doc_index_fn=None,
                  git_ssh=None,
                  pkey=None,
@@ -72,7 +72,7 @@ class TypeAwareGitShard(GitShard):
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                  max_file_size=None):
-        GitShard.__init__(self, name)
+        GitShard.__init__(self, name, doc_schema=doc_schema)
         self.filepath_for_doc_id_fn = None  # overwritten in refresh_doc_index_fn
         self._infrastructure_commit_author = infrastructure_commit_author
         self._locked_refresh_doc_index = refresh_doc_index_fn
@@ -96,19 +96,6 @@ class TypeAwareGitShard(GitShard):
         self.parent_path = os.path.split(path)[0] + '/'
         self.git_dir = dot_git
         self.push_mirror_repo_path = push_mirror_repo_path
-        if (assumed_doc_version is None) and (detect_doc_version_fn is not None):
-            _LOG = get_logger('TypeAwareGitShard')
-            try:
-                assumed_doc_version = detect_doc_version_fn(self)
-            except IndexError as x:
-                # no documents in this shard!
-                _LOG.warn('No documents in this shard! Auto-detection of assumed_doc_version failed.')
-            except Exception as x:
-                f = 'Auto-detection of assumed_doc_version FAILED with this error:\n{}'
-                f = f.format(str(x))
-                _LOG.warn(f)
-            except:
-                pass
         if max_file_size is not None:
             try:
                 max_file_size = int(max_file_size)
@@ -117,7 +104,6 @@ class TypeAwareGitShard(GitShard):
                 m = m.format(max_file_size)
                 raise RuntimeError(m)
         self.max_file_size = max_file_size
-        self.assumed_doc_version = assumed_doc_version
         self._known_prefixes = None
         for prefix_filename in ['new_study_prefix', 'new_doc_prefix']:
             prefix_filepath = os.path.join(path, prefix_filename)
@@ -213,13 +199,11 @@ class TypeAwareGitShard(GitShard):
 
     def write_configuration(self, out, secret_attrs=False):
         """Generic configuration, may be overridden by type-specific version"""
-        key_order = ['name', 'path', 'git_dir', 'doc_dir', 'assumed_doc_version',
-                     'git_ssh', 'pkey', 'has_aliases', 'number of documents']
         cd = self.get_configuration_dict(secret_attrs=secret_attrs)
+        key_order = cd.keys()
+        key_order.sort()
         for k in key_order:
-            if k in cd:
-                out.write('  {} = {}'.format(k, cd[k]))
-        out.write('  documents in alias groups:\n')
+            out.write('  {} = {}'.format(k, cd[k]))
         for o in cd['documents']:
             out.write('    {} ==> {}\n'.format(o['keys'], o['relpath']))
 
@@ -227,10 +211,8 @@ class TypeAwareGitShard(GitShard):
         """Generic configuration, may be overridden by type-specific version"""
         rd = {'name': self.name,
               'path': self.path,
-              'git_dir': self.git_dir,
-              'assumed_doc_version': self.assumed_doc_version,
-              'doc_dir': self.doc_dir,
-              'git_ssh': self.git_ssh, }
+              'doc_schema': repr(self.doc_schema)
+              }
         if secret_attrs:
             rd['pkey'] = self.pkey
         with self._index_lock:

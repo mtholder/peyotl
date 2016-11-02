@@ -36,7 +36,6 @@ class _TaxonomicAmendmentsAPIWrapper(_WSWrapper):
         self._refresh = kwargs.setdefault('refresh', 'never').lower()
         self._src_code = _GET_FROM_VALUES.index(self._get_from)
         self._refresh_code = _REFRESH_VALUES.index(self._refresh)
-        self._assumed_doc_version = None
         self._locals_repo_dict = kwargs.get('locals_repos_dict')  # repos_dict arg to Phylesystem() if get_from is local
         self._store_config = None
         self._docstore_obj = None
@@ -72,14 +71,6 @@ class _TaxonomicAmendmentsAPIWrapper(_WSWrapper):
             self._store_config = self._fetch_store_config()
         return self._store_config
 
-    @property
-    def assumed_doc_version(self):
-        if self._assumed_doc_version is None:
-            self._assumed_doc_version = self.store_config.get('assumed_doc_version')
-            if self._assumed_doc_version is None:
-                # TODO: remove this fall-back to legacy configuration once deployed phylesystems are up to date
-                self._assumed_doc_version = self.store_config.get('repo_nexml2json')
-        return self._assumed_doc_version
 
     def get_external_url(self, amendment_id):
         if self._src_code == _GET_API:

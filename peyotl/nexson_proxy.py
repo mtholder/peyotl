@@ -392,3 +392,4 @@ def nexson_tree_preorder_iter(tree_proxy, node_id=None, node=None, edge_id=None,
         if daughter_edges is not None:
             new_stack = [(i['@target'], edge_id, i) for edge_id, i in daughter_edges.items()]
             stack.extend(new_stack)
+

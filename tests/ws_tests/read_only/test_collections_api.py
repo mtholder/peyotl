@@ -57,7 +57,6 @@ class TestTreeCollectionsAPI(unittest.TestCase):
     def testConfig(self):
         tca = TreeCollectionsAPI(self.domains, get_from='api')
         x = tca.store_config
-        self.assertTrue('assumed_doc_version' in x.keys())
         # TODO: add testExternalURL and support for this call in collections API?
 
 

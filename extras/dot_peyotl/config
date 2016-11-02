@@ -4,12 +4,6 @@
 #   directory
 #parent = ~/phylesystem
 
-# Valid repo_nexml2json values are
-#       0.0.0 (Badgerfish)
-#       1.0.0 ("direct" HoneyBadgerFish)
-#       1.2.1 ("byId" HoneyBadgerFish)
-#repo_nexml2json = 1.2.1
-
 # The max_file_size is specified in bytes. the default is no size limit
 #max_file_size = 20000000
 

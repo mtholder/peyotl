@@ -3,9 +3,8 @@ import codecs
 from threading import Lock
 from peyotl.utility import (get_logger, get_config_setting)
 from peyotl.git_storage.git_shard import (GitShard,
-                                          TypeAwareGitShard,
-                                          _invert_dict_list_val)
-
+                                          TypeAwareGitShard)
+from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
 _LOG = get_logger(__name__)
 
 doc_holder_subpath = 'collections-by-owner'
@@ -18,14 +17,33 @@ def filepath_for_collection_id(repo_dir, collection_id):
     _LOG.warn(">>>> filepath_for_collection_id: full path is {}".format(full_path_to_file))
     return full_path_to_file
 
+class TreeCollectionsDocSchema(SimpleJSONDocSchema):
+    def __init__(self):
+        SimpleJSONDocSchema.__init__(self, document_type='tree collection JSON')
+
+    def __repr__(self):
+        return 'TreeCollectionsDocSchema()'
+
+    def create_empty_doc(self):
+        collection = {
+            "url": "",
+            "name": "",
+            "description": "",
+            "creator": {"login": "", "name": ""},
+            "contributors": [],
+            "decisions": [],
+            "queries": []
+        }
+        return collection
+
+
 
 class TreeCollectionsShardProxy(GitShard):
     """Proxy for shard when interacting with external resources if given the configuration of a remote Phylesystem
     """
 
     def __init__(self, config):
-        GitShard.__init__(self, config['name'])
-        self.assumed_doc_version = config['assumed_doc_version']
+        GitShard.__init__(self, config['name'], doc_schema=TreeCollectionsDocSchema())
         d = {}
         for collection in config['collections']:
             kl = collection['keys']
@@ -68,7 +86,6 @@ class TreeCollectionsShard(TypeAwareGitShard):
     def __init__(self,
                  name,
                  path,
-                 assumed_doc_version=None,
                  git_ssh=None,
                  pkey=None,
                  git_action_class=PhylesystemGitAction,
@@ -78,8 +95,7 @@ class TreeCollectionsShard(TypeAwareGitShard):
                                    name=name,
                                    path=path,
                                    doc_holder_subpath=doc_holder_subpath,
-                                   assumed_doc_version=assumed_doc_version,
-                                   detect_doc_version_fn=None,  # version detection
+                                   doc_schema=TreeCollectionsDocSchema(),
                                    refresh_doc_index_fn=refresh_collection_index,  # populates _doc_index
                                    git_ssh=git_ssh,
                                    pkey=pkey,
@@ -96,28 +112,6 @@ class TreeCollectionsShard(TypeAwareGitShard):
         if self._known_prefixes is None:
             self._known_prefixes = self._diagnose_prefixes()
         return self._known_prefixes
-
-    # Type-specific configuration for backward compatibility
-    # (config is visible to API consumers via /phylesystem_config)
-    def write_configuration(self, out, secret_attrs=False):
-        """Generic configuration, may be overridden by type-specific version"""
-        key_order = ['name', 'path', 'git_dir', 'doc_dir', 'assumed_doc_version',
-                     'git_ssh', 'pkey', 'has_aliases', 'number of collections']
-        cd = self.get_configuration_dict(secret_attrs=secret_attrs)
-        for k in key_order:
-            if k in cd:
-                out.write('  {} = {}'.format(k, cd[k]))
-        out.write('  collections in alias groups:\n')
-        for o in cd['collections']:
-            out.write('    {} ==> {}\n'.format(o['keys'], o['relpath']))
-
-    def get_configuration_dict(self, secret_attrs=False):
-        """Overrides superclass method and renames some properties"""
-        cd = super(TreeCollectionsShard, self).get_configuration_dict(secret_attrs=secret_attrs)
-        # "rename" some keys in the dict provided
-        cd['number of collections'] = cd.pop('number of documents')
-        cd['collections'] = cd.pop('documents')
-        return cd
 
     def _diagnose_prefixes(self):
         """Returns a set of all of the prefixes seen in the main document dir

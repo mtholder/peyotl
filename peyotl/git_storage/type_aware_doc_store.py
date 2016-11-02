@@ -37,7 +37,6 @@ class TypeAwareDocStore(ShardedDocStore):
                  repos_dict=None,
                  repos_par=None,
                  with_caching=True,
-                 assumed_doc_version=None,
                  git_ssh=None,
                  pkey=None,
                  git_action_class=None,  # requires a *type-specific* GitActionBase subclass
@@ -50,8 +49,6 @@ class TypeAwareDocStore(ShardedDocStore):
             or by trusting the `repos_dict` mapping of name to repo filepath.
         `prefix_from_doc_id` should be a type-specific method defined in the subclass
         `with_caching` should be True for non-debugging uses.
-        `assumed_doc_version` is optional. If specified all shard repos are assumed to store
-            files of this version of the primary document syntax.
         `git_ssh` is the path of an executable for git-ssh operations.
         `pkey` is the PKEY that has to be in the env for remote, authenticated operations to work
         `git_action_class` is a subclass of GitActionBase to use. the __init__ syntax must be compatible
@@ -64,7 +61,6 @@ class TypeAwareDocStore(ShardedDocStore):
         """
         ShardedDocStore.__init__(self,
                                  prefix_from_doc_id=prefix_from_doc_id)
-        self.assumed_doc_version = assumed_doc_version
         self._growing_shard = None
         #TODO should infer doc prefix and hard-code assumed_doc_version to None
         shards = []
@@ -108,7 +104,6 @@ class TypeAwareDocStore(ShardedDocStore):
                     # assumes uniform __init__ arguments for all GitShard subclasses
                     shard = git_shard_class(name=repo_name,
                                             path=repo_filepath,
-                                            assumed_doc_version=assumed_doc_version,
                                             git_ssh=git_ssh,
                                             pkey=pkey,
                                             git_action_class=git_action_class,
@@ -148,6 +143,7 @@ class TypeAwareDocStore(ShardedDocStore):
         growing_shards = [i for i in shards if i.can_mint_new_docs()]
         assert len(growing_shards) == 1
         self._growing_shard = growing_shards[-1]
+        self.doc_schema = self._growing_shard.doc_schema
         self._shards = shards
         self._prefix2shard = {}
         for shard in shards:
@@ -157,10 +153,6 @@ class TypeAwareDocStore(ShardedDocStore):
                 self._prefix2shard[prefix] = shard
         with self._index_lock:
             self._locked_refresh_doc_ids()
-        if self.assumed_doc_version is None:
-            # if no version was specified, try to pick it up from a shard's contents (using auto-detect)
-            if self._growing_shard:
-                self.assumed_doc_version = self._growing_shard.assumed_doc_version
         self.git_action_class = git_action_class
 
     def _locked_refresh_doc_ids(self):
@@ -370,21 +362,19 @@ class TypeAwareDocStore(ShardedDocStore):
 
     def write_configuration(self, out, secret_attrs=False):
         """Generic configuration, may be overridden by type-specific version"""
-        key_order = ['assumed_doc_version',
-                     'number_of_shards',
-                     'initialization', ]
         cd = self.get_configuration_dict(secret_attrs=secret_attrs)
+        key_order = list(cd.keys())
+        key_order.sort()
         for k in key_order:
-            if k in cd:
-                out.write('  {} = {}'.format(k, cd[k]))
+            out.write('  {} = {}'.format(k, cd[k]))
         for n, shard in enumerate(self._shards):
             out.write('Shard {}:\n'.format(n))
             shard.write_configuration(out)
 
+
     def get_configuration_dict(self, secret_attrs=False):
         """Generic configuration, may be overridden by type-specific version"""
-        cd = {'assumed_doc_version': self.assumed_doc_version,
-              'number_of_shards': len(self._shards),
+        cd = {'number_of_shards': len(self._shards),
               'initialization': self._filepath_args,
               'shards': [],
               }
@@ -417,13 +407,22 @@ class TypeAwareDocStore(ShardedDocStore):
 
     def is_plausible_transformation(self, subresource_request):
         try:
-            return self._is_plausible_transformation_or_raise(subresource_request)
+            return self.doc_schema.is_plausible_transformation_or_raise(subresource_request)
         except ValueError as ve:
             return False, ve.message, None
         except Exception as x:
             return False, str(x), None
 
-    def _is_plausible_transformation_or_raise(self, subresource_request):
+class SimpleJSONDocSchema(object):
+    """This class implements the is_plausible_transformation_or_raise functionality needed by
+    the phylesystem-api for doc stores that hold JSON formats that do not support any subsetting
+    or transformation into alternative formats.
+    """
+    def __init__(self, schema_version=None, document_type='unknown JSON'):
+        self.schema_version = schema_version
+        self.document_type = document_type
+
+    def is_plausible_transformation_or_raise(self, subresource_request):
         """This function takes a dict describing a transformation to be applied to a document.
         Returns one of the following tuples:
             (False, REASON_STRING, None) to indicate the transformation of documents from this doc store is impossible,

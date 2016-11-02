@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from peyotl.collections_store import get_empty_collection
+from peyotl.collections_store import TreeCollectionsDocSchema
 from peyotl import (collection_to_included_trees,
                     read_as_json,
                     write_as_json)
@@ -190,7 +190,7 @@ if __name__ == '__main__':
         sys.exit(1)
     # now we write a "concrete" version of this snapshot
     coll_name = os.path.split(args.collection)[-1]
-    concrete_collection = get_empty_collection()
+    concrete_collection = TreeCollectionsDocSchema().create_empty_doc()
     concrete_collection['description'] = 'Concrete form of collection "{}"'.format(coll_name)
     cd_list = concrete_collection['decisions']
     for inc in included:

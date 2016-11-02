@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-from peyotl.amendments import get_empty_amendment
+from peyotl.amendments import TaxonomicAmendmentDocSchema
 from peyotl.utility.str_util import UNICODE
 from peyotl.amendments.validation import validate_amendment
 from peyotl.test.support import pathmap
@@ -86,7 +86,7 @@ class TestAmendmentValidator(unittest.TestCase):
                     _LOG.warn('Expected output file "{f}" not found'.format(f=efn))
 
     def testCreated(self):
-        a = get_empty_amendment()
+        a = TaxonomicAmendmentDocSchema().create_empty_doc()
         aa = validate_amendment(a)
         errors = aa[0]
         self.assertTrue(len(errors) == 0)
