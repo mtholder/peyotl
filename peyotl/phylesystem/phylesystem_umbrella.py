@@ -255,37 +255,10 @@ class _Phylesystem(TypeAwareDocStore):
         return cd
 
 
-    def is_plausible_transformation(self, subresource_request):
-        """This function takes a dict describing a transformation to be applied to a document.
-        Returns one of the following tuples:
-            (False, REASON_STRING, None) to indicate the transformation of documents from this doc store is impossible,
-            (True, None, SYNTAX_STRING) to indicate the documents stored in this store need no transformation, OR
-            (True, callable, SYNTAX_STRING) to indicate that the transformation may possible, and if the callable is
-                called with a document object, the transformation will be attempted.
-                the callable should raise:
-                    a ValueError if the transformation is not possible for the document object supplied, or
-                    a KeyError to indicate that the requested part of the document was not found in document
-        where SYNTAX_STRING  is 'JSON', 'XML', 'NEXUS'... and
-        REASON_STRING is a sentence that describes why the transformation is not possible.
-
-        Used in phylesystem-api, to see if the requested transformation is possible for this type of document.
-        and then to accomplish the transformation after the document is fetched. The motivation is to
-        avoid holding the lock to the repository too long.
-
-        `subresource_request` can hold the following keys on inut
-            * output_format: mapping to a dict which can contain any of the following. all absent -> no transformation
-                    {'schema': format name or None,
-                              'type_ext': file extension or None
-                              'schema_version': default '0.0.0' or the param['output_nexml2json'], }
-            * subresource_req_dict['subresource_type'] = string
-            * subresource_id = string or (string, string) set of IDs
-
-        The default behavior is to only return:
-           - (True, None, "JSON") if no transformation is requested, OR
-           - (False, None, None) otherwise.
-        The phylesystem umbrella overrides this to allow fetching parts of the document.
+    def _is_plausible_transformation_or_raise(self, subresource_request):
+        """See TypeAwareDocStore._is_plausible_transformation_or_raise
         """
-        plausible = (True, None, "JSON")
+        _LOG.debug('phylesystem.is_plausible_transformation({})'.format(subresource_request))
         sub_res_set = {'meta', 'tree', 'subtree', 'otus', 'otu', 'otumap', 'file'}
         rt = subresource_request.get('subresource_type')
         if rt:
@@ -315,28 +288,6 @@ class _Phylesystem(TypeAwareDocStore):
             return schema.convert(document_obj)
         return True, transform_closure, syntax_str
 
-"""_validate_output_nexml2json(phylesystem,
-                                             params,
-                                             return_type,
-                                             content_id=content_id)
-def _validate_output_nexml2json(phylesystem, params, resource, content_id=None):
-    msg = None
-    if 'output_nexml2json' not in params:
-
-    try:
-        schema =
-
-    except ValueError, x:
-        msg = str(x)
-        _LOG.exception('GET failing: {m}'.format(m=msg))
-
-    if msg:
-        _LOG.debug('output sniffing err msg = ' + msg)
-        raise HTTPBadRequest(body=err_body(msg))
-    return schema
-
-    return subresource_req_dict, culled_params
-"""
 
 _THE_PHYLESYSTEM = None
 

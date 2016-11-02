@@ -416,6 +416,14 @@ class TypeAwareDocStore(ShardedDocStore):
         return k
 
     def is_plausible_transformation(self, subresource_request):
+        try:
+            return self._is_plausible_transformation_or_raise(subresource_request)
+        except ValueError as ve:
+            return False, ve.message, None
+        except Exception as x:
+            return False, str(x), None
+
+    def _is_plausible_transformation_or_raise(self, subresource_request):
         """This function takes a dict describing a transformation to be applied to a document.
         Returns one of the following tuples:
             (False, REASON_STRING, None) to indicate the transformation of documents from this doc store is impossible,
