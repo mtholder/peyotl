@@ -57,16 +57,24 @@ class NexsonDocSchema(object):
                              repo_nexml2json=self.schema_version,
                              type_ext=type_ext,
                              **detail_kwargs)
+        subresource_request['output_is_json'] = schema.output_is_json
         if not schema.can_convert_from():
             msg = 'Cannot convert from {s} to {d}'.format(s=self.schema_version,
                                                           d=schema.description)
             return False, msg, None
         syntax_str = schema.syntax_type
+        if rt == 'study' and schema.output_is_json:
+            def annotate_and_transform_closure(doc_store_umbrella, doc_id, document_obj, head_sha):
+                blob_sha = doc_store_umbrella.get_blob_sha_for_study_id(doc_id, head_sha)
+                _LOG.debug('doc_obj.keys() = {}'.format(document_obj.keys()))
+                doc_store_umbrella.add_validation_annotation(document_obj, blob_sha)
+                return schema.convert(document_obj)
+            return True, annotate_and_transform_closure, syntax_str
 
-        def transform_closure(document_obj):
-            return schema.convert(document_obj)
-
-        return True, transform_closure, syntax_str
+        else:
+            def transform_closure(doc_store_umbrella, doc_id, document_obj, head_sha):
+                return schema.convert(document_obj)
+            return True, transform_closure, syntax_str
 
 class PhylesystemShardProxy(GitShard):
     """Proxy for shard when interacting with external resources if given the configuration of a remote Phylesystem

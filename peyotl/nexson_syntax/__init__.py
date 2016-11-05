@@ -320,7 +320,9 @@ class PhyloSchema(object):
                     m = m.format('", "'.join(PhyloSchema._otu_label_list))
                     raise ValueError(m)
             self.otu_label_prop = PhyloSchema._otu_label2prop[self.otu_label]
-
+    @property
+    def output_is_json(self):
+        return self.format_code == PhyloSchema.NEXSON
     @property
     def description(self):
         if self.format_code == PhyloSchema.NEXSON:

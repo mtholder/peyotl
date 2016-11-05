@@ -428,7 +428,9 @@ class SimpleJSONDocSchema(object):
             (False, REASON_STRING, None) to indicate the transformation of documents from this doc store is impossible,
             (True, None, SYNTAX_STRING) to indicate the documents stored in this store need no transformation, OR
             (True, callable, SYNTAX_STRING) to indicate that the transformation may possible, and if the callable is
-                called with a document object, the transformation will be attempted.
+                called with a the args:
+                    (doc_store_umbrella, doc_id, document object, head_sha_for_doc_obj)
+                the transformation will be attempted.
                 the callable should raise:
                     a ValueError if the transformation is not possible for the document object supplied, or
                     a KeyError to indicate that the requested part of the document was not found in document
