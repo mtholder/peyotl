@@ -213,6 +213,9 @@ class _TreeCollectionStore(TypeAwareDocStore):
             raise
         return r
 
+    def get_markdown_comment(self, document_obj):
+        return document_obj.get('description', '')
+
     def copy_existing_collection(self, owner_id, old_collection_id):
         """Ensure a unique id, whether from the same user or a different one"""
         raise NotImplementedError('TODO')

@@ -97,6 +97,9 @@ class _Phylesystem(TypeAwareDocStore):
             self._cache_region = None
         self._cache_hits = 0
 
+    def get_markdown_comment(self, document_obj):
+        return document_obj,get('nexml', {}).get('^ot:comment', '')
+
     def get_study_ids(self):
         k = []
         for shard in self._shards:

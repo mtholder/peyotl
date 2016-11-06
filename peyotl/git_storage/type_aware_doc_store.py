@@ -413,6 +413,9 @@ class TypeAwareDocStore(ShardedDocStore):
         except Exception as x:
             return False, str(x), None
 
+    def get_markdown_comment(self, document_obj):
+        return ''
+
 class SimpleJSONDocSchema(object):
     """This class implements the is_plausible_transformation_or_raise functionality needed by
     the phylesystem-api for doc stores that hold JSON formats that do not support any subsetting
