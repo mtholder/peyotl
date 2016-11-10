@@ -83,3 +83,4 @@ __all__ = ['utility',
            'evaluate_tree',
            ]
 from peyotl.phylesystem import NexsonDocSchema
+from peyotl.git_storage.git_workflow import GitWorkflowError
