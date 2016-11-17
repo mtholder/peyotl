@@ -38,6 +38,8 @@ class GitShard(object):
         fp = r[-1]
         return fp[(len(self.path) + 1):]  # "+ 1" to remove the /
 
+    def validate_annotate_convert_doc(self, document, **kwargs):
+        return self.doc_schema.validate_annotate_convert_doc(document, **kwargs)
     @property
     def doc_index(self):
         return self._doc_index

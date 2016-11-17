@@ -294,8 +294,7 @@ class TypeAwareDocStore(ShardedDocStore):
         """
         return self._growing_shard.validate_annotate_convert_doc(document, **write_arg_dict)
 
-    def annotate_and_write(self,  # pylint: disable=R0201
-                           git_data,
+    def annotate_and_write(self,
                            document,
                            doc_id,
                            auth_info,
@@ -303,7 +302,8 @@ class TypeAwareDocStore(ShardedDocStore):
                            annotation,
                            parent_sha,
                            commit_msg='',
-                           master_file_blob_included=None):
+                           merged_sha=None,
+                           add_agent_only=True):
         """
         This is the heart of the api's __finish_write_verb
         It was moved to phylesystem to make it easier to coordinate it
@@ -314,16 +314,15 @@ class TypeAwareDocStore(ShardedDocStore):
             that decision and the add_or_replace_annotation call in the
             same repo.
         """
-        adaptor.add_or_replace_annotation(nexson,
-                                          annotation['annotationEvent'],
-                                          annotation['agent'],
-                                          add_agent_only=True)
+        adaptor.add_or_replace_annotation(document,
+                                          annotation,
+                                          add_agent_only=add_agent_only)
         return self.commit_and_try_merge2master(file_content=document,
                                                 doc_id=doc_id,
                                                 auth_info=auth_info,
                                                 parent_sha=parent_sha,
                                                 commit_msg=commit_msg,
-                                                merged_sha=master_file_blob_included)
+                                                merged_sha=merged_sha)
 
     def delete_doc(self, doc_id, auth_info, parent_sha, **kwargs):
         git_action = self.create_git_action(doc_id)

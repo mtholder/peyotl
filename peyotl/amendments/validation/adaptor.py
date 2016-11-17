@@ -2,7 +2,7 @@
 """AmendmentValidationAdaptor class.
 """
 from peyotl.utility import get_logger, doi2url
-
+from peyotl.git_storage import NonAnnotatingDocValidationAdaptor
 _LOG = get_logger(__name__)
 
 
@@ -16,7 +16,7 @@ def create_validation_adaptor(obj, errors, **kwargs):
 # N.B. that this doesn't need to inherit from NexsonValidationAdapter, since
 # we're not adding annotations to the target document. Similarly, we're not using
 # the usual validation logger here, just a list of possible error strings.
-class AmendmentValidationAdaptor(object):
+class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
     def __init__(self, obj, errors=None, **kwargs):
         if errors is None:
             errors = []

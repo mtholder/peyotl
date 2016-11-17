@@ -261,9 +261,8 @@ class _ValidationContext(object):
 
 class NexsonAnnotationAdder(object):
     def add_or_replace_annotation(self,  # pylint: disable=R0201
-                                  obj,
-                                  annotation,
-                                  agent,
+                                  document,
+                                  annotation_obj,
                                   add_agent_only=False):
         """Takes an `annotation` dictionary which is
         expected to have a string as the value of annotation['author']['name']
@@ -272,8 +271,10 @@ class NexsonAnnotationAdder(object):
             2. have no messages that are flagged as messages to be preserved (values for 'preserve'
                 that evaluate to true)
         """
-        nex = get_nexml_el(obj)
-        nvers = detect_nexson_version(obj)
+        annotation = annotation_obj['annotationEvent']
+        agent = annotation_obj['agent']
+        nex = get_nexml_el(document)
+        nvers = detect_nexson_version(document)
         _LOG.debug('detected version as ' + nvers)
         agents_obj = find_val_literal_meta_first(nex, 'ot:agents', nvers)
         if not agents_obj:
@@ -288,9 +289,9 @@ class NexsonAnnotationAdder(object):
         if not found_agent:
             agents_list.append(agent)
         if add_agent_only:
-            delete_same_agent_annotation(obj, annotation)
+            delete_same_agent_annotation(document, annotation)
         else:
-            replace_same_agent_annotation(obj, annotation)
+            replace_same_agent_annotation(document, annotation)
 
 
 class NexsonValidationAdaptor(NexsonAnnotationAdder):  # pylint: disable=R0921
