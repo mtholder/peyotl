@@ -2,6 +2,7 @@ import os
 import codecs
 from threading import Lock
 from peyotl.utility import (get_logger, get_config_setting)
+from peyotl.collections_store.validation import validate_collection
 from peyotl.git_storage.git_shard import (GitShard,
                                           TypeAwareGitShard)
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
@@ -35,7 +36,10 @@ class TreeCollectionsDocSchema(SimpleJSONDocSchema):
             "queries": []
         }
         return collection
-
+    def validate_annotate_convert_doc(self, document, **kwargs):
+        """No conversion between different schema is supported for collections"""
+        errors, adaptor = validate_collection(document)
+        return document, errors, None, adaptor
 
 
 class TreeCollectionsShardProxy(GitShard):

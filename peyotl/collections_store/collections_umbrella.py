@@ -263,7 +263,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
                 return None
         return collection
 
-
 _THE_TREE_COLLECTION_STORE = None
 
 

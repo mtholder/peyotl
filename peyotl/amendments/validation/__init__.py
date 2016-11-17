@@ -4,11 +4,8 @@
 from peyotl.amendments.validation.adaptor import create_validation_adaptor
 
 
-def validate_amendment(obj, retain_deprecated=True, **kwargs):
+def validate_amendment(obj, **kwargs):
     """Takes an `obj` that is an amendment object.
-    `retain_deprecated` if False, then `obj` may be modified to replace
-        deprecated constructs with new syntax. If it is True, the `obj` will
-        not be modified.
     Returns the pair:
         errors, adaptor
     `errors` is a simple list of error messages

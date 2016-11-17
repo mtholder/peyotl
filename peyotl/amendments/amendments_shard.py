@@ -1,11 +1,11 @@
 import os
 import codecs
 from threading import Lock
-from peyotl.utility import (get_logger,
-                            get_config_setting)
+from peyotl.utility import get_logger
 from peyotl.git_storage.git_shard import (GitShard,
                                           TypeAwareGitShard)
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
+from peyotl.amendments.validation import validate_amendment
 
 _LOG = get_logger(__name__)
 
@@ -19,11 +19,14 @@ def filepath_for_amendment_id(repo_dir, amendment_id):
     _LOG.warn(">>>> filepath_for_amendment_id: full path is {}".format(full_path_to_file))
     return full_path_to_file
 
+
 class TaxonomicAmendmentDocSchema(SimpleJSONDocSchema):
     def __init__(self):
         SimpleJSONDocSchema.__init__(self, document_type='taxon amendment JSON')
+
     def __repr__(self):
         return 'TaxonomicAmendmentDocSchema()'
+
     def create_empty_doc(self):
         import datetime
         amendment = {
@@ -35,6 +38,12 @@ class TaxonomicAmendmentDocSchema(SimpleJSONDocSchema):
             "taxa": [],
         }
         return amendment
+
+    def validate_annotate_convert_doc(self, document, **kwargs):
+        """No conversion between different schema is supported for amendments"""
+        errors, adaptor = validate_amendment(document)
+        return document, errors, None, adaptor
+
 
 class TaxonomicAmendmentsShardProxy(GitShard):
     """Proxy for shard when interacting with external resources if given the configuration of a remote Phylesystem

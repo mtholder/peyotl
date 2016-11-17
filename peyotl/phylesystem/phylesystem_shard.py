@@ -8,6 +8,7 @@ from peyotl.git_storage.git_shard import (GitShard,
                                           TypeAwareGitShard,
                                           FailedShardCreationError,
                                           _invert_dict_list_val)
+from peyotl.phylesystem.git_workflows import validate_and_convert_nexson
 from peyotl.nexson_syntax import PhyloSchema
 
 _LOG = get_logger(__name__)
@@ -75,6 +76,22 @@ class NexsonDocSchema(object):
             def transform_closure(doc_store_umbrella, doc_id, document_obj, head_sha):
                 return schema.convert(document_obj)
             return True, transform_closure, syntax_str
+
+
+    def validate_annotate_convert_doc(self, document, **kwargs):
+        """Adaptor between exception-raising validate_and_convert_nexson and generic interface"""
+        try:
+            bundle = validate_and_convert_nexson(document,
+                                             self.schema_version,
+                                             allow_invalid=False,
+                                             max_num_trees_per_study=kwargs.get('max_num_trees_per_study'))
+            converted_nexson = bundle[0]
+            annotation = bundle[1]
+            nexson_adaptor = bundle[3]
+        except GitWorkflowError as err:
+            return document, [err.msg or 'No message found'], None, None
+        return converted_nexson, [], annotation, nexson_adaptor
+
 
 class PhylesystemShardProxy(GitShard):
     """Proxy for shard when interacting with external resources if given the configuration of a remote Phylesystem

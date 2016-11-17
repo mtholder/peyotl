@@ -274,9 +274,29 @@ class TypeAwareDocStore(ShardedDocStore):
             self._doc_merged_hook(git_action, doc_id)
         return resp
 
+    def validate_and_convert_doc(self, document, write_arg_dict):
+        """Helper function for phyleystem-api. Takes the document to be written and a dict
+        with:
+            `auth_info`: dict of author info
+            'starting_commit_SHA' SHA of parent of commit
+            'commit_msg' content of commit message
+            'merged_SHA' -> bool,
+        'doc_id' may be present if this is being called in an edit rather than creation context
+
+        In the case of a DocStore that supports translations among formats, this method
+        should perform the requested conversion
+
+        The method should return a tuple with four items:
+            [0] a processed form of the document (`document` or the converted form),
+            [1] a list of strings describing blocking errors
+            [2] an annotation object for the document (or None if no annotations are used), and
+            [3] an adaptor object.
+        """
+        return self._growing_shard.validate_annotate_convert_doc(document, **write_arg_dict)
+
     def annotate_and_write(self,  # pylint: disable=R0201
                            git_data,
-                           nexson,
+                           document,
                            doc_id,
                            auth_info,
                            adaptor,
@@ -298,7 +318,7 @@ class TypeAwareDocStore(ShardedDocStore):
                                           annotation['annotationEvent'],
                                           annotation['agent'],
                                           add_agent_only=True)
-        return self.commit_and_try_merge2master(file_content=nexson,
+        return self.commit_and_try_merge2master(file_content=document,
                                                 doc_id=doc_id,
                                                 auth_info=auth_info,
                                                 parent_sha=parent_sha,
@@ -415,6 +435,7 @@ class TypeAwareDocStore(ShardedDocStore):
 
     def get_markdown_comment(self, document_obj):
         return ''
+
 
 class SimpleJSONDocSchema(object):
     """This class implements the is_plausible_transformation_or_raise functionality needed by
