@@ -16,15 +16,17 @@ _LOG = get_logger(__name__)
 
 doc_holder_subpath = 'study'
 
+
 class NexsonDocSchema(object):
     optional_output_detail_keys = ('tip_label', 'bracket_ingroup')
+
     def __init__(self, schema_version='1.2.1'):
         self.schema_version = schema_version
         self.document_type = 'study'
         self.schema_name = 'NexSON'
+
     def __repr__(self):
         return 'NexsonDocSchema(schema_version={})'.format(self.schema_version)
-
 
     def is_plausible_transformation_or_raise(self, subresource_request):
         """See TypeAwareDocStore._is_plausible_transformation_or_raise
@@ -70,21 +72,22 @@ class NexsonDocSchema(object):
                 _LOG.debug('doc_obj.keys() = {}'.format(document_obj.keys()))
                 doc_store_umbrella.add_validation_annotation(document_obj, blob_sha)
                 return schema.convert(document_obj)
+
             return True, annotate_and_transform_closure, syntax_str
 
         else:
             def transform_closure(doc_store_umbrella, doc_id, document_obj, head_sha):
                 return schema.convert(document_obj)
-            return True, transform_closure, syntax_str
 
+            return True, transform_closure, syntax_str
 
     def validate_annotate_convert_doc(self, document, **kwargs):
         """Adaptor between exception-raising validate_and_convert_nexson and generic interface"""
         try:
             bundle = validate_and_convert_nexson(document,
-                                             self.schema_version,
-                                             allow_invalid=False,
-                                             max_num_trees_per_study=kwargs.get('max_num_trees_per_study'))
+                                                 self.schema_version,
+                                                 allow_invalid=False,
+                                                 max_num_trees_per_study=kwargs.get('max_num_trees_per_study'))
             converted_nexson = bundle[0]
             annotation = bundle[1]
             nexson_adaptor = bundle[3]

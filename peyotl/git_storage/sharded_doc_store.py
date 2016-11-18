@@ -5,7 +5,9 @@ more full-featured subclasses based on TypeAwareDocStore.
 """
 from threading import Lock
 from peyotl.utility import get_logger
+
 _LOG = get_logger(__name__)
+
 
 class ShardedDocStore(object):
     """Shared functionality for PhylesystemBase, TreeCollectionStoreBase, etc.

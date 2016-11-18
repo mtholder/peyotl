@@ -58,8 +58,10 @@ def get_test_ot_service_domains():
     from peyotl.api.wrapper import get_domains_obj
     return get_domains_obj()  # We may need to point this at dev instances in some cases.
 
+
 def get_test_repo_parent():
     return TEST_PHYLESYSTEM_PAR
+
 
 def get_test_repos(requested=None):
     """Returns a dict mapping a nicknam (mini_.*) to the full path to that
@@ -86,7 +88,21 @@ def get_test_repos(requested=None):
             return {}
     return {k: v for k, v in poss.items() if os.path.isdir(v)}
 
-
+def get_test_repos_par_checked(requested=None):
+    """Raises a RuntimeError if the test requested test repo names refer to
+    directories that are not sisters.
+    Returns None if some of the requested repos are missing.
+    Returns the repos_par for the repos, if they are all found.
+    """
+    trd = get_test_repos(requested=requested)
+    rp = None
+    for v in trd.values():
+        p = os.path.split(v)[0]
+        if rp is None:
+            rp = p
+        elif p != rp:
+            raise RuntimeError('Expected all testing repost to be under the same parent path')
+    return rp
 
 def get_test_phylesystem_mirror_parent():
     return TEST_PHYLESYSTEM_MIRROR_PAR

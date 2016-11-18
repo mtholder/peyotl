@@ -98,7 +98,7 @@ class _Phylesystem(TypeAwareDocStore):
         self._cache_hits = 0
 
     def get_markdown_comment(self, document_obj):
-        return document_obj,get('nexml', {}).get('^ot:comment', '')
+        return document_obj, get('nexml', {}).get('^ot:comment', '')
 
     def get_study_ids(self):
         k = []
@@ -221,7 +221,6 @@ class _Phylesystem(TypeAwareDocStore):
         return annot_event
 
 
-
 _THE_PHYLESYSTEM = None
 
 
@@ -232,7 +231,7 @@ def Phylesystem(repos_dict=None,
                 pkey=None,
                 git_action_class=PhylesystemGitAction,
                 mirror_info=None,
-                new_study_prefix=None, # Unused, TEMP deprecated
+                new_study_prefix=None,  # Unused, TEMP deprecated
                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
     """Factory function for a _Phylesystem object.
 
@@ -252,6 +251,7 @@ def Phylesystem(repos_dict=None,
                                         mirror_info=mirror_info,
                                         infrastructure_commit_author=infrastructure_commit_author)
     return _THE_PHYLESYSTEM
+
 
 def create_phylesystem_umbrella(shard_mirror_pair_list):
     return _Phylesystem(shard_mirror_pair_list=shard_mirror_pair_list,

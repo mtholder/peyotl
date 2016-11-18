@@ -41,7 +41,7 @@ class TestPhylesystem(unittest.TestCase):
         self.assertEqual(k, ['xy_10', 'xy_13', 'zz_11', 'zz_112'])
 
     def testURL(self):
-        p =self.wrapper.phylesystem
+        p = self.wrapper.phylesystem
         self.assertTrue(p.get_public_url('xy_10').endswith('xy_10.json'))
         self.assertTrue(p.get_public_url('zz_112').endswith('zz_112.json'))
         a = self.wrapper.taxon_amendments
@@ -100,7 +100,6 @@ class TestPhylesystem(unittest.TestCase):
         expected = ['additions-5000000-5000003']  # TODO: add more docs, to test sorting?
         self.assertEqual(k, expected)
 
-
     def testChangedAmendments(self):
         a = self.wrapper.taxon_amendments
         a.pull()  # get the full git history
@@ -114,15 +113,14 @@ class TestPhylesystem(unittest.TestCase):
         self.assertEqual({u'additions-5000000-5000003.json'}, changed)
         # check a doc that changed (against whitelist)
         changed = a.get_changed_docs('59e6d2d2ea62aa1ce784d29bdd43e74aa80d07d4',
-                                          [u'additions-5000000-5000003.json'])
+                                     [u'additions-5000000-5000003.json'])
         self.assertEqual({u'additions-5000000-5000003.json'}, changed)
         # checking a bogus doc id should work, but find nothing
         changed = a.get_changed_docs('59e6d2d2ea62aa1ce784d29bdd43e74aa80d07d4',
-                                          [u'non-existing-amendment.json'])
+                                     [u'non-existing-amendment.json'])
         self.assertEqual(set(), changed)
         # passing a foreign (or nonsense) SHA should raise a ValueError
         self.assertRaises(ValueError, a.get_changed_docs, 'bogus-SHA')
-
 
     def testSlugify(self):
         self.assertEqual('simple-test', slugify('Simple Test'))
@@ -134,8 +132,6 @@ class TestPhylesystem(unittest.TestCase):
         # self.assertEqual(u'километр', slugify(u'Километр'))
         self.assertEqual(u'untitled', slugify(u'Километр'))  # no support for now
 
-
-
     def testCollectionIndexing(self):
         c = self.wrapper.tree_collections
         k = list(c._doc2shard_map.keys())
@@ -143,7 +139,6 @@ class TestPhylesystem(unittest.TestCase):
         expected = ['TestUserB/fungal-trees', 'TestUserB/my-favorite-trees',
                     'test-user-a/my-favorite-trees', 'test-user-a/trees-about-bees']
         self.assertEqual(k, expected)
-
 
     def testCollectionIds(self):
         c = self.wrapper.tree_collections
@@ -153,17 +148,14 @@ class TestPhylesystem(unittest.TestCase):
                     'test-user-a/my-favorite-trees', 'test-user-a/trees-about-bees']
         self.assertEqual(k, expected)
 
-
     def testCollectionCreation(self):
         c = self.wrapper.tree_collections
         # TODO: create a new collection with a unique name, confirm it exists
-
 
     def testCollectionCopying(self):
         c = self.wrapper.tree_collections
         # TODO: copy an existing study under the same user, confirm it's in the right place
         # TODO: copy an existing study under a new user, confirm it's in the right place
-
 
     def testNewCollectionIds(self):
         # We assign each new collection a unique id based on the owner's userid +
@@ -173,12 +165,10 @@ class TestPhylesystem(unittest.TestCase):
         # TODO: fetch an existing study, save a copy alongside it (should nudge id via serialization)
         # TODO: create a new study (with the same name) alongside thes (should nudge id via serialization)
 
-
     def testCollectionDeletion(self):
         c = self.wrapper.tree_collections
         # TODO: create a new collection with a unique name, confirm it exists
         # TODO: delete the collection, make sure it's gone
-
 
     def testChangedCollections(self):
         c = self.wrapper.tree_collections

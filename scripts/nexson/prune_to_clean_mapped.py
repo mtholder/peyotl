@@ -298,6 +298,7 @@ class NexsonTreeWrapper(object):
             edge = ebs_el.values()[0]
             new_root = edge['@target']
             self._del_tip(new_root)
+
     def prune_ott_problem_leaves_by_id(self, ott_id, reason):
         self.prune_ott_problem_leaves(self.by_ott_id[ott_id], reason)
         del self.by_ott_id[ott_id]
@@ -338,8 +339,8 @@ class NexsonTreeWrapper(object):
             if new_id in self.by_ott_id:
                 v = self.by_ott_id[new_id]
                 v.extend(old_node_list)
-                v.sort() # I think only the last step requires sorting (NEED to check that,
-                         # If so, we could move this sort to that point to avoid multiple sortings.
+                v.sort()  # I think only the last step requires sorting (NEED to check that,
+                # If so, we could move this sort to that point to avoid multiple sortings.
             else:
                 self.by_ott_id[new_id] = old_node_list
             for sortable_el in old_node_list:

@@ -3,6 +3,7 @@
 """
 from peyotl.utility import get_logger, doi2url
 from peyotl.git_storage import NonAnnotatingDocValidationAdaptor
+
 _LOG = get_logger(__name__)
 
 
@@ -145,7 +146,7 @@ class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
             for taxon in self._taxa:
                 for k in taxon.keys():
                     if (k not in self.required_toplevel_taxon_elements.keys() and
-                        k not in self.optional_toplevel_taxon_elements.keys()):
+                                k not in self.optional_toplevel_taxon_elements.keys()):
                         if uk is None:
                             uk = []
                         uk.append(k)
@@ -214,7 +215,8 @@ class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
                                     s_val = s.get('source')
                                     assert s_val == doi2url(s_val)
                                 except:
-                                    errors.append("Source '{s}' (of type '{t}') should be a URL!".format(s=s_val, t=s_type))
+                                    errors.append(
+                                        "Source '{s}' (of type '{t}') should be a URL!".format(s=s_val, t=s_type))
                         except:
                             errors.append("Unknown taxon source type '{t}'!".format(t=s_type))
 

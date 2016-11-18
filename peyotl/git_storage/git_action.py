@@ -63,6 +63,7 @@ class RepoLock(object):
     def __exit__(self, _type, value, traceb):
         self._lock.release()
 
+
 def read_remotes_config(repo_dir):
     git_dir = os.path.join(repo_dir, '.git')
     out = git('--git-dir={}'.format(git_dir), "remote", "-v")
@@ -81,6 +82,7 @@ def read_remotes_config(repo_dir):
         a2p = d.setdefault(rem_name, {})
         a2p[action] = path
     return d
+
 
 class GitActionBase(object):
     @staticmethod
@@ -372,12 +374,12 @@ class GitActionBase(object):
             IDs. Only IDs in this list will be returned.
         """
         _LOG.debug("CMD: {}".format(' '.join([self.gitdir,
-                    self.gitwd,
-                    "diff-tree",
-                    "--name-only",
-                    "-r",
-                    ancestral_commit_sha,
-                    "master"])))
+                                              self.gitwd,
+                                              "diff-tree",
+                                              "--name-only",
+                                              "-r",
+                                              ancestral_commit_sha,
+                                              "master"])))
         try:
             x = git(self.gitdir,
                     self.gitwd,

@@ -12,6 +12,7 @@ from peyotl.utility import get_logger
 
 _LOG = get_logger(__name__)
 
+
 def parse_mirror_info(mirror_info):
     push_mirror_repos_par = None
     push_mirror_remote_map = {}
@@ -28,6 +29,7 @@ def parse_mirror_info(mirror_info):
                     e = e_fmt.format(push_mirror_repos_par)
                     raise ValueError(e)
     return push_mirror_repos_par, push_mirror_remote_map
+
 
 class TypeAwareDocStore(ShardedDocStore):
     document_type = 'generic'
@@ -61,8 +63,9 @@ class TypeAwareDocStore(ShardedDocStore):
         """
         ShardedDocStore.__init__(self,
                                  prefix_from_doc_id=prefix_from_doc_id)
+        _LOG.debug('TypeAwareDocStore(repo_par={}, repos_dict={})'.format(repos_par, repos_dict))
         self._growing_shard = None
-        #TODO should infer doc prefix and hard-code assumed_doc_version to None
+        # TODO should infer doc prefix and hard-code assumed_doc_version to None
         shards = []
         if shard_mirror_pair_list is not None:
             self._filepath_args = 'shard_mirror_pair_list = {}'.format(repr(shard_mirror_pair_list))
@@ -141,6 +144,7 @@ class TypeAwareDocStore(ShardedDocStore):
         #   `new_study_prefix`, so only one shard can generate new IDs. There should only be one shard
         #   with `can_mint_new_docs() set to True
         growing_shards = [i for i in shards if i.can_mint_new_docs()]
+        #_LOG.debug('shards = {} growing_shards = {}'.format(shards, growing_shards))
         assert len(growing_shards) == 1
         self._growing_shard = growing_shards[-1]
         self.doc_schema = self._growing_shard.doc_schema
@@ -390,7 +394,6 @@ class TypeAwareDocStore(ShardedDocStore):
             out.write('Shard {}:\n'.format(n))
             shard.write_configuration(out)
 
-
     def get_configuration_dict(self, secret_attrs=False):
         """Generic configuration, may be overridden by type-specific version"""
         cd = {'number_of_shards': len(self._shards),
@@ -441,6 +444,7 @@ class SimpleJSONDocSchema(object):
     the phylesystem-api for doc stores that hold JSON formats that do not support any subsetting
     or transformation into alternative formats.
     """
+
     def __init__(self, schema_version=None, document_type='unknown JSON'):
         self.schema_version = schema_version
         self.document_type = document_type

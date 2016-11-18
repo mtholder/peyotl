@@ -3,6 +3,8 @@ from peyotl.collections_store.collections_umbrella import TreeCollectionStore, T
 from peyotl.api.wrapper import _WSWrapper, APIWrapper
 from peyotl.collections_store import COLLECTION_ID_PATTERN
 from peyotl.utility import get_logger
+from peyotl.git_storage import get_doc_store_repo_parent
+from peyotl import create_doc_store_wrapper
 import anyjson
 import os
 
@@ -14,8 +16,8 @@ _GET_FROM_VALUES = ('local',  # only from local copy of collections
                     'api',)  # from the GET calls of the collections-api
 
 # TRANSFORM only relevant when get_from is "api"
-#_TRANS_CLIENT, _TRANS_SERVER = range(2)
-#_TRANSFORM_VALUES = ('client', *DEFAULT* transform to the desired output format on the client side
+# _TRANS_CLIENT, _TRANS_SERVER = range(2)
+# _TRANSFORM_VALUES = ('client', *DEFAULT* transform to the desired output format on the client side
 #                     'server', ) request data transformation take place on the server
 
 # REFRESH is only relevant when get_from is "local"
@@ -36,7 +38,7 @@ class _TreeCollectionsAPIWrapper(_WSWrapper):
         self._refresh = kwargs.setdefault('refresh', 'never').lower()
         self._src_code = _GET_FROM_VALUES.index(self._get_from)
         self._refresh_code = _REFRESH_VALUES.index(self._refresh)
-        self._locals_repo_dict = kwargs.get('locals_repos_dict')  # repos_dict arg to Phylesystem() if get_from is local
+        self._repo_parent = kwargs.get('repos_par')  # repos_dict arg to Phylesystem() if get_from is local
         self._store_config = None
         self._docstore_obj = None
         self._use_raw = False
@@ -54,7 +56,10 @@ class _TreeCollectionsAPIWrapper(_WSWrapper):
     def docstore_obj(self):
         if self._docstore_obj is None:
             if self._src_code == _GET_LOCAL:
-                self._docstore_obj = TreeCollectionStore(repos_dict=self._locals_repo_dict)
+                if self._repo_parent is None:
+                    self._repo_parent = get_doc_store_repo_parent()
+                dswrapper = create_doc_store_wrapper(self._repo_parent)
+                self._docstore_obj = dswrapper.tree_collections
             else:
                 self._docstore_obj = TreeCollectionStoreProxy(self.store_config)
         return self._docstore_obj

@@ -89,8 +89,8 @@ badgerfish form of NexSON'.format(c='", "'.join(e_choices))
                 or (mode.endswith('x') and (export_format.lower() != "nexml")) \
                 or (mode.endswith('x') and (export_format.lower() not in [str(DIRECT_HONEY_BADGERFISH)])):
             sys.exit('export format {e} clashes with mode {m}. '
-                    'The mode option is not neeeded if the export option is used.'.format(
-                    e=export_format, m=mode))
+                     'The mode option is not neeeded if the export option is used.'.format(
+                e=export_format, m=mode))
     try:
         inp = codecs.open(inpfn, mode='rU', encoding='utf-8')
     except:

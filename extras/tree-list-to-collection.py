@@ -18,7 +18,7 @@ with open(inp_fn, 'rU') as inp:
         study_id, tree_frag = '_'.join(s[:-1]), s[-1]
         tree_id = 'tree' + tree_frag
         lines.append((study_id, tree_id))
-c = TreeCollectionsDocSchema.create_empty_doc()
+c = TreeCollectionsDocSchema().create_empty_doc()
 d = c['decisions']
 for pair in lines:
     d.append({'SHA': '',

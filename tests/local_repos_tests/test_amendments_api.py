@@ -3,20 +3,20 @@ import unittest
 
 from peyotl.api import TaxonomicAmendmentsAPI
 from peyotl.test.support import test_amendments_api
-from peyotl.test.support.pathmap import get_test_repos
+from peyotl.test.support.pathmap import get_test_repos_par_checked
 from peyotl.utility import get_logger
 
 _LOG = get_logger(__name__)
 
-test_repos = get_test_repos(['mini_amendments'])
+repos_par = get_test_repos_par_checked(['mini_amendments'])
 
 
-@unittest.skipIf(not test_repos,
+@unittest.skipIf(not repos_par,
                  'See the documentation about the maintainers test to configure your '
                  'machine to run tests that require the mini_amendments repos')
 class TestTaxonomicAmendmentsAPI(unittest.TestCase):
     def setUp(self):
-        self.taa = TaxonomicAmendmentsAPI(None, get_from='local', locals_repos_dict=test_repos)
+        self.taa = TaxonomicAmendmentsAPI(None, get_from='local', repos_par=repos_par)
 
     def testAmendmentList(self):
         al = self.taa.amendment_list

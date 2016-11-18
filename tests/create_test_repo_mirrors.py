@@ -5,6 +5,7 @@ from peyotl.test.support.pathmap import get_test_repo_parent
 from peyotl.git_storage.git_versioned_doc_store_collection import clone_mirrors
 import sys
 import os
+
 repo_parent = get_test_repo_parent()
 if not os.path.exists(repo_parent):
     sys.exit('test repos not found!\n')
@@ -16,8 +17,8 @@ cfg.read(config_path)
 try:
     rem_pref = cfg.get('git_stores', 'remote_prefix')
 except:
-    sys.exit('Mirrors not set up because no git_stores section with a remote_prefix was found in "{}"'.format(config_path))
-
+    sys.exit(
+        'Mirrors not set up because no git_stores section with a remote_prefix was found in "{}"'.format(config_path))
 
 try:
     clone_mirrors(repo_parent, rem_pref)

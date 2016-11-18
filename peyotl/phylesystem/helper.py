@@ -1,13 +1,11 @@
 from peyotl.utility import get_logger
 from peyotl.phylesystem.git_actions import get_filepath_for_namespaced_id, get_filepath_for_simple_id
-from peyotl.git_storage import get_phylesystem_parent_list, get_repos
 import os
 import re
 from threading import Lock
 
 _LOG = get_logger(__name__)
 _study_index_lock = Lock()
-
 
 
 def create_id2study_info(path, tag):
@@ -82,7 +80,7 @@ def _make_phylesystem_cache_region(**kwargs):
     trying_file_dbm = False
     if trying_file_dbm:
         _LOG.debug('Going to try dogpile.cache.dbm ...')
-        first_par = get_phylesystem_parent_list()[0]
+        first_par = get_phylesystem_repo_parent()
         cache_db_dir = os.path.split(first_par)[0]
         cache_db = os.path.join(cache_db_dir, 'phylesystem-cachefile.dbm')
         _LOG.debug('dogpile.cache region using "{}"'.format(cache_db))

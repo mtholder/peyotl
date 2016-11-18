@@ -1,8 +1,10 @@
 #!/usr/bin/env python
-from peyotl.amendments.amendments_umbrella import TaxonomicAmendmentStore, TaxonomicAmendmentStoreProxy
+from peyotl.amendments.amendments_umbrella import TaxonomicAmendmentStoreProxy
 from peyotl.api.wrapper import _WSWrapper, APIWrapper
 from peyotl.amendments import AMENDMENT_ID_PATTERN
 from peyotl.utility import get_logger
+from peyotl.git_storage import get_doc_store_repo_parent
+from peyotl import create_doc_store_wrapper
 import anyjson
 import os
 
@@ -14,8 +16,8 @@ _GET_FROM_VALUES = ('local',  # only from local copy of amendments
                     'api',)  # from the GET calls of the amendments-api
 
 # TRANSFORM only relevant when get_from is "api"
-#_TRANS_CLIENT, _TRANS_SERVER = range(2)
-#_TRANSFORM_VALUES = ('client', # *DEFAULT* transform to the desired output format on the client side
+# _TRANS_CLIENT, _TRANS_SERVER = range(2)
+# _TRANSFORM_VALUES = ('client', # *DEFAULT* transform to the desired output format on the client side
 #                     'server', ) # request data transformation take place on the server
 
 # REFRESH is only relevant when get_from is "local"
@@ -36,7 +38,7 @@ class _TaxonomicAmendmentsAPIWrapper(_WSWrapper):
         self._refresh = kwargs.setdefault('refresh', 'never').lower()
         self._src_code = _GET_FROM_VALUES.index(self._get_from)
         self._refresh_code = _REFRESH_VALUES.index(self._refresh)
-        self._locals_repo_dict = kwargs.get('locals_repos_dict')  # repos_dict arg to Phylesystem() if get_from is local
+        self._repo_parent = kwargs.get('repos_par')  # repos_dict arg to Phylesystem() if get_from is local
         self._store_config = None
         self._docstore_obj = None
         self._use_raw = False
@@ -54,7 +56,10 @@ class _TaxonomicAmendmentsAPIWrapper(_WSWrapper):
     def docstore_obj(self):
         if self._docstore_obj is None:
             if self._src_code == _GET_LOCAL:
-                self._docstore_obj = TaxonomicAmendmentStore(repos_dict=self._locals_repo_dict)
+                if self._repo_parent is None:
+                    self._repo_parent = get_doc_store_repo_parent()
+                dswrapper = create_doc_store_wrapper(self._repo_parent)
+                self._docstore_obj = dswrapper.taxon_amendments
             else:
                 self._docstore_obj = TaxonomicAmendmentStoreProxy(self.store_config)
         return self._docstore_obj
@@ -70,7 +75,6 @@ class _TaxonomicAmendmentsAPIWrapper(_WSWrapper):
         if self._store_config is None:
             self._store_config = self._fetch_store_config()
         return self._store_config
-
 
     def get_external_url(self, amendment_id):
         if self._src_code == _GET_API:

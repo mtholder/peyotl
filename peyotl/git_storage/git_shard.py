@@ -7,6 +7,7 @@ import anyjson
 from threading import Lock
 from peyotl.utility import get_logger, write_to_filepath
 from peyotl.utility.input_output import read_as_json, write_as_json
+
 _LOG = get_logger(__name__)
 
 
@@ -27,6 +28,7 @@ class GitShard(object):
         self.has_aliases = False
         self._new_doc_prefix = None
         self.doc_schema = doc_schema
+
     # pylint: disable=E1101
     def get_rel_path_fragment(self, doc_id):
         """For `doc_id` returns the path from the
@@ -40,6 +42,7 @@ class GitShard(object):
 
     def validate_annotate_convert_doc(self, document, **kwargs):
         return self.doc_schema.validate_annotate_convert_doc(document, **kwargs)
+
     @property
     def doc_index(self):
         return self._doc_index
@@ -117,8 +120,9 @@ class TypeAwareGitShard(GitShard):
                     raise FailedShardCreationError('Expecting prefix in {} file to be two '
                                                    'letters followed by an underscore'.format(prefix_filename))
                 self._new_doc_prefix = pre_content
+
     def can_mint_new_docs(self):
-        return True # phylesystem shards can only mint new IDs if they have a new_doc_prefix file, overridden.
+        return True  # phylesystem shards can only mint new IDs if they have a new_doc_prefix file, overridden.
 
     def delete_doc_from_index(self, doc_id):
         with self._index_lock:

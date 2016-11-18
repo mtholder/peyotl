@@ -14,7 +14,6 @@ from peyotl.utility import (get_config_setting,
                             expand_abspath,
                             get_logger)
 from peyotl.utility.input_output import pretty_dict_str
-
 from peyotl.collections_store import collection_to_included_trees, concatenate_collections
 from peyotl.nexson_syntax import (can_convert_nexson_forms,
                                   convert_nexson_format,
@@ -27,7 +26,7 @@ from peyotl.nexson_syntax import (can_convert_nexson_forms,
 from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
 from peyotl.utility.str_util import UNICODE, is_str_type
 from peyotl.phylo.entities import OTULabelStyleEnum
-from peyotl.git_storage.git_versioned_doc_store_collection import create_doc_store_wrapper
+from peyotl.git_storage import (get_phylesystem_repo_parent, get_doc_store_repo_parent)
 
 
 def gen_otu_dict(nex_obj, nexson_version=None):
@@ -84,3 +83,6 @@ __all__ = ['utility',
            ]
 from peyotl.phylesystem import NexsonDocSchema
 from peyotl.git_storage.git_workflow import GitWorkflowError
+
+# It is important to keep this import last
+from peyotl.git_storage.git_versioned_doc_store_collection import create_doc_store_wrapper

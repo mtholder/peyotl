@@ -12,7 +12,20 @@ def get_phylesystem_parent_list():
     return phylesystem_parent.split(':')
 
 
+def get_phylesystem_repo_parent():
+    par_list = get_phylesystem_parent_list()
+    if len(par_list) != 1:
+        if par_list:
+            msg = "Multiple repo_parent paths for phylesystem is no longer supported. Found: {}".format(par_list)
+            raise NotImplementedError(msg)
+    return par_list[0]
+
+# TODO: at some point, we should add another config var. or rename [phylesystem]parent to be more generic
+def get_doc_store_repo_parent():
+    return get_phylesystem_repo_parent()
+
 _LOG = get_logger(__name__)
+
 
 def dir_to_repos_dict(dir):
     """Returns a map of subdir name to full path for all subdirectories
@@ -42,7 +55,7 @@ def get_repos(par_list=None):
     """
     _repos = {}  # key is repo name, value repo location
     if par_list is None:
-        par_list = get_phylesystem_parent_list()
+        par_list = [get_phylesystem_repo_parent()]
     elif not isinstance(par_list, list):
         par_list = [par_list]
     for p in par_list:

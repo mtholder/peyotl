@@ -68,6 +68,7 @@ class _TreeCollectionStore(TypeAwareDocStore):
     """
     id_regex = COLLECTION_ID_PATTERN
     document_type = 'tree_collection'
+
     def __init__(self,
                  repos_dict=None,
                  repos_par=None,
@@ -263,6 +264,7 @@ class _TreeCollectionStore(TypeAwareDocStore):
                 return None
         return collection
 
+
 _THE_TREE_COLLECTION_STORE = None
 
 
@@ -293,6 +295,7 @@ def TreeCollectionStore(repos_dict=None,
                                                           mirror_info=mirror_info,
                                                           infrastructure_commit_author=infrastructure_commit_author)
     return _THE_TREE_COLLECTION_STORE
+
 
 def create_tree_collection_umbrella(shard_mirror_pair_list):
     return _TreeCollectionStore(shard_mirror_pair_list=shard_mirror_pair_list,

@@ -4,6 +4,7 @@ from peyotl.api.wrapper import _WSWrapper, APIWrapper
 from peyotl.api.study_ref import TreeRef
 from peyotl.nexson_syntax import create_content_spec
 from peyotl.utility import get_logger
+from peyotl import (create_doc_store_wrapper, get_phylesystem_repo_parent)
 import anyjson
 import urllib
 import os
@@ -37,8 +38,8 @@ class _PhylesystemAPIWrapper(_WSWrapper):
         self._src_code = _GET_FROM_VALUES.index(self._get_from)
         self._trans_code = _TRANSFORM_VALUES.index(self._transform)
         self._refresh_code = _REFRESH_VALUES.index(self._refresh)
+        self._repo_parent = kwargs.get('repos_par')
         self._repo_nexml2json = None
-        self._locals_repo_dict = kwargs.get('locals_repos_dict')  # repos_dict arg to Phylesystem() if get_from is local
         self._phylesystem_config = None
         self._phylesystem_obj = None
         self._use_raw = False
@@ -56,7 +57,12 @@ class _PhylesystemAPIWrapper(_WSWrapper):
     def phylesystem_obj(self):
         if self._phylesystem_obj is None:
             if self._src_code == _GET_LOCAL:
-                self._phylesystem_obj = Phylesystem(repos_dict=self._locals_repo_dict)
+                if self._repo_parent is None:
+                    self._repo_parent = get_phylesystem_repo_parent()
+                dswrapper = create_doc_store_wrapper(self._repo_parent)
+                self._phylesystem_obj = dswrapper.phylesystem
+                if self._phylesystem_obj is None:
+                    raise RuntimeError('Git doc store at "{}" not have a phylesystem shard'.format(self._repo_parent))
             else:
                 self._phylesystem_obj = PhylesystemProxy(self.phylesystem_config)
         return self._phylesystem_obj

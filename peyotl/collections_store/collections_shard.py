@@ -1,11 +1,12 @@
 import os
 import codecs
 from threading import Lock
-from peyotl.utility import (get_logger, get_config_setting)
+from peyotl.utility import get_logger
 from peyotl.collections_store.validation import validate_collection
 from peyotl.git_storage.git_shard import (GitShard,
                                           TypeAwareGitShard)
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
+
 _LOG = get_logger(__name__)
 
 doc_holder_subpath = 'collections-by-owner'
@@ -17,6 +18,7 @@ def filepath_for_collection_id(repo_dir, collection_id):
     full_path_to_file = os.path.join(repo_dir, doc_holder_subpath, collection_filename)
     _LOG.warn(">>>> filepath_for_collection_id: full path is {}".format(full_path_to_file))
     return full_path_to_file
+
 
 class TreeCollectionsDocSchema(SimpleJSONDocSchema):
     def __init__(self):
@@ -36,6 +38,7 @@ class TreeCollectionsDocSchema(SimpleJSONDocSchema):
             "queries": []
         }
         return collection
+
     def validate_annotate_convert_doc(self, document, **kwargs):
         """No conversion between different schema is supported for collections"""
         errors, adaptor = validate_collection(document)
