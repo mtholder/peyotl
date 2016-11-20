@@ -4,17 +4,13 @@ import json
 import codecs
 from threading import Lock
 from peyotl.utility import get_config_setting, get_logger
-from peyotl.git_storage.git_shard import (GitShard,
-                                          TypeAwareGitShard,
-                                          FailedShardCreationError,
-                                          _invert_dict_list_val)
+from peyotl.git_storage.git_shard import (GitShardProxy,
+                                          TypeAwareGitShard)
 from peyotl.phylesystem.git_workflows import validate_and_convert_nexson
 from peyotl.nexson_syntax import PhyloSchema
 
 _LOG = get_logger(__name__)
 # class PhylesystemShardBase(object):
-
-doc_holder_subpath = 'study'
 
 
 class NexsonDocSchema(object):
@@ -96,21 +92,12 @@ class NexsonDocSchema(object):
         return converted_nexson, [], annotation, nexson_adaptor
 
 
-class PhylesystemShardProxy(GitShard):
+class PhylesystemShardProxy(GitShardProxy):
     """Proxy for shard when interacting with external resources if given the configuration of a remote Phylesystem
     """
 
     def __init__(self, config):
-        GitShard.__init__(self, config['name'])
-        self.doc_schema = NexsonDocSchema()
-        d = {}
-        for study in config['studies']:
-            kl = study['keys']
-            if len(kl) > 1:
-                _LOG.warn("ID aliases are no longer supported withing the Shards")
-            for k in study['keys']:
-                d[k] = (self.name, self.path, self.path + '/study/' + study['relpath'])
-        self.study_index = d
+        GitShardProxy.__init__(self, config, 'studies', 'study', doc_schema=NexsonDocSchema)
 
     # rename some generic members in the base class, for clarity and backward compatibility
     @property
@@ -163,8 +150,6 @@ class PhylesystemShard(TypeAwareGitShard):
     def __init__(self,
                  name,
                  path,
-                 git_ssh=None,
-                 pkey=None,
                  git_action_class=PhylesystemGitAction,
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
@@ -174,11 +159,9 @@ class PhylesystemShard(TypeAwareGitShard):
         TypeAwareGitShard.__init__(self,
                                    name=name,
                                    path=path,
-                                   doc_holder_subpath=doc_holder_subpath,
+                                   doc_holder_subpath='study',
                                    doc_schema=NexsonDocSchema(),
                                    refresh_doc_index_fn=refresh_study_index,  # populates 'study_index'
-                                   git_ssh=git_ssh,
-                                   pkey=pkey,
                                    git_action_class=git_action_class,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author,
@@ -315,7 +298,5 @@ class PhylesystemShard(TypeAwareGitShard):
 
     def _create_git_action_for_global_resource(self):
         return self._ga_class(repo=self.path,
-                              git_ssh=self.git_ssh,
-                              pkey=self.pkey,
                               path_for_doc_fn=self.filepath_for_global_resource_fn,
                               max_file_size=self.max_file_size)

@@ -2,14 +2,13 @@
 # coding=utf-8
 import unittest
 
-from peyotl.amendments.amendments_umbrella import _TaxonomicAmendmentStore
+from peyotl.amendments import _TaxonomicAmendmentStore
 from peyotl.test.support.pathmap import get_test_repos_par_checked
 from peyotl.utility import get_logger
 
 _LOG = get_logger(__name__)
 
 repo_par = get_test_repos_par_checked(['mini_amendments'])
-
 
 @unittest.skipIf(not repo_par,
                  'See the documentation about the maintainers test to configure your '

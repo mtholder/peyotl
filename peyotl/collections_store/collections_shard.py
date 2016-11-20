@@ -1,21 +1,16 @@
 import os
-import codecs
 from threading import Lock
 from peyotl.utility import get_logger
 from peyotl.collections_store.validation import validate_collection
-from peyotl.git_storage.git_shard import (GitShard,
-                                          TypeAwareGitShard)
+from peyotl.git_storage.git_shard import TypeAwareGitShard
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
 
 _LOG = get_logger(__name__)
 
-doc_holder_subpath = 'collections-by-owner'
-
-
 def filepath_for_collection_id(repo_dir, collection_id):
     # in this case, simply expand the id to a full path
     collection_filename = '{i}.json'.format(i=collection_id)
-    full_path_to_file = os.path.join(repo_dir, doc_holder_subpath, collection_filename)
+    full_path_to_file = os.path.join(repo_dir, 'collections-by-owner', collection_filename)
     _LOG.warn(">>>> filepath_for_collection_id: full path is {}".format(full_path_to_file))
     return full_path_to_file
 
@@ -43,23 +38,6 @@ class TreeCollectionsDocSchema(SimpleJSONDocSchema):
         """No conversion between different schema is supported for collections"""
         errors, adaptor = validate_collection(document)
         return document, errors, None, adaptor
-
-
-class TreeCollectionsShardProxy(GitShard):
-    """Proxy for shard when interacting with external resources if given the configuration of a remote Phylesystem
-    """
-
-    def __init__(self, config):
-        GitShard.__init__(self, config['name'], doc_schema=TreeCollectionsDocSchema())
-        d = {}
-        for collection in config['collections']:
-            kl = collection['keys']
-            if len(kl) > 1:
-                _LOG.warn("aliases not supported in shards")
-            for k in collection['keys']:
-                complete_path = '{p}/{s}/{r}'.format(p=self.path, s=doc_holder_subpath, r=collection['relpath'])
-                d[k] = (self.name, self.path, complete_path)
-        self.doc_index = d
 
 
 def create_id2collection_info(path, tag):
@@ -93,19 +71,15 @@ class TreeCollectionsShard(TypeAwareGitShard):
     def __init__(self,
                  name,
                  path,
-                 git_ssh=None,
-                 pkey=None,
                  git_action_class=PhylesystemGitAction,
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
         TypeAwareGitShard.__init__(self,
                                    name=name,
                                    path=path,
-                                   doc_holder_subpath=doc_holder_subpath,
+                                   doc_holder_subpath='collections-by-owner',
                                    doc_schema=TreeCollectionsDocSchema(),
                                    refresh_doc_index_fn=refresh_collection_index,  # populates _doc_index
-                                   git_ssh=git_ssh,
-                                   pkey=pkey,
                                    git_action_class=git_action_class,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author)
@@ -141,7 +115,5 @@ class TreeCollectionsShard(TypeAwareGitShard):
 
     def _create_git_action_for_global_resource(self):
         return self._ga_class(repo=self.path,
-                              git_ssh=self.git_ssh,
-                              pkey=self.pkey,
                               path_for_doc_fn=self.filepath_for_global_resource_fn,
                               max_file_size=self.max_file_size)

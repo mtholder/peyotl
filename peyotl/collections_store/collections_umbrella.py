@@ -9,12 +9,12 @@
 #
 from peyotl.utility import get_logger
 from peyotl.utility.str_util import slugify, increment_slug
-import json
 import anyjson
-from peyotl.git_storage import ShardedDocStore, TypeAwareDocStore
-from peyotl.collections_store.collections_shard import TreeCollectionsShardProxy, TreeCollectionsShard
+from peyotl.git_storage import TypeAwareDocStore, ShardedDocStoreProxy
+from peyotl.collections_store.collections_shard import TreeCollectionsShard
 from peyotl.collections_store.validation import validate_collection
 from peyotl.collections_store.git_actions import TreeCollectionsGitAction
+from peyotl.collections_store.collections_shard import TreeCollectionsDocSchema
 # from peyotl.phylesystem.git_workflows import commit_and_try_merge2master, \
 #                                             delete_study, \
 #                                             validate_and_convert_nexson
@@ -45,23 +45,17 @@ def prefix_from_collection_path(collection_id):
     return owner_id
 
 
-class TreeCollectionStoreProxy(ShardedDocStore):
-    """Proxy for interacting with external resources if given the configuration of a remote TreeCollectionStore
+
+
+class TreeCollectionStoreProxy(ShardedDocStoreProxy):
+    """Proxy for shard when interacting with external resources if given the configuration of a remote Phylesystem
     """
 
     def __init__(self, config):
-        ShardedDocStore.__init__(self,
-                                 prefix_from_doc_id=prefix_from_collection_path)
-        for s in config.get('shards', []):
-            self._shards.append(TreeCollectionsShardProxy(s))
-        d = {}
-        for s in self._shards:
-            for k in s.doc_index.keys():
-                if k in d:
-                    raise KeyError('Collection "{i}" found in multiple repos'.format(i=k))
-                d[k] = s
-        self._doc2shard_map = d
-
+        ShardedDocStoreProxy.__init__(self, config, 'collections',
+                                      prefix_from_path_fn=prefix_from_collection_path,
+                                      doc_holder_path='collections-by-owner',
+                                      doc_schema=TreeCollectionsDocSchema)
 
 class _TreeCollectionStore(TypeAwareDocStore):
     """Wrapper around a set of sharded git repos.
@@ -72,9 +66,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
     def __init__(self,
                  repos_dict=None,
                  repos_par=None,
-                 with_caching=True,
-                 git_ssh=None,
-                 pkey=None,
                  git_action_class=TreeCollectionsGitAction,
                  mirror_info=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
@@ -83,8 +74,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
         `with_caching` should be True for non-debugging uses.
-        `git_ssh` is the path of an executable for git-ssh operations.
-        `pkey` is the PKEY that has to be in the env for remote, authenticated operations to work
         `git_action_class` is a subclass of GitActionBase to use. the __init__ syntax must be compatible
             with PhylesystemGitAction
         If you want to use a mirrors of the repo for pushes or pulls, send in a `mirror_info` dict:
@@ -97,9 +86,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
                                    prefix_from_doc_id=prefix_from_collection_path,
                                    repos_dict=repos_dict,
                                    repos_par=repos_par,
-                                   with_caching=with_caching,
-                                   git_ssh=git_ssh,
-                                   pkey=pkey,
                                    git_action_class=TreeCollectionsGitAction,
                                    git_shard_class=TreeCollectionsShard,
                                    mirror_info=mirror_info,
@@ -271,9 +257,6 @@ _THE_TREE_COLLECTION_STORE = None
 # noinspection PyPep8Naming
 def TreeCollectionStore(repos_dict=None,
                         repos_par=None,
-                        with_caching=True,
-                        git_ssh=None,
-                        pkey=None,
                         git_action_class=TreeCollectionsGitAction,
                         mirror_info=None,
                         infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
@@ -288,9 +271,6 @@ def TreeCollectionStore(repos_dict=None,
     if _THE_TREE_COLLECTION_STORE is None:
         _THE_TREE_COLLECTION_STORE = _TreeCollectionStore(repos_dict=repos_dict,
                                                           repos_par=repos_par,
-                                                          with_caching=with_caching,
-                                                          git_ssh=git_ssh,
-                                                          pkey=pkey,
                                                           git_action_class=git_action_class,
                                                           mirror_info=mirror_info,
                                                           infrastructure_commit_author=infrastructure_commit_author)

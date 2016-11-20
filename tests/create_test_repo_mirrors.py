@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from peyotl.utility.imports import SafeConfigParser
-from peyotl.test.support.pathmap import get_test_repo_parent
-from peyotl.git_storage.git_versioned_doc_store_collection import clone_mirrors
-import sys
 import os
+import sys
+
+from peyotl.git_versioned_doc_store_collection import clone_mirrors
+from peyotl.test.support.pathmap import get_test_repo_parent
+from peyotl.utility.imports import SafeConfigParser
 
 repo_parent = get_test_repo_parent()
 if not os.path.exists(repo_parent):

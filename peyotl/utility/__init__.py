@@ -5,7 +5,7 @@ peyotl.
 """
 from peyotl.utility.input_output import (download, expand_path, expand_abspath, parse_study_tree_list,
                                          write_to_filepath)
-from peyotl.utility.str_util import is_str_type
+from peyotl.utility.str_util import is_str_type, string_types_tuple, slugify
 import peyotl.utility.get_logger
 from peyotl.utility.get_logger import get_logger
 from peyotl.utility.get_config import (ConfigWrapper, get_config_setting, get_config_object, read_config,

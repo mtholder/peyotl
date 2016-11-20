@@ -28,7 +28,7 @@ class TestPhylesystemDel(unittest.TestCase):
         ga = phylesystem.create_git_action(_SID)
         ga.acquire_lock()
         try:
-            curr, sha, wip_map = ga.return_study(_SID, return_WIP_map=True)
+            curr, sha, wip_map = ga.return_document(_SID, return_WIP_map=True)
         finally:
             ga.release_lock()
         _LOG.debug('test sha = "{}"'.format(sha))
@@ -51,19 +51,19 @@ class TestPhylesystemDel(unittest.TestCase):
         self.assertTrue(v2b['merge_needed'])
         sidl = phylesystem.get_study_ids()
         self.assertIn(_SID, sidl)
-        curr, naked_get_sha, wip_map = phylesystem.return_study(_SID, return_WIP_map=True)
+        curr, naked_get_sha, wip_map = phylesystem.return_document(_SID, return_WIP_map=True)
         self.assertEquals(naked_get_sha, v1bsha)
         v3b = phylesystem.delete_study(_SID, _AUTH, naked_get_sha)
         v3bsha = v3b['sha']
         self.assertFalse(v3b['merge_needed'])
         sidl = phylesystem.get_study_ids()
         self.assertNotIn(_SID, sidl)
-        self.assertRaises(KeyError, phylesystem.return_study, _SID, return_WIP_map=True)
-        self.assertRaises(KeyError, phylesystem.return_study, _SID, commit_sha=v2bsha, return_WIP_map=True)
-        self.assertRaises(KeyError, phylesystem.return_study, _SID, commit_sha=v3bsha, return_WIP_map=True)
-        curr, naked_get_sha, wip_map = phylesystem.return_study(_SID, commit_sha=sha, return_WIP_map=True)
+        self.assertRaises(KeyError, phylesystem.return_document, _SID, return_WIP_map=True)
+        self.assertRaises(KeyError, phylesystem.return_document, _SID, commit_sha=v2bsha, return_WIP_map=True)
+        self.assertRaises(KeyError, phylesystem.return_document, _SID, commit_sha=v3bsha, return_WIP_map=True)
+        curr, naked_get_sha, wip_map = phylesystem.return_document(_SID, commit_sha=sha, return_WIP_map=True)
         self.assertEquals(acount_at_sha, curr['nexml'].get("^acount", 0))
-        curr, naked_get_sha, wip_map = phylesystem.return_study(_SID, commit_sha=v1bsha, return_WIP_map=True)
+        curr, naked_get_sha, wip_map = phylesystem.return_document(_SID, commit_sha=v1bsha, return_WIP_map=True)
         self.assertEquals(acount_at_v1bsha, curr['nexml']["^acount"])
         ga = phylesystem.create_git_action(_SID)  # assert no raise
         sidl = phylesystem.get_study_ids()
@@ -74,7 +74,7 @@ class TestPhylesystemDel(unittest.TestCase):
         v4b = commit_and_try_merge2master(ga, curr, _SID, _AUTH, v1bsha)
         v4bsha = v4b['sha']
         self.assertTrue(v4b['merge_needed'])
-        curr, naked_get_sha, wip_map = phylesystem.return_study(_SID, commit_sha=v4bsha, return_WIP_map=True)
+        curr, naked_get_sha, wip_map = phylesystem.return_document(_SID, commit_sha=v4bsha, return_WIP_map=True)
         self.assertEquals(ac, curr['nexml']["^acount"])
         ac += 1
         curr['nexml']["^acount"] = ac
@@ -83,12 +83,12 @@ class TestPhylesystemDel(unittest.TestCase):
         self.assertFalse(v5b['merge_needed'])
         sidl = phylesystem.get_study_ids()
         self.assertIn(_SID, sidl)
-        curr, naked_get_sha, wip_map = phylesystem.return_study(_SID, commit_sha=v5b['sha'], return_WIP_map=True)
+        curr, naked_get_sha, wip_map = phylesystem.return_document(_SID, commit_sha=v5b['sha'], return_WIP_map=True)
         self.assertEquals(ac, curr['nexml']["^acount"])
-        curr, naked_get_sha, wip_map = phylesystem.return_study(_SID, return_WIP_map=True)
+        curr, naked_get_sha, wip_map = phylesystem.return_document(_SID, return_WIP_map=True)
         self.assertEquals(ac, curr['nexml']["^acount"])
-        self.assertRaises(KeyError, phylesystem.return_study, _SID, commit_sha=v2bsha, return_WIP_map=True)
-        self.assertRaises(KeyError, phylesystem.return_study, _SID, commit_sha=v3bsha, return_WIP_map=True)
+        self.assertRaises(KeyError, phylesystem.return_document, _SID, commit_sha=v2bsha, return_WIP_map=True)
+        self.assertRaises(KeyError, phylesystem.return_document, _SID, commit_sha=v3bsha, return_WIP_map=True)
 
 
 if __name__ == "__main__":

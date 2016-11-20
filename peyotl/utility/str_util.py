@@ -33,6 +33,9 @@ if sys.version_info.major == 2:
     def reverse_dict(d):
         # noinspection PyCompatibility
         return {v: k for k, v in d.iteritems()}
+
+    def string_types_tuple():
+        return (str, unicode)
 else:
     from io import StringIO  # pylint: disable=E0611,W0403
 
@@ -61,6 +64,8 @@ else:
         return {v: k for k, v in d.items()}
 
 
+    def string_types_tuple():
+        return (str,)
 def slugify(s):
     """Convert any string to a "slug", a simplified form suitable for filename and URL part.
      EXAMPLE: "Trees about bees" => 'trees-about-bees'

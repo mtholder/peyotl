@@ -4,6 +4,7 @@ basic functionality common to minimal *Proxy classes with remote shards, and
 more full-featured subclasses based on TypeAwareDocStore.
 """
 from threading import Lock
+from peyotl.git_storage.git_shard import GitShardProxy
 from peyotl.utility import get_logger
 
 _LOG = get_logger(__name__)
@@ -82,3 +83,24 @@ class ShardedDocStore(object):
     def get_doc_filepath(self, doc_id):
         shard = self.get_shard(doc_id)
         return shard.get_doc_filepath(doc_id)
+
+
+class ShardedDocStoreProxy(ShardedDocStore):
+    def __init__(self, config, config_key, prefix_from_path_fn, doc_holder_path, doc_schema):
+        ShardedDocStore.__init__(self,
+                                 prefix_from_doc_id=prefix_from_path_fn)
+        for s in config.get('shards', []):
+            sp = GitShardProxy(s, config_key, doc_holder_path, doc_schema=doc_schema)
+            self._shards.append(sp)
+        self._doc2shard_map = None
+        self.create_doc_index(config_key)
+
+    def create_doc_index(self, config_key):
+        d = {}
+        for s in self._shards:
+            for k in s.doc_index.keys():
+                if k in d:
+                    msg = '{c} element "{i}" found in multiple repos'.format(c=config_key, i=k)
+                    raise KeyError(msg)
+                d[k] = s
+        self._doc2shard_map = d

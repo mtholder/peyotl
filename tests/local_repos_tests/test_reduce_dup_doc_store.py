@@ -3,13 +3,13 @@
 # put tests here that use local phylesystem
 # see http://opentreeoflife.github.io/peyotl/maintainer/ for setup
 
-from peyotl.utility.input_output import read_as_json
-from peyotl.git_storage.git_versioned_doc_store_collection import create_doc_store_wrapper
-import unittest
-from peyotl.test.support.pathmap import get_test_repo_parent
 import os
+import unittest
 
+from peyotl.git_versioned_doc_store_collection import create_doc_store_wrapper
+from peyotl.test.support.pathmap import get_test_repo_parent
 from peyotl.utility import get_logger
+from peyotl.utility.input_output import read_as_json
 from peyotl.utility.str_util import slugify
 
 _LOG = get_logger(__name__)

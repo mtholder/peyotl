@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 from peyotl.amendments import TaxonomicAmendmentDocSchema
 from peyotl.utility.str_util import UNICODE
-from peyotl.amendments.validation import validate_amendment
+from peyotl.amendments import validate_amendment
 from peyotl.test.support import pathmap
 from peyotl.test.support.helper import testing_write_json, testing_read_json
 from peyotl.utility import get_logger
@@ -89,7 +89,7 @@ class TestAmendmentValidator(unittest.TestCase):
         a = TaxonomicAmendmentDocSchema().create_empty_doc()
         aa = validate_amendment(a)
         errors = aa[0]
-        self.assertTrue(len(errors) == 0)
+        self.assertTrue(len(errors) == 1)
 
 
 if __name__ == "__main__":

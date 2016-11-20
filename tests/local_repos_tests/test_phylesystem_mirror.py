@@ -35,7 +35,7 @@ class TestPhylesystemMirror(unittest.TestCase):
         if not can_push:
             _LOG.debug('Test skipped for lack push permissions in test phyleystem repo')
             return
-        acurr_obj, sha, wip_map = p.return_study(_SID, return_WIP_map=True)
+        acurr_obj, sha, wip_map = p.return_document(_SID, return_WIP_map=True)
         _LOG.debug('test sha = "{}"'.format(sha))
         self.assertEquals(wip_map.keys(), ['master'])
         ac = acurr_obj['nexml'].get("^acount", 0)

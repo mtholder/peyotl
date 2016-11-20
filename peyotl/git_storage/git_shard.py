@@ -60,6 +60,21 @@ class GitShard(object):
     def new_doc_prefix(self):
         return self._new_doc_prefix
 
+class GitShardProxy(GitShard):
+    def __init__(self, config, config_key, doc_holder_path, doc_schema):
+        GitShard.__init__(self, config['name'], doc_schema=doc_schema)
+        d = {}
+        for obj in config[config_key]:
+            kl = obj['keys']
+            if len(kl) > 1:
+                _LOG.warn("aliases not supported in shards")
+            for k in kl:
+                complete_path = '{p}/{s}/{r}'.format(p=self.path,
+                                                     s=doc_holder_path,
+                                                     r=obj['relpath'])
+                d[k] = (self.name, self.path, complete_path)
+        self.doc_index = d
+
 
 class TypeAwareGitShard(GitShard):
     """Adds hooks for type-specific behavior in subclasses.
@@ -68,11 +83,9 @@ class TypeAwareGitShard(GitShard):
     def __init__(self,
                  name,
                  path,
-                 doc_holder_subpath='',
+                 doc_holder_subpath,
                  doc_schema=None,
                  refresh_doc_index_fn=None,
-                 git_ssh=None,
-                 pkey=None,
                  git_action_class=None,
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
@@ -83,8 +96,6 @@ class TypeAwareGitShard(GitShard):
         self._locked_refresh_doc_index = refresh_doc_index_fn
         self._master_branch_repo_lock = Lock()
         self._ga_class = git_action_class
-        self.git_ssh = git_ssh
-        self.pkey = pkey
         path = os.path.abspath(path)
         dot_git = os.path.join(path, '.git')
         doc_dir = os.path.join(path, doc_holder_subpath)  # type-specific, e.g. 'study'
@@ -133,8 +144,6 @@ class TypeAwareGitShard(GitShard):
 
     def create_git_action(self):
         return self._ga_class(repo=self.path,
-                              git_ssh=self.git_ssh,
-                              pkey=self.pkey,
                               path_for_doc_fn=self.filepath_for_doc_id_fn,
                               max_file_size=self.max_file_size)
 
@@ -154,8 +163,6 @@ class TypeAwareGitShard(GitShard):
         # If a document makes it into the working dir, we don't want to reject it from the mirror, so
         #   we use max_file_size= None
         mirror_ga = self._ga_class(repo=self.push_mirror_repo_path,
-                                   git_ssh=self.git_ssh,
-                                   pkey=self.pkey,
                                    path_for_doc_fn=self.filepath_for_doc_id_fn,
                                    max_file_size=None)
         return mirror_ga
@@ -219,8 +226,6 @@ class TypeAwareGitShard(GitShard):
               'path': self.path,
               'doc_schema': repr(self.doc_schema)
               }
-        if secret_attrs:
-            rd['pkey'] = self.pkey
         with self._index_lock:
             si = self._doc_index
         r = _invert_dict_list_val(si)

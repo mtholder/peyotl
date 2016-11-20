@@ -85,4 +85,4 @@ from peyotl.phylesystem import NexsonDocSchema
 from peyotl.git_storage.git_workflow import GitWorkflowError
 
 # It is important to keep this import last
-from peyotl.git_storage.git_versioned_doc_store_collection import create_doc_store_wrapper
+from peyotl.git_versioned_doc_store_collection import create_doc_store_wrapper

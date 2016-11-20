@@ -105,12 +105,14 @@ class GitActionBase(object):
                  doc_type,
                  repo,
                  remote=None,
-                 git_ssh=None,
-                 pkey=None,
                  cache=None,  # pylint: disable=W0613
                  path_for_doc_fn=None,
                  max_file_size=None,
-                 path_for_doc_id_fn=None):
+                 id_from_path_fn=None,
+                 path_for_doc_id_fn=None,
+                 wip_id_pattern='{i}',
+                 branch_name_template="{ghu}{rid}",
+                 path_to_user_splitter=None):
         self.repo = repo
         self.doc_type = doc_type
         self.git_dir = os.path.join(repo, '.git')
@@ -118,34 +120,46 @@ class GitActionBase(object):
         self._lock_timeout = 30  # in seconds
         self._lock = locket.lock_file(self._lock_file, timeout=self._lock_timeout)
         self.repo_remote = remote
-        self.git_ssh = git_ssh
-        self.pkey = pkey
         self.max_file_size = max_file_size
         self.path_for_doc_fn = path_for_doc_fn
         self.path_for_doc_id_fn = path_for_doc_id_fn
+        self.id_from_path_fn = id_from_path_fn
+        self.wip_id_pattern = wip_id_pattern
+        self.branch_name_template = branch_name_template
+        self.path_to_user_splitter = path_to_user_splitter
         if os.path.isdir("{}/.git".format(self.repo)):
             self.gitdir = "--git-dir={}/.git".format(self.repo)
             self.gitwd = "--work-tree={}".format(self.repo)
         else:  # EJM needs a test?
             raise ValueError('Repo "{repo}" is not a git repo'.format(repo=self.repo))
 
-    # some methods are required, but particular to each subclass
-    def find_WIP_branches(self, some_id):  # pylint: disable=W0613
-        raise NotImplementedError("Subclass must implement find_WIP_branches!")
 
-    def create_or_checkout_branch(self,
-                                  gh_user,
-                                  some_id,
-                                  parent_sha,
-                                  force_branch_name=False):  # pylint: disable=W0613
-        raise NotImplementedError("Subclass must implement create_or_checkout_branch!")
+    def remove_document(self, first_arg, sec_arg, third_arg, fourth_arg=None, commit_msg=None):
+        """Remove a study
+        Given a study_id, branch and optionally an
+        author, remove a study on the given branch
+        and attribute the commit to author.
+        Returns the SHA of the commit on branch.
+        """
+        if not self.path_to_user_splitter:
+            raise NotImplementedError('Removal is not supported for this document type')
+        if fourth_arg is None:
+            study_id, branch_name, author = first_arg, sec_arg, third_arg
+            gh_user = branch_name.split(self.path_to_user_splitter)[0]
+            parent_sha = self.get_master_sha()
+        else:
+            gh_user, study_id, parent_sha, author = first_arg, sec_arg, third_arg, fourth_arg
+        if commit_msg is None:
+            commit_msg = "Delete Documen #%s via OpenTree API" % study_id
+        return self._remove_document(gh_user, study_id, parent_sha, author, commit_msg)
+
+    def find_WIP_branches(self, collection_id):
+        pat = re.compile(self.wip_id_pattern.format(i=collection_id))
+        return self._find_WIP_branches(collection_id, branch_pattern=pat)
+
 
     def env(self):  # @TEMP could be ref to a const singleton.
         d = dict(os.environ)
-        if self.git_ssh:
-            d['GIT_SSH'] = self.git_ssh
-        if self.pkey:
-            d['PKEY'] = self.pkey
         return d
 
     def acquire_lock(self):
@@ -361,9 +375,8 @@ class GitActionBase(object):
             return content, head_sha, d
         return content, head_sha
 
-    def _get_changed_docs(self,
+    def get_changed_docs(self,
                           ancestral_commit_sha,
-                          doc_id_from_repo_path,
                           doc_ids_to_check=None):
         """Returns the set of documents that have changed on the master since
         commit `ancestral_commit_sha` or `False` (on an error)
@@ -393,7 +406,7 @@ class GitActionBase(object):
             return False
         touched = set()
         for f in x.split('\n'):
-            found_id = doc_id_from_repo_path(f)
+            found_id = self.id_from_path_fn(f)
             if found_id:
                 touched.add(found_id)
 
@@ -417,15 +430,14 @@ class GitActionBase(object):
                 raise
         return ret
 
-    def _create_or_checkout_branch(self,
+    def create_or_checkout_branch(self,
                                    gh_user,
                                    doc_id,
                                    parent_sha,
-                                   branch_name_template='{ghu}_doc_{rid}',
                                    force_branch_name=False):
         if force_branch_name:
             # @TEMP deprecated
-            branch = branch_name_template.format(ghu=gh_user, rid=doc_id)
+            branch = self.branch_name_template.format(ghu=gh_user, rid=doc_id)
             if not self.branch_exists(branch):
                 try:
                     git(self.gitdir, self.gitwd, "branch", branch, parent_sha)
@@ -435,7 +447,7 @@ class GitActionBase(object):
             self.checkout(branch)
             return branch
 
-        frag = branch_name_template.format(ghu=gh_user, rid=doc_id) + "_"
+        frag = self.branch_name_template.format(ghu=gh_user, rid=doc_id) + "_"
         branch = self._find_head_sha(frag, parent_sha)
         _LOG.debug('Found branch "{b}" for sha "{s}"'.format(b=branch, s=parent_sha))
         if not branch:

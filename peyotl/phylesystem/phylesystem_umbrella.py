@@ -6,8 +6,7 @@ try:
 except:
     pass  # caching is optional
 from peyotl.phylesystem.helper import _make_phylesystem_cache_region
-from peyotl.git_storage import ShardedDocStore, \
-    TypeAwareDocStore
+from peyotl.git_storage import (ShardedDocStore, ShardedDocStoreProxy, TypeAwareDocStore)
 from peyotl.phylesystem.phylesystem_shard import PhylesystemShardProxy, PhylesystemShard
 from peyotl.phylesystem.git_actions import PhylesystemGitAction
 from peyotl.phylesystem.git_workflows import validate_and_convert_nexson
@@ -26,7 +25,7 @@ def prefix_from_study_id(study_id):
     return study_id[:3]
 
 
-class PhylesystemProxy(ShardedDocStore):
+class PhylesystemProxy(ShardedDocStoreProxy):
     """Proxy for interacting with external resources if given the configuration of a remote Phylesystem.
     N.B. that this has minimal functionality, and is mainly used to fetch studies and their ids.
     """
@@ -37,13 +36,7 @@ class PhylesystemProxy(ShardedDocStore):
         self._shards = []
         for s in config.get('shards', []):
             self._shards.append(PhylesystemShardProxy(s))
-        d = {}
-        for s in self._shards:
-            for k in s.study_index.keys():
-                if k in d:
-                    raise KeyError('study "{i}" found in multiple repos'.format(i=k))
-                d[k] = s
-        self._doc2shard_map = d
+        self.create_doc_index('study')
 
 
 class _Phylesystem(TypeAwareDocStore):
@@ -55,19 +48,15 @@ class _Phylesystem(TypeAwareDocStore):
     def __init__(self,
                  repos_dict=None,
                  repos_par=None,
-                 with_caching=True,
-                 git_ssh=None,
-                 pkey=None,
                  git_action_class=PhylesystemGitAction,
                  mirror_info=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                 shard_mirror_pair_list=None):
+                 shard_mirror_pair_list=None,
+                 with_caching=True):
         """
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
         `with_caching` should be True for non-debugging uses.
-        `git_ssh` is the path of an executable for git-ssh operations.
-        `pkey` is the PKEY that has to be in the env for remote, authenticated operations to work
         `git_action_class` is a subclass of GitActionBase to use. the __init__ syntax must be compatible
             with PhylesystemGitAction
         If you want to use a mirrors of the repo for pushes or pulls, send in a `mirror_info` dict:
@@ -81,9 +70,6 @@ class _Phylesystem(TypeAwareDocStore):
                                    prefix_from_doc_id=prefix_from_study_id,
                                    repos_dict=repos_dict,
                                    repos_par=repos_par,
-                                   with_caching=with_caching,
-                                   git_ssh=git_ssh,
-                                   pkey=pkey,
                                    git_action_class=git_action_class,
                                    git_shard_class=PhylesystemShard,
                                    mirror_info=mirror_info,
@@ -226,13 +212,11 @@ _THE_PHYLESYSTEM = None
 
 def Phylesystem(repos_dict=None,
                 repos_par=None,
-                with_caching=True,
-                git_ssh=None,
-                pkey=None,
                 git_action_class=PhylesystemGitAction,
                 mirror_info=None,
                 new_study_prefix=None,  # Unused, TEMP deprecated
-                infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
+                infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
+                with_caching=True):
     """Factory function for a _Phylesystem object.
 
     A wrapper around the _Phylesystem class instantiation for
@@ -245,8 +229,6 @@ def Phylesystem(repos_dict=None,
         _THE_PHYLESYSTEM = _Phylesystem(repos_dict=repos_dict,
                                         repos_par=repos_par,
                                         with_caching=with_caching,
-                                        git_ssh=git_ssh,
-                                        pkey=pkey,
                                         git_action_class=git_action_class,
                                         mirror_info=mirror_info,
                                         infrastructure_commit_author=infrastructure_commit_author)

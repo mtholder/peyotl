@@ -38,9 +38,6 @@ class TypeAwareDocStore(ShardedDocStore):
                  prefix_from_doc_id,
                  repos_dict=None,
                  repos_par=None,
-                 with_caching=True,
-                 git_ssh=None,
-                 pkey=None,
                  git_action_class=None,  # requires a *type-specific* GitActionBase subclass
                  git_shard_class=None,  # requires a *type-specific* GitShard subclass
                  mirror_info=None,
@@ -51,8 +48,6 @@ class TypeAwareDocStore(ShardedDocStore):
             or by trusting the `repos_dict` mapping of name to repo filepath.
         `prefix_from_doc_id` should be a type-specific method defined in the subclass
         `with_caching` should be True for non-debugging uses.
-        `git_ssh` is the path of an executable for git-ssh operations.
-        `pkey` is the PKEY that has to be in the env for remote, authenticated operations to work
         `git_action_class` is a subclass of GitActionBase to use. the __init__ syntax must be compatible
             with PhylesystemGitAction
         If you want to use a mirrors of the repo for pushes or pulls, send in a `mirror_info` dict:
@@ -107,8 +102,6 @@ class TypeAwareDocStore(ShardedDocStore):
                     # assumes uniform __init__ arguments for all GitShard subclasses
                     shard = git_shard_class(name=repo_name,
                                             path=repo_filepath,
-                                            git_ssh=git_ssh,
-                                            pkey=pkey,
                                             git_action_class=git_action_class,
                                             push_mirror_repo_path=push_mirror_repo_path,
                                             infrastructure_commit_author=infrastructure_commit_author)

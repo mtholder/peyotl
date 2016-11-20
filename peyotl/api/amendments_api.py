@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from peyotl.amendments.amendments_umbrella import TaxonomicAmendmentStoreProxy
+from peyotl.amendments import TaxonomicAmendmentStoreProxy
 from peyotl.api.wrapper import _WSWrapper, APIWrapper
 from peyotl.amendments import AMENDMENT_ID_PATTERN
 from peyotl.utility import get_logger
