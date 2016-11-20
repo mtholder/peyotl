@@ -1,7 +1,7 @@
 import os
 import re
 from peyotl.utility import get_logger
-from peyotl.collections_store.validation import validate_collection
+from peyotl.collections_store.validation.adaptor import CollectionValidationAdaptor
 from peyotl.git_storage.git_shard import TypeAwareGitShard
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
 from peyotl.git_storage import GitActionBase
@@ -39,7 +39,9 @@ def filepath_for_collection_id(repo_dir, collection_id):
 
 class TreeCollectionsDocSchema(SimpleJSONDocSchema):
     def __init__(self):
-        SimpleJSONDocSchema.__init__(self, document_type='tree collection JSON')
+        SimpleJSONDocSchema.__init__(self,
+                                     document_type='tree collection JSON',
+                                     adaptor_factory=CollectionValidationAdaptor)
 
     def __repr__(self):
         return 'TreeCollectionsDocSchema()'
@@ -55,11 +57,6 @@ class TreeCollectionsDocSchema(SimpleJSONDocSchema):
             "queries": []
         }
         return collection
-
-    def validate_annotate_convert_doc(self, document, **kwargs):
-        """No conversion between different schema is supported for collections"""
-        errors, adaptor = validate_collection(document)
-        return document, errors, None, adaptor
 
 
 

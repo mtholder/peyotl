@@ -430,9 +430,10 @@ class SimpleJSONDocSchema(object):
     or transformation into alternative formats.
     """
 
-    def __init__(self, schema_version=None, document_type='unknown JSON'):
+    def __init__(self, schema_version=None, document_type='unknown JSON', adaptor_factory=None):
         self.schema_version = schema_version
         self.document_type = document_type
+        self.adaptor_factory = adaptor_factory
 
     def is_plausible_transformation_or_raise(self, subresource_request):
         """This function takes a dict describing a transformation to be applied to a document.
@@ -480,3 +481,18 @@ class SimpleJSONDocSchema(object):
         if type_ext is not None and type_ext.upper() != 'JSON':
             return impossible
         return plausible
+
+    def is_valid(self, document, **kwargs):
+        return len(self.validate(document, **kwargs)[0]) == 0
+
+
+    def validate(self, document, **kwargs):
+        errors = []
+        adaptor = self.adaptor_factory(document, errors, **kwargs)
+        return errors, adaptor
+
+
+    def validate_annotate_convert_doc(self, document, **kwargs):
+        """No conversion between different schema is supported for simple types"""
+        errors, adaptor = self.validate(document)
+        return document, errors, None, adaptor

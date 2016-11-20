@@ -203,7 +203,9 @@ class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
 
 class TaxonomicAmendmentDocSchema(SimpleJSONDocSchema):
     def __init__(self):
-        SimpleJSONDocSchema.__init__(self, document_type='taxon amendment JSON')
+        SimpleJSONDocSchema.__init__(self,
+                                     document_type='taxon amendment JSON',
+                                     adaptor_factory=AmendmentValidationAdaptor)
 
     def __repr__(self):
         return 'TaxonomicAmendmentDocSchema()'
@@ -219,16 +221,6 @@ class TaxonomicAmendmentDocSchema(SimpleJSONDocSchema):
             "taxa": [],
         }
         return amendment
-
-    def validate(self, document, **kwargs):
-        errors = []
-        adaptor = AmendmentValidationAdaptor(document, errors, **kwargs)
-        return errors, adaptor
-
-    def validate_annotate_convert_doc(self, document, **kwargs):
-        """No conversion between different schema is supported for amendments"""
-        errors, adaptor = self.validate(document)
-        return document, errors, None, adaptor
 
 def validate_amendment(obj):
     "returns a list of errors and a AmendmentValidationAdaptor object for `obj`"
