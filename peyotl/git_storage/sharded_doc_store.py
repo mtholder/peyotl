@@ -20,14 +20,12 @@ class ShardedDocStore(object):
     either of these assumptions is challenged for a new type!
     """
 
-    def __init__(self, prefix_from_doc_id=None):
+    def __init__(self, path_mapper=None):
         self._index_lock = Lock()
         self._shards = []
         self._doc2shard_map = {}
         self._prefix2shard = {}
-        # We assume that consistent doc-id prefixes are used to keep like data
-        # in the same shard. Each subclass has its own rules for these.
-        self.prefix_from_doc_id = prefix_from_doc_id
+        self.path_mapper = path_mapper
 
     def get_repo_and_path_fragment(self, doc_id):
         """For `doc_id` returns a list of:
@@ -67,7 +65,7 @@ class ShardedDocStore(object):
         except KeyError:
             # Look up the shard where the doc should be (in case it was
             #   deleted. This fall back relies on a unique prefix for each shard)
-            pref = self.prefix_from_doc_id(doc_id)
+            pref = self.path_mapper.prefix_from_doc_id(doc_id)
             try:
                 return self._prefix2shard[pref]
             except KeyError:
@@ -86,11 +84,10 @@ class ShardedDocStore(object):
 
 
 class ShardedDocStoreProxy(ShardedDocStore):
-    def __init__(self, config, config_key, prefix_from_path_fn, doc_holder_path, doc_schema):
-        ShardedDocStore.__init__(self,
-                                 prefix_from_doc_id=prefix_from_path_fn)
+    def __init__(self, config, config_key, path_mapper, doc_schema):
+        ShardedDocStore.__init__(self, path_mapper=path_mapper)
         for s in config.get('shards', []):
-            sp = GitShardProxy(s, config_key, doc_holder_path, doc_schema=doc_schema)
+            sp = GitShardProxy(s, config_key, path_mapper=path_mapper, doc_schema=doc_schema)
             self._shards.append(sp)
         self._doc2shard_map = None
         self.create_doc_index(config_key)

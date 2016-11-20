@@ -67,7 +67,9 @@ class GitShard(object):
         return self._new_doc_prefix
 
 class GitShardProxy(GitShard):
-    def __init__(self, config, config_key, doc_holder_path, doc_schema):
+    def __init__(self, config, config_key, path_mapper, doc_schema):
+        self.path_mapper = path_mapper
+        doc_holder_path = path_mapper.doc_holder_subpath
         GitShard.__init__(self, config['name'], doc_schema=doc_schema)
         d = {}
         for obj in config[config_key]:

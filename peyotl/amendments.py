@@ -28,9 +28,9 @@ class AmendmentFilepathMapper(object):
     doc_holder_subpath = 'amendments'
     doc_parent_dir = 'amendments/'
 
-    def filepath_for_id(self, repo_dir, amendment_id):
-        assert bool(AmendmentFilepathMapper.id_pattern.match(amendment_id))
-        return '{r}/amendments/{s}.json'.format(r=repo_dir, s=amendment_id)
+    def filepath_for_id(self, repo_dir, doc_id):
+        assert bool(AmendmentFilepathMapper.id_pattern.match(doc_id))
+        return '{r}/amendments/{s}.json'.format(r=repo_dir, s=doc_id)
 
     def id_from_rel_path(self, path):
         if path.startswith(self.doc_parent_dir):
@@ -38,6 +38,21 @@ class AmendmentFilepathMapper(object):
             if p.endswith('.json'):
                 return p[:-5]
             return p
+
+    def prefix_from_doc_id(self, doc_id):
+        # The amendment id is in the form '{subtype}-{first ottid}-{last-ottid}'
+        #   EXAMPLE: 'additions-0000000-0000005'
+        # TODO: Perhaps subtype could work as a prefix? Implies that we'd assign all matching
+        # amendments to a single shard.for grouping in shards. Let's try it and see...
+        _LOG.debug('> prefix_from_amendment_path(), testing this id: {i}'.format(i=doc_id))
+        id_parts = doc_id.split('-')
+        _LOG.debug('> prefix_from_amendment_path(), found {} parts'.format(len(id_parts)))
+        if len(id_parts) > 1:
+            subtype = id_parts[0]
+        else:
+            subtype = 'unknown_subtype'  # or perhaps None?
+        return subtype
+
 
 # immutable, singleton "FilepathMapper" objects are passed to the GitAction
 #   initialization function as a means of making the mapping of a document ID
@@ -268,30 +283,13 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
         last_minted_id = self._next_ott_id - 1
         return first_minted_id, last_minted_id
 
-
-def prefix_from_amendment_path(amendment_id):
-    # The amendment id is in the form '{subtype}-{first ottid}-{last-ottid}'
-    #   EXAMPLE: 'additions-0000000-0000005'
-    # TODO: Perhaps subtype could work as a prefix? Implies that we'd assign all matching
-    # amendments to a single shard.for grouping in shards. Let's try it and see...
-    _LOG.debug('> prefix_from_amendment_path(), testing this id: {i}'.format(i=amendment_id))
-    id_parts = amendment_id.split('-')
-    _LOG.debug('> prefix_from_amendment_path(), found {} parts'.format(len(id_parts)))
-    if len(id_parts) > 1:
-        subtype = id_parts[0]
-    else:
-        subtype = 'unknown_subtype'  # or perhaps None?
-    return subtype
-
-
 class TaxonomicAmendmentStoreProxy(ShardedDocStoreProxy):
     """Proxy for interacting with external resources if given the configuration of a remote TaxonomicAmendmentStore
     """
 
     def __init__(self, config):
         ShardedDocStoreProxy.__init__(self, config, 'amendments',
-                                      prefix_from_path_fn=prefix_from_amendment_path,
-                                      doc_holder_path='amendments',
+                                      path_mapper=amendment_path_mapper,
                                       doc_schema=TaxonomicAmendmentDocSchema)
 
 
@@ -316,7 +314,7 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
                 appended to create the URL for pushing).
         """
         TypeAwareDocStore.__init__(self,
-                                   prefix_from_doc_id=prefix_from_amendment_path,
+                                   path_mapper=amendment_path_mapper,
                                    repos_dict=repos_dict,
                                    repos_par=repos_par,
                                    git_shard_class=TaxonomicAmendmentsShard,

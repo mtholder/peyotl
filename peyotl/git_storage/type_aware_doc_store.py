@@ -33,7 +33,7 @@ def parse_mirror_info(mirror_info):
 
 class TypeAwareDocStore(ShardedDocStore):
     def __init__(self,
-                 prefix_from_doc_id,
+                 path_mapper=None,
                  repos_dict=None,
                  repos_par=None,
                  git_shard_class=None,  # requires a *type-specific* GitShard subclass
@@ -43,7 +43,6 @@ class TypeAwareDocStore(ShardedDocStore):
         """
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
-        `prefix_from_doc_id` should be a type-specific method defined in the subclass
         `with_caching` should be True for non-debugging uses.
         If you want to use a mirrors of the repo for pushes or pulls, send in a `mirror_info` dict:
             mirror_info['push'] and mirror_info['pull'] should be dicts with the following keys:
@@ -51,8 +50,7 @@ class TypeAwareDocStore(ShardedDocStore):
             'remote_map' - a dictionary of remote name to prefix (the repo name + '.git' will be
                 appended to create the URL for pushing).
         """
-        ShardedDocStore.__init__(self,
-                                 prefix_from_doc_id=prefix_from_doc_id)
+        ShardedDocStore.__init__(self, path_mapper=path_mapper)
         _LOG.debug('TypeAwareDocStore(repo_par={}, repos_dict={})'.format(repos_par, repos_dict))
         self._growing_shard = None
         # TODO should infer doc prefix and hard-code assumed_doc_version to None

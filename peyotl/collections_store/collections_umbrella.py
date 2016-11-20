@@ -13,6 +13,7 @@ import anyjson
 from peyotl.git_storage import TypeAwareDocStore, ShardedDocStoreProxy
 from peyotl.collections_store.collections_shard import (TreeCollectionsShard,
                                                         CollectionsFilepathMapper,
+                                                        collections_path_mapper,
                                                         TreeCollectionsDocSchema)
 from peyotl.collections_store.validation import validate_collection
 import re
@@ -23,24 +24,6 @@ OWNER_ID_PATTERN = re.compile(r'^[a-zA-Z0-9-]+$')
 _LOG = get_logger(__name__)
 
 
-def prefix_from_collection_path(collection_id):
-    # The collection id is a sort of "path", e.g. '{owner_id}/{collection-name-as-slug}'
-    #   EXAMPLES: 'jimallman/trees-about-bees', 'kcranston/interesting-trees-2'
-    # Assume that the owner_id will work as a prefix, esp. by assigning all of a
-    # user's collections to a single shard.for grouping in shards
-    _LOG.debug('> prefix_from_collection_path(), testing this id: {i}'.format(i=collection_id))
-    path_parts = collection_id.split('/')
-    _LOG.debug('> prefix_from_collection_path(), found {} path parts'.format(len(path_parts)))
-    if len(path_parts) > 1:
-        owner_id = path_parts[0]
-    elif path_parts[0] == '':
-        owner_id = 'anonymous'
-    else:
-        owner_id = 'anonymous'  # or perhaps None?
-    return owner_id
-
-
-
 
 class TreeCollectionStoreProxy(ShardedDocStoreProxy):
     """Proxy for shard when interacting with external resources if given the configuration of a remote Phylesystem
@@ -48,8 +31,7 @@ class TreeCollectionStoreProxy(ShardedDocStoreProxy):
 
     def __init__(self, config):
         ShardedDocStoreProxy.__init__(self, config, 'collections',
-                                      prefix_from_path_fn=prefix_from_collection_path,
-                                      doc_holder_path='collections-by-owner',
+                                      path_mapper=collections_path_mapper,
                                       doc_schema=TreeCollectionsDocSchema)
 
 class _TreeCollectionStore(TypeAwareDocStore):
@@ -75,7 +57,7 @@ class _TreeCollectionStore(TypeAwareDocStore):
                 appended to create the URL for pushing).
         """
         TypeAwareDocStore.__init__(self,
-                                   prefix_from_doc_id=prefix_from_collection_path,
+                                   path_mapper=collections_path_mapper,
                                    repos_dict=repos_dict,
                                    repos_par=repos_par,
                                    git_shard_class=TreeCollectionsShard,

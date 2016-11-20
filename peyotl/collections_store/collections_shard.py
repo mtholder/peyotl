@@ -15,9 +15,9 @@ class CollectionsFilepathMapper(object):
     path_to_user_splitter = '_collection_'
     doc_holder_subpath = 'collections-by-owner'
     doc_parent_dir = 'collections-by-owner/'
-    def filepath_for_id(self, repo_dir, collection_id):
-        assert bool(CollectionsFilepathMapper.id_pattern.match(collection_id))
-        return '{r}/collections-by-owner/{s}.json'.format(r=repo_dir, s=collection_id)
+    def filepath_for_id(self, repo_dir, doc_id):
+        assert bool(CollectionsFilepathMapper.id_pattern.match(doc_id))
+        return '{r}/collections-by-owner/{s}.json'.format(r=repo_dir, s=doc_id)
 
     def id_from_rel_path(self, path):
         doc_parent_dir = 'collections-by-owner/'
@@ -26,6 +26,22 @@ class CollectionsFilepathMapper(object):
             if p.endswith('.json'):
                 return p[:-5]
             return p
+
+    def prefix_from_doc_id(self, doc_id):
+        # The collection id is a sort of "path", e.g. '{owner_id}/{collection-name-as-slug}'
+        #   EXAMPLES: 'jimallman/trees-about-bees', 'kcranston/interesting-trees-2'
+        # Assume that the owner_id will work as a prefix, esp. by assigning all of a
+        # user's collections to a single shard.for grouping in shards
+        _LOG.debug('> prefix_from_collection_path(), testing this id: {i}'.format(i=doc_id))
+        path_parts = doc_id.split('/')
+        _LOG.debug('> prefix_from_collection_path(), found {} path parts'.format(len(path_parts)))
+        if len(path_parts) > 1:
+            owner_id = path_parts[0]
+        elif path_parts[0] == '':
+            owner_id = 'anonymous'
+        else:
+            owner_id = 'anonymous'  # or perhaps None?
+        return owner_id
 
 collections_path_mapper = CollectionsFilepathMapper()
 

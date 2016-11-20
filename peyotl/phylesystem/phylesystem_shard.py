@@ -39,6 +39,11 @@ class PhylesystemFilepathMapper(object):
                 return p[:-5]
             return p
 
+    def prefix_from_doc_id(self, doc_id):
+        # TODO: Use something smarter here, splitting on underscore?
+        return doc_id[:3]
+
+
 phylesystem_path_mapper = PhylesystemFilepathMapper()
 
 class NexsonDocSchema(object):
@@ -125,7 +130,8 @@ class PhylesystemShardProxy(GitShardProxy):
     """
 
     def __init__(self, config):
-        GitShardProxy.__init__(self, config, 'studies', 'study', doc_schema=NexsonDocSchema)
+        GitShardProxy.__init__(self, config, 'studies',
+                               path_mapper=phylesystem_path_mapper, doc_schema=NexsonDocSchema)
 
     # rename some generic members in the base class, for clarity and backward compatibility
     @property

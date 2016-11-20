@@ -7,17 +7,15 @@ except:
     pass  # caching is optional
 from peyotl.phylesystem.helper import _make_phylesystem_cache_region
 from peyotl.git_storage import (ShardedDocStore, ShardedDocStoreProxy, TypeAwareDocStore)
-from peyotl.phylesystem.phylesystem_shard import PhylesystemShardProxy, PhylesystemShard, PhylesystemFilepathMapper
+from peyotl.phylesystem.phylesystem_shard import (PhylesystemShardProxy,
+                                                  PhylesystemShard,
+                                                  PhylesystemFilepathMapper,
+                                                  phylesystem_path_mapper)
 from peyotl.phylesystem.git_workflows import validate_and_convert_nexson
 from peyotl.nexson_validation import ot_validate
 from peyotl.nexson_validation._validation_base import NexsonAnnotationAdder, replace_same_agent_annotation
 
 _LOG = get_logger(__name__)
-
-
-def prefix_from_study_id(study_id):
-    # TODO: Use something smarter here, splitting on underscore?
-    return study_id[:3]
 
 
 class PhylesystemProxy(ShardedDocStoreProxy):
@@ -26,11 +24,11 @@ class PhylesystemProxy(ShardedDocStoreProxy):
     """
 
     def __init__(self, config):
-        ShardedDocStore.__init__(self,
-                                 prefix_from_doc_id=prefix_from_study_id)
+        ShardedDocStore.__init__(self, path_mapper=phylesystem_path_mapper)
         self._shards = []
         for s in config.get('shards', []):
             self._shards.append(PhylesystemShardProxy(s))
+        self._doc2shard_map = None
         self.create_doc_index('study')
 
 
@@ -58,7 +56,7 @@ class _Phylesystem(TypeAwareDocStore):
         """
         self._new_doc_prefix = None
         TypeAwareDocStore.__init__(self,
-                                   prefix_from_doc_id=prefix_from_study_id,
+                                   path_mapper=phylesystem_path_mapper,
                                    repos_dict=repos_dict,
                                    repos_par=repos_par,
                                    git_shard_class=PhylesystemShard,
