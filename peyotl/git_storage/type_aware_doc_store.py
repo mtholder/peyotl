@@ -167,6 +167,36 @@ class TypeAwareDocStore(ShardedDocStore):
             _LOG.warn('> invalid JSON (failed anyjson parsing)')
             return None
 
+    def update_existing_document(self,
+                                 doc_id=None,
+                                 json_repr=None,
+                                 auth_info=None,
+                                 parent_sha=None,
+                                 merged_sha=None,
+                                 commit_msg=''):
+        """Validate and save this JSON. Ensure (and return) a unique amendment id"""
+        document = self._coerce_json_to_document(json_repr)
+        if document is None:
+            msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
+            raise ValueError(msg)
+        dt = self.doc_schema.document_type
+        if not self._is_valid_document_json(document):
+            msg = "JSON is not a valid {t}:\n{j}".format(t=dt, j=json_repr)
+            raise ValueError(msg)
+        if not amendment_id:
+            raise ValueError("{} id not provided (or invalid)".format(dt))
+        if not self.has_doc(doc_id):
+            msg = "Unexpected {} id '{}' (expected an existing id!)".format(dt, doc_id)
+            raise ValueError(msg)
+        # pass the id and document JSON to a proper git action
+        return self.commit_and_try_merge2master(file_content=document,
+                                                doc_id=doc_id,
+                                                auth_info=auth_info,
+                                                parent_sha=parent_sha,
+                                                commit_msg=commit_msg,
+                                                merged_sha=merged_sha)
+
+
     def create_git_action_for_new_document(self, new_doc_id=None):
         """Checks out master branch of the shard as a side effect"""
         return self._growing_shard.create_git_action_for_new_doc(new_doc_id=new_doc_id)

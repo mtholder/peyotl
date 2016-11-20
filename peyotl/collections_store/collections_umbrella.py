@@ -132,44 +132,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
             self._doc2shard_map[new_collection_id] = self._growing_shard
         return new_collection_id, r
 
-    def update_existing_collection(self,
-                                   owner_id,
-                                   collection_id=None,
-                                   json_repr=None,
-                                   auth_info=None,
-                                   parent_sha=None,
-                                   merged_sha=None,
-                                   commit_msg=''):
-        """Validate and save this JSON. Ensure (and return) a unique collection id"""
-        collection = self._coerce_json_to_collection(json_repr)
-        if collection is None:
-            msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
-            raise ValueError(msg)
-        if not self._is_valid_document_json(collection):
-            msg = "JSON is not a valid collection:\n{j}".format(j=json_repr)
-            raise ValueError(msg)
-        if not collection_id:
-            raise ValueError("Collection id not provided (or invalid)")
-        if not self.has_doc(collection_id):
-            msg = "Unexpected collection id '{}' (expected an existing id!)".format(collection_id)
-            raise ValueError(msg)
-        # pass the id and collection JSON to a proper git action
-        r = None
-        try:
-            # remove any 'url' field before saving; it will be restored when the doc is fetched (via API)
-            del collection['url']
-            # keep it simple (collection is already validated! no annotations needed!)
-            r = self.commit_and_try_merge2master(file_content=collection,
-                                                 doc_id=collection_id,
-                                                 auth_info=auth_info,
-                                                 parent_sha=parent_sha,
-                                                 commit_msg=commit_msg,
-                                                 merged_sha=merged_sha)
-            # identify shard for this id!?
-        except:
-            raise
-        return r
-
     def get_markdown_comment(self, document_obj):
         return document_obj.get('description', '')
 

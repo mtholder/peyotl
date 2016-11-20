@@ -459,41 +459,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
             self._doc2shard_map[new_amendment_id] = self._growing_shard
         return new_amendment_id, r
 
-    def update_existing_amendment(self,
-                                  amendment_id=None,
-                                  json_repr=None,
-                                  auth_info=None,
-                                  parent_sha=None,
-                                  merged_sha=None,
-                                  commit_msg=''):
-        """Validate and save this JSON. Ensure (and return) a unique amendment id"""
-        amendment = self._coerce_json_to_amendment(json_repr)
-        if amendment is None:
-            msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
-            raise ValueError(msg)
-        if not self._is_valid_amendment_json(amendment):
-            msg = "JSON is not a valid amendment:\n{j}".format(j=json_repr)
-            raise ValueError(msg)
-        if not amendment_id:
-            raise ValueError("Amendment id not provided (or invalid)")
-        if not self.has_doc(amendment_id):
-            msg = "Unexpected amendment id '{}' (expected an existing id!)".format(amendment_id)
-            raise ValueError(msg)
-        # pass the id and amendment JSON to a proper git action
-        r = None
-        try:
-            # it's already been validated, so keep it simple
-            r = self.commit_and_try_merge2master(file_content=amendment,
-                                                 doc_id=amendment_id,
-                                                 auth_info=auth_info,
-                                                 parent_sha=parent_sha,
-                                                 commit_msg=commit_msg,
-                                                 merged_sha=merged_sha)
-            # identify shard for this id!?
-        except:
-            raise
-        return r
-
     def _build_amendment_id(self, json_repr):
         """Parse the JSON, return a slug in the form '{subtype}-{first ottid}-{last-ottid}'."""
         amendment = self._coerce_json_to_amendment(json_repr)
