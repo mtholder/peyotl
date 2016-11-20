@@ -4,19 +4,20 @@
 import os
 import re
 
-import anyjson
 import dateutil.parser
+from peyotl import (get_logger, doi2url, string_types_tuple, slugify, validate_dict_keys)
 from peyotl.git_storage import (ShardedDocStoreProxy, TypeAwareDocStore,
                                 NonAnnotatingDocValidationAdaptor)
 from peyotl.git_storage.git_shard import TypeAwareGitShard
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
-from peyotl import (get_logger, doi2url, string_types_tuple, slugify, validate_dict_keys)
 from peyotl.phylesystem import PhylesystemFilepathMapper
 
 _LOG = get_logger(__name__)
 
+
 ###############################################################################
 # ID <-> Filepath logic
+# noinspection PyMethodMayBeStatic,PyMethodMayBeStatic
 class AmendmentFilepathMapper(object):
     # Allow simple slug-ified string with '{known-prefix}-{7-or-8-digit-id}-{7-or-8-digit-id}'
     # (8-digit ottids are probably years away, but allow them to be safe.)
@@ -63,6 +64,7 @@ amendment_path_mapper = AmendmentFilepathMapper()
 ###############################################################################
 # Amendment Schema
 _string_types = string_types_tuple()
+
 
 class _AmendmentTopLevelSchema(object):
     required_elements = {
@@ -150,6 +152,7 @@ def _validate_amendment_source(s, errors):
 
 
 class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
+    # noinspection PyUnusedLocal
     def __init__(self, obj, errors, **kwargs):
         validate_dict_keys(obj, _AmendmentTopLevelSchema, errors, 'amendment')
         # test a non-empty id against our expected pattern
@@ -190,6 +193,7 @@ class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
             errors.append('Expecting amendment.taxa to be a list')
 
 
+# noinspection PyMethodMayBeStatic
 class TaxonomicAmendmentDocSchema(SimpleJSONDocSchema):
     def __init__(self):
         SimpleJSONDocSchema.__init__(self,
@@ -211,14 +215,17 @@ class TaxonomicAmendmentDocSchema(SimpleJSONDocSchema):
         }
         return amendment
 
+
 def validate_amendment(obj):
-    "returns a list of errors and a AmendmentValidationAdaptor object for `obj`"
+    """returns a list of errors and a AmendmentValidationAdaptor object for `obj`"""
     return TaxonomicAmendmentDocSchema().validate(obj)
+
 
 # End Validation
 ###############################################################################
 # Shard
 
+# noinspection PyMethodMayBeStatic
 class TaxonomicAmendmentsShard(TypeAwareGitShard):
     """Wrapper around a git repo holding JSON taxonomic amendments
     Raises a ValueError if the directory does not appear to be a TaxonomicAmendmentsShard.
@@ -243,7 +250,6 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
     @property
     def next_ott_id(self):
         return self._next_ott_id
-
 
     def _determine_next_ott_id(self):
         """Read an initial value (int) from our stored counter (file)
@@ -283,6 +289,7 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
         last_minted_id = self._next_ott_id - 1
         return first_minted_id, last_minted_id
 
+
 class TaxonomicAmendmentStoreProxy(ShardedDocStoreProxy):
     """Proxy for interacting with external resources if given the configuration of a remote TaxonomicAmendmentStore
     """
@@ -293,10 +300,12 @@ class TaxonomicAmendmentStoreProxy(ShardedDocStoreProxy):
                                       doc_schema=TaxonomicAmendmentDocSchema)
 
 
+# noinspection PyProtectedMember
 class _TaxonomicAmendmentStore(TypeAwareDocStore):
     """Wrapper around a set of sharded git repos.
     """
     id_regex = AmendmentFilepathMapper.id_pattern
+
     def __init__(self,
                  repos_dict=None,
                  repos_par=None,
@@ -319,7 +328,7 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
                                    repos_par=repos_par,
                                    git_shard_class=TaxonomicAmendmentsShard,
                                    mirror_info=mirror_info,
-                                   infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
+                                   infrastructure_commit_author=infrastructure_commit_author,
                                    **kwargs)
         self._growing_shard._determine_next_ott_id()
 
@@ -328,7 +337,7 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
                           auth_info,
                           commit_msg=''):
         """Validate and save this JSON. Ensure (and return) a unique amendment id"""
-        amendment = self._coerce_json_to_amendment(json_repr)
+        amendment = self._coerce_json_to_document(json_repr)
         if amendment is None:
             msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
             raise ValueError(msg)
@@ -387,9 +396,9 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
                     assert (new_id == (last_new_id + 1))
                 except:
                     applied = last_new_id - first_new_id + 1
-                    raise ValueError(
-                        'Number of OTT ids requested ({r}) does not match ids actually applied ({a})'.format(
-                            r=requested_ids, a=applied))
+                    m = 'Number of OTT ids requested ({r}) does not match ids actually applied ({a})'
+                    m = m.format(r=requested_ids, a=applied)
+                    raise ValueError(m)
 
             # Build a proper amendment id, in the format '{subtype}-{first ottid}-{last-ottid}'
             amendment_subtype = 'additions'
@@ -412,7 +421,7 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
             r = None
             try:
                 # assign the new id to a shard (important prep for commit_and_try_merge2master)
-                gd_id_pair = self.create_git_action_for_new_amendment(new_amendment_id=amendment_id)
+                gd_id_pair = self.create_git_action_for_new_document(new_doc_id=amendment_id)
                 new_amendment_id = gd_id_pair[1]
                 # For amendments, the id should not have changed!
                 try:
@@ -461,7 +470,7 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
 
     def _build_amendment_id(self, json_repr):
         """Parse the JSON, return a slug in the form '{subtype}-{first ottid}-{last-ottid}'."""
-        amendment = self._coerce_json_to_amendment(json_repr)
+        amendment = self._coerce_json_to_document(json_repr)
         if amendment is None:
             return None
         amendment_subtype = 'additions'
@@ -469,6 +478,7 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
         first_ottid = amendment['TODO']
         last_ottid = amendment['TODO']
         return slugify('{s}-{f}-{l}'.format(s=amendment_subtype, f=first_ottid, l=last_ottid))
+
 
 _THE_TAXONOMIC_AMENDMENT_STORE = None
 
@@ -487,10 +497,11 @@ def TaxonomicAmendmentStore(repos_dict=None,
     """
     global _THE_TAXONOMIC_AMENDMENT_STORE
     if _THE_TAXONOMIC_AMENDMENT_STORE is None:
-        _THE_TAXONOMIC_AMENDMENT_STORE = _TaxonomicAmendmentStore(repos_dict=repos_dict,
-                                                                  repos_par=repos_par,
-                                                                  mirror_info=mirror_info,
-                                                                  infrastructure_commit_author=infrastructure_commit_author)
+        r = _TaxonomicAmendmentStore(repos_dict=repos_dict,
+                                     repos_par=repos_par,
+                                     mirror_info=mirror_info,
+                                     infrastructure_commit_author=infrastructure_commit_author)
+        _THE_TAXONOMIC_AMENDMENT_STORE = r
     return _THE_TAXONOMIC_AMENDMENT_STORE
 
 
