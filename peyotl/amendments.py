@@ -11,6 +11,7 @@ from peyotl.git_storage import (ShardedDocStoreProxy, TypeAwareDocStore, NonAnno
 from peyotl.git_storage.git_shard import TypeAwareGitShard
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
 from peyotl.utility import get_logger, doi2url, string_types_tuple, slugify
+from peyotl.phylesystem import PhylesystemFilepathMapper
 
 _LOG = get_logger(__name__)
 
@@ -23,45 +24,37 @@ class AmendmentFilepathMapper(object):
     wip_id_template = r'.*_amendment_{i}_[0-9]+'
     branch_name_template = "{ghu}_amendment_{rid}"
     path_to_user_splitter = '_amendment_'
+    doc_holder_subpath = 'amendments'
+    doc_parent_dir = 'amendments/'
 
     def filepath_for_id(self, repo_dir, amendment_id):
         assert bool(AmendmentFilepathMapper.id_pattern.match(amendment_id))
         return '{r}/amendments/{s}.json'.format(r=repo_dir, s=amendment_id)
 
-    def id_from_path(self, path):
-        doc_parent_dir = 'amendments/'
-        if path.startswith(doc_parent_dir):
-            return path.split(doc_parent_dir)[1]
+    def id_from_rel_path(self, path):
+        if path.startswith(self.doc_parent_dir):
+            p = path.split(self.doc_parent_dir)[1]
+            if p.endswith('.json'):
+                return p[:-5]
+            return p
 
 # immutable, singleton "FilepathMapper" objects are passed to the GitAction
 #   initialization function as a means of making the mapping of a document ID
 #   to the filepath generic across document type.
 amendment_path_mapper = AmendmentFilepathMapper()
 
-def create_amendment_git_action(repo, max_file_size=None):
-    return GitActionBase(doc_type='amendment',
-                         repo=repo,
-                         max_file_size=max_file_size,
-                         path_mapper=amendment_path_mapper)
-
-
-def filepath_for_amendment_id(repo_dir, amendment_id):
-    # in this case, simply expand the id to a full path
-    amendment_filename = '{i}.json'.format(i=amendment_id)
-    full_path_to_file = os.path.join(repo_dir, 'amendments', amendment_filename)
-    _LOG.warn(">>>> filepath_for_amendment_id: full path is {}".format(full_path_to_file))
-    return full_path_to_file
-
-
-def create_validation_adaptor(obj, errors, **kwargs):
-    # just one simple version for now, so one adapter class
-    return AmendmentValidationAdaptor(obj, errors, **kwargs)
-
-
 _string_types = string_types_tuple()
 
-
 def validate_dict_keys(obj, schema, errors, name):
+    """Takes a dict `obj` and a simple `schema` that is expected to have:
+    `schema.required_elements` and `schema.optional_elements` dicts
+    mapping names of properties of `obj` to types that can be second args
+    to isinstance.
+    `schema.allowed_elements` should be a set of allowed properties
+
+    error strings are appended to the list `errors`, and `name` is used
+    in error strings to describe `obj`
+    """
     uk = [k for k in obj.keys() if k not in schema.allowed_elements]
     if uk:
         uk.sort()
@@ -170,14 +163,11 @@ def _validate_amendment_source(s, errors):
 class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
     def __init__(self, obj, errors, **kwargs):
         validate_dict_keys(obj, _AmendmentTopLevelSchema, errors, 'amendment')
-
         # test a non-empty id against our expected pattern
         self._id = obj.get('id')
-        if not (self._id
-                and isinstance(self._id, _string_types)
-                and bool(AmendmentFilepathMapper.id_pattern.match(self._id))):
+        if self._id and not (isinstance(self._id, _string_types)
+                             and bool(AmendmentFilepathMapper.id_pattern.match(self._id))):
             errors.append("The top-level amendment 'id' provided is not valid")
-
         # test a non-empty curator for expected 'login' and 'name' fields
         self._curator = obj.get('curator')
         if isinstance(self._curator, dict):
@@ -191,14 +181,10 @@ class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
         # study_id (if it's not an empty string)
         self._study_id = obj.get('study_id')
         if self._study_id and isinstance(self._study_id, _string_types):
-            from peyotl.phylesystem import PhylesystemFilepathMapper
             if not bool(PhylesystemFilepathMapper.id_pattern.match(self._study_id)):
                 errors.append("The 'study_id' provided is not valid")
-        # taxa
         self._taxa = obj.get('taxa')
         if isinstance(self._taxa, list):
-            # N.B. we should reject any unknown keys (not listed above)!
-            uk = None
             for taxon in self._taxa:
                 if not isinstance(taxon, dict):
                     errors.append('Expecting each element of amendment.taxa to be a dict')
@@ -206,15 +192,13 @@ class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
                     validate_dict_keys(taxon, _AmendmentTaxonSchema, errors, 'amendment.taxa element')
                     if ('parent' not in taxon) and ('parent_tag' not in taxon):
                         errors.append("Taxon has neither 'parent' nor 'parent_tag'!")
-                valid_source_found = False
+                num_valid_sources = 0
                 for s in taxon.get('sources', []):
-                    valid_source_found = _validate_amendment_source(s, errors) or valid_source_found
-                if not valid_source_found:
+                    num_valid_sources += 1 if _validate_amendment_source(s, errors) else 0
+                if num_valid_sources == 0:
                     errors.append("Taxon must have at least one valid source (none found)!")
-
-
-def validate_amendment(obj):
-    return TaxonomicAmendmentDocSchema().validate(obj)
+        else:
+            errors.append('Expecting amendment.taxa to be a list')
 
 
 class TaxonomicAmendmentDocSchema(SimpleJSONDocSchema):
@@ -246,33 +230,16 @@ class TaxonomicAmendmentDocSchema(SimpleJSONDocSchema):
         errors, adaptor = self.validate(document)
         return document, errors, None, adaptor
 
+def validate_amendment(obj):
+    "returns a list of errors and a AmendmentValidationAdaptor object for `obj`"
+    return TaxonomicAmendmentDocSchema().validate(obj)
 
-def create_id2amendment_info(path, tag):
-    """Searches for JSON files in this repo and returns
-    a map of amendment id ==> (`tag`, dir, amendment filepath)
-    where `tag` is typically the shard name
-    """
-    d = {}
-    for triple in os.walk(path):
-        root, files = triple[0], triple[2]
-        for filename in files:
-            if filename.endswith('.json'):
-                # trim its file extension
-                amendment_id = n = filename[:-5]
-                d[amendment_id] = (tag, root, os.path.join(root, filename))
-    return d
-
-
-def refresh_amendment_index(shard, initializing=False):
-    d = create_id2amendment_info(shard.doc_dir, shard.name)
-    shard._doc_index = d
 
 
 class TaxonomicAmendmentsShard(TypeAwareGitShard):
     """Wrapper around a git repo holding JSON taxonomic amendments
     Raises a ValueError if the directory does not appear to be a TaxonomicAmendmentsShard.
     Raises a RuntimeError for errors associated with misconfiguration."""
-    document_type = 'taxon_amendment'
 
     def __init__(self,
                  name,
@@ -282,12 +249,10 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
         TypeAwareGitShard.__init__(self,
                                    name=name,
                                    path=path,
-                                   doc_holder_subpath='amendments',
                                    doc_schema=TaxonomicAmendmentDocSchema(),
-                                   refresh_doc_index_fn=refresh_amendment_index,  # populates _doc_index
-                                   git_action_factory=create_amendment_git_action,
                                    push_mirror_repo_path=push_mirror_repo_path,
-                                   infrastructure_commit_author=infrastructure_commit_author)
+                                   infrastructure_commit_author=infrastructure_commit_author,
+                                   path_mapper=amendment_path_mapper)
         self._next_ott_id = None
         self._id_minting_file = os.path.join(path, 'next_ott_id.json')
 
@@ -380,8 +345,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
     """Wrapper around a set of sharded git repos.
     """
     id_regex = AmendmentFilepathMapper.id_pattern
-    document_type = 'taxon_amendment'
-
     def __init__(self,
                  repos_dict=None,
                  repos_par=None,

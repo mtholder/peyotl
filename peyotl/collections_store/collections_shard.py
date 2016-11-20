@@ -13,24 +13,21 @@ class CollectionsFilepathMapper(object):
     wip_id_template = r'.*_collection_{i}_[0-9]+',
     branch_name_template = "{ghu}_collection_{rid}",
     path_to_user_splitter = '_collection_'
-
+    doc_holder_subpath = 'collections-by-owner'
+    doc_parent_dir = 'collections-by-owner/'
     def filepath_for_id(self, repo_dir, collection_id):
         assert bool(CollectionsFilepathMapper.id_pattern.match(collection_id))
         return '{r}/collections-by-owner/{s}.json'.format(r=repo_dir, s=collection_id)
 
-    def id_from_path(self, path):
+    def id_from_rel_path(self, path):
         doc_parent_dir = 'collections-by-owner/'
         if path.startswith(doc_parent_dir):
-            return path.split(doc_parent_dir)[1]
+            p = path.split(doc_parent_dir)[1]
+            if p.endswith('.json'):
+                return p[:-5]
+            return p
 
 collections_path_mapper = CollectionsFilepathMapper()
-
-def create_tree_collections_git_action(repo, max_file_size=None):
-    return GitActionBase(doc_type='collection',
-                         repo=repo,
-                         max_file_size=max_file_size,
-                         path_mapper=collections_path_mapper)
-
 
 def filepath_for_collection_id(repo_dir, collection_id):
     # in this case, simply expand the id to a full path
@@ -65,33 +62,11 @@ class TreeCollectionsDocSchema(SimpleJSONDocSchema):
         return document, errors, None, adaptor
 
 
-def create_id2collection_info(path, tag):
-    """Searchers for JSON files in this repo and returns
-    a map of collection id ==> (`tag`, dir, collection filepath)
-    where `tag` is typically the shard name
-    """
-    d = {}
-    for triple in os.walk(path):
-        root, files = triple[0], triple[2]
-        for filename in files:
-            if filename.endswith('.json'):
-                # trim file extension and prepend owner_id (from path)
-                collection_id = "{u}/{n}".format(u=root.split('/')[-1], n=filename[:-5])
-                d[collection_id] = (tag, root, os.path.join(root, filename))
-    return d
-
-
-def refresh_collection_index(shard, initializing=False):
-    d = create_id2collection_info(shard.doc_dir, shard.name)
-    shard._doc_index = d
-
 
 class TreeCollectionsShard(TypeAwareGitShard):
     """Wrapper around a git repo holding JSON tree collections
     Raises a ValueError if the directory does not appear to be a TreeCollectionsShard.
     Raises a RuntimeError for errors associated with misconfiguration."""
-    document_type = 'tree_collection'
-
     def __init__(self,
                  name,
                  path,
@@ -100,12 +75,10 @@ class TreeCollectionsShard(TypeAwareGitShard):
         TypeAwareGitShard.__init__(self,
                                    name=name,
                                    path=path,
-                                   doc_holder_subpath='collections-by-owner',
                                    doc_schema=TreeCollectionsDocSchema(),
-                                   refresh_doc_index_fn=refresh_collection_index,  # populates _doc_index
-                                   git_action_factory=create_tree_collections_git_action,
                                    push_mirror_repo_path=push_mirror_repo_path,
-                                   infrastructure_commit_author=infrastructure_commit_author)
+                                   infrastructure_commit_author=infrastructure_commit_author,
+                                   path_mapper=collections_path_mapper)
 
     # rename some generic members in the base class, for clarity and backward compatibility
     @property

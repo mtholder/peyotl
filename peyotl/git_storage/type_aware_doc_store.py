@@ -32,8 +32,6 @@ def parse_mirror_info(mirror_info):
 
 
 class TypeAwareDocStore(ShardedDocStore):
-    document_type = 'generic'
-
     def __init__(self,
                  prefix_from_doc_id,
                  repos_dict=None,
@@ -124,7 +122,7 @@ class TypeAwareDocStore(ShardedDocStore):
                         GitActionBase.add_remote(expected_push_mirror_repo_path, remote_name, remote_url)
                     shard.push_mirror_repo_path = expected_push_mirror_repo_path
                     for remote_name in push_mirror_remote_map.keys():
-                        mga = shard._create_git_action_for_mirror()  # pylint: disable=W0212
+                        mga = shard.create_git_action_for_mirror()  # pylint: disable=W0212
                         mga.fetch(remote_name)
                 shards.append(shard)
         assert len(shards) > 0

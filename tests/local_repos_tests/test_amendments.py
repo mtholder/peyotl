@@ -61,11 +61,11 @@ class TestTaxonomicAmendments(unittest.TestCase):
         # TODO: add a test with the HEAD commit SHA that should get no changes
         # check for known changed amendments in this repo (ignoring other changed files)
         changed = self.c.get_changed_docs('59e6d2d2ea62aa1ce784d29bdd43e74aa80d07d4')
-        self.assertEqual({u'additions-5000000-5000003.json'}, changed)
+        self.assertEqual({u'additions-5000000-5000003'}, changed)
         # check a doc that changed (against whitelist)
         changed = self.c.get_changed_docs('59e6d2d2ea62aa1ce784d29bdd43e74aa80d07d4',
-                                          [u'additions-5000000-5000003.json'])
-        self.assertEqual({u'additions-5000000-5000003.json'}, changed)
+                                          [u'additions-5000000-5000003'])
+        self.assertEqual({u'additions-5000000-5000003'}, changed)
         # checking a bogus doc id should work, but find nothing
         changed = self.c.get_changed_docs('59e6d2d2ea62aa1ce784d29bdd43e74aa80d07d4',
                                           [u'non-existing-amendment.json'])

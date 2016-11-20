@@ -89,7 +89,7 @@ class TestAmendmentValidator(unittest.TestCase):
         a = TaxonomicAmendmentDocSchema().create_empty_doc()
         aa = validate_amendment(a)
         errors = aa[0]
-        self.assertTrue(len(errors) == 1)
+        self.assertTrue(len(errors) == 0)
 
 
 if __name__ == "__main__":

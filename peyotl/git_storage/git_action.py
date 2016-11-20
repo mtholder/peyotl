@@ -83,6 +83,10 @@ def read_remotes_config(repo_dir):
         a2p[action] = path
     return d
 
+STUDY_DOC_TYPE_SET = frozenset(['study', 'nexson'])
+OTHER_KNOWN_DOC_TYPE_SET = frozenset(['collection', 'tree collection JSON',
+                                      'favorites',
+                                      'amendment', 'taxon amendment JSON'])
 
 class GitActionBase(object):
     @staticmethod
@@ -389,7 +393,8 @@ class GitActionBase(object):
             return False
         touched = set()
         for f in x.split('\n'):
-            found_id = self.path_mapper.id_from_path(f)
+            found_id = self.path_mapper.id_from_rel_path(f)
+            _LOG.debug('f={} found_id={}'.format(f, found_id))
             if found_id:
                 touched.add(found_id)
 
@@ -466,12 +471,12 @@ class GitActionBase(object):
             msg = commit_msg
         if os.path.exists(doc_filepath):
             prev_file_sha = self.get_blob_sha_for_file(doc_filepath)
-            if self.doc_type == 'nexson':
+            if self.doc_type in STUDY_DOC_TYPE_SET:
                 # delete the parent directory entirely
                 doc_dir = os.path.split(doc_filepath)[0]
                 # _LOG.debug("@@@@@@@@ GitActionBase._remove_document, doc_dir={}".format(doc_dir))
                 git(self.gitdir, self.gitwd, "rm", "-rf", doc_dir)
-            elif self.doc_type in ('collection', 'favorites', 'amendment'):
+            elif self.doc_type in OTHER_KNOWN_DOC_TYPE_SET:
                 # delete just the target file
                 git(self.gitdir, self.gitwd, "rm", doc_filepath)
             else:

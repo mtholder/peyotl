@@ -7,6 +7,7 @@ import anyjson
 from threading import Lock
 from peyotl.utility import get_logger, write_to_filepath
 from peyotl.utility.input_output import read_as_json, write_as_json
+from peyotl.git_storage.git_action import GitActionBase
 
 _LOG = get_logger(__name__)
 
@@ -29,6 +30,7 @@ class GitShard(object):
         self._new_doc_prefix = None
         self.doc_schema = doc_schema
 
+
     # pylint: disable=E1101
     def get_rel_path_fragment(self, doc_id):
         """For `doc_id` returns the path from the
@@ -42,6 +44,10 @@ class GitShard(object):
 
     def validate_annotate_convert_doc(self, document, **kwargs):
         return self.doc_schema.validate_annotate_convert_doc(document, **kwargs)
+
+    @property
+    def document_type(self):
+        return self.doc_schema.document_type
 
     @property
     def doc_index(self):
@@ -83,22 +89,19 @@ class TypeAwareGitShard(GitShard):
     def __init__(self,
                  name,
                  path,
-                 doc_holder_subpath,
-                 doc_schema=None,
-                 refresh_doc_index_fn=None,
-                 git_action_factory=None,
+                 doc_schema,
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                 max_file_size=None):
+                 max_file_size=None,
+                 path_mapper=None):
         GitShard.__init__(self, name, doc_schema=doc_schema)
+        self.path_mapper = path_mapper
         self._doc_counter_lock = Lock()
         self._infrastructure_commit_author = infrastructure_commit_author
-        self._locked_refresh_doc_index = refresh_doc_index_fn
         self._master_branch_repo_lock = Lock()
-        self._ga_factory = git_action_factory
         path = os.path.abspath(path)
         dot_git = os.path.join(path, '.git')
-        doc_dir = os.path.join(path, doc_holder_subpath)  # type-specific, e.g. 'study'
+        doc_dir = os.path.join(path, path_mapper.doc_holder_subpath)  # type-specific, e.g. 'study'
         if not os.path.isdir(path):
             raise FailedShardCreationError('"{p}" is not a directory'.format(p=path))
         if not os.path.isdir(dot_git):
@@ -108,7 +111,7 @@ class TypeAwareGitShard(GitShard):
         self.path = path
         self.doc_dir = doc_dir
         with self._index_lock:
-            self._locked_refresh_doc_index(self, initializing=True)
+            self._locked_refresh_doc_index()
         self.parent_path = os.path.split(path)[0] + '/'
         self.git_dir = dot_git
         self.push_mirror_repo_path = push_mirror_repo_path
@@ -132,6 +135,32 @@ class TypeAwareGitShard(GitShard):
                                                    'letters followed by an underscore'.format(prefix_filename))
                 self._new_doc_prefix = pre_content
 
+    def _locked_create_id2document_info(self):
+        """Searchers for JSON files in this repo and returns
+        a map of collection id ==> (`tag`, dir, collection filepath)
+        where `tag` is typically the shard name
+        """
+        d = {}
+        dd = self.path
+        if not dd.endswith(os.path.sep):
+            dd = dd + os.path.sep
+        ldd = len(dd)
+        for triple in os.walk(self.doc_dir):
+            root, files = triple[0], triple[2]
+            for filename in files:
+                if filename.endswith('.json'):
+                    full_path = os.path.join(root, filename)
+                    assert full_path.startswith(dd)
+                    rel_path = full_path[ldd:]
+                    doc_id = self.path_mapper.id_from_rel_path(rel_path)
+                    if doc_id is not None:
+                        d[doc_id] = (self.name, root, os.path.join(root, full_path))
+        return d
+
+    def _locked_refresh_doc_index(self):
+        d = self._locked_create_id2document_info()
+        self._doc_index = d
+
     def can_mint_new_docs(self):
         return True  # phylesystem shards can only mint new IDs if they have a new_doc_prefix file, overridden.
 
@@ -143,33 +172,35 @@ class TypeAwareGitShard(GitShard):
                 pass
 
     def create_git_action(self):
-        return self._ga_factory(repo=self.path,
-                                max_file_size=self.max_file_size)
+        return GitActionBase(doc_type=self.document_type,
+                             repo=self.path,
+                             max_file_size=self.max_file_size,
+                             path_mapper=self.path_mapper)
+
+    def create_git_action_for_mirror(self):
+        return GitActionBase(doc_type=self.document_type,
+                             repo=self.push_mirror_repo_path,
+                             max_file_size=self.max_file_size,
+                             path_mapper=self.path_mapper)
 
     def pull(self, remote='origin', branch_name='master'):
         with self._index_lock:
             ga = self.create_git_action()
             from peyotl.git_storage.git_workflow import _pull_gh
             _pull_gh(ga, remote, branch_name)
-            self._locked_refresh_doc_index(self)
+            self._locked_refresh_doc_index()
 
     def register_doc_id(self, ga, doc_id):
         fp = ga.path_for_doc(doc_id)
         with self._index_lock:
             self._doc_index[doc_id] = (self.name, self.doc_dir, fp)
 
-    def _create_git_action_for_mirror(self):
-        # If a document makes it into the working dir, we don't want to reject it from the mirror, so
-        #   we use max_file_size= None
-        mirror_ga = self._ga_factory(repo=self.push_mirror_repo_path,
-                                     max_file_size=None)
-        return mirror_ga
 
     def push_to_remote(self, remote_name):
         if self.push_mirror_repo_path is None:
             raise RuntimeError('This {} has no push mirror, so it cannot push to a remote.'.format(type(self)))
         working_ga = self.create_git_action()
-        mirror_ga = self._create_git_action_for_mirror()
+        mirror_ga = self.create_git_action_for_mirror()
         with mirror_ga.lock():
             with working_ga.lock():
                 mirror_ga.fetch(remote='origin')
@@ -249,14 +280,10 @@ class TypeAwareGitShard(GitShard):
         return ga.get_changed_docs(ancestral_commit_sha, doc_ids_to_check=doc_ids_to_check)
         # TODO:git-action-edits
 
-    def _create_git_action_for_global_resource(self):
-        return self._ga_factory(repo=self.path,
-                                max_file_size=self.max_file_size)
-
     def _read_master_branch_resource(self, fn, is_json=False):
         """This will force the current branch to master! """
         with self._master_branch_repo_lock:
-            ga = self._create_git_action_for_global_resource()
+            ga = self.create_git_action()
             with ga.lock():
                 ga.checkout_master()
                 if os.path.exists(fn):
@@ -272,7 +299,7 @@ class TypeAwareGitShard(GitShard):
         # TODO: we might want this to push, but currently it is only called in contexts in which
         # we are about to push anyway (document creation)
         with self._master_branch_repo_lock:
-            ga = self._create_git_action_for_global_resource()
+            ga = self.create_git_action()
             with ga.lock():
                 ga.checkout_master()
                 if is_json:

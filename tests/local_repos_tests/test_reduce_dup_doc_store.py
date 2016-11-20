@@ -110,11 +110,11 @@ class TestPhylesystem(unittest.TestCase):
         # check for known changed amendments in this repo (ignoring other changed files)
         changed = a.get_changed_docs('59e6d2d2ea62aa1ce784d29bdd43e74aa80d07d4')
         _LOG.debug('changed = {}'.format(changed))
-        self.assertEqual({u'additions-5000000-5000003.json'}, changed)
+        self.assertEqual({u'additions-5000000-5000003'}, changed)
         # check a doc that changed (against whitelist)
         changed = a.get_changed_docs('59e6d2d2ea62aa1ce784d29bdd43e74aa80d07d4',
-                                     [u'additions-5000000-5000003.json'])
-        self.assertEqual({u'additions-5000000-5000003.json'}, changed)
+                                     [u'additions-5000000-5000003'])
+        self.assertEqual({u'additions-5000000-5000003'}, changed)
         # checking a bogus doc id should work, but find nothing
         changed = a.get_changed_docs('59e6d2d2ea62aa1ce784d29bdd43e74aa80d07d4',
                                      [u'non-existing-amendment.json'])
@@ -175,23 +175,23 @@ class TestPhylesystem(unittest.TestCase):
         c.pull()  # get the full git history
         # check for known changed collections in this repo
         changed = c.get_changed_docs('637bb5a35f861d84c115e5e6c11030d1ecec92e0')
-        self.assertEqual({u'TestUserB/fungal-trees.json'}, changed)
+        self.assertEqual({u'TestUserB/fungal-trees'}, changed)
         changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247')
-        self.assertEqual({u'TestUserB/fungal-trees.json'}, changed)
+        self.assertEqual({u'TestUserB/fungal-trees'}, changed)
         changed = c.get_changed_docs('af72fb2cc060936c9afce03495ec0ab662a783f6')
-        expected = {u'test-user-a/my-favorite-trees.json', u'TestUserB/fungal-trees.json'}
+        expected = {u'test-user-a/my-favorite-trees', u'TestUserB/fungal-trees'}
         self.assertEqual(expected, changed)
         # check a doc that changed
         changed = c.get_changed_docs('af72fb2cc060936c9afce03495ec0ab662a783f6',
-                                     [u'TestUserB/fungal-trees.json'])
-        self.assertEqual({u'TestUserB/fungal-trees.json'}, changed)
+                                     [u'TestUserB/fungal-trees'])
+        self.assertEqual({u'TestUserB/fungal-trees'}, changed)
         # check a doc that didn't change
         changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247',
-                                     [u'test-user-a/my-favorite-trees.json'])
+                                     [u'test-user-a/my-favorite-trees'])
         self.assertEqual(set(), changed)
         # check a bogus doc id should work, but find nothing
         changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247',
-                                     [u'bogus/fake-trees.json'])
+                                     [u'bogus/fake-trees'])
         self.assertEqual(set(), changed)
         # passing a foreign (or nonsense) SHA should raise a ValueError
         self.assertRaises(ValueError, c.get_changed_docs, 'bogus')

@@ -17,7 +17,8 @@ class PhylesystemFilepathMapper(object):
     wip_id_template = '.*_study_{i}_[0-9]+'
     branch_name_template = "{ghu}_study_{rid}"
     path_to_user_splitter = '_study_'
-
+    doc_holder_subpath = 'study'
+    doc_parent_dir = 'study/'
     def filepath_for_id(self, repo_dir, study_id):
         assert len(study_id) >= 4
         assert study_id[2] == '_'
@@ -28,22 +29,17 @@ class PhylesystemFilepathMapper(object):
         dest_file = dest_subdir + '.json'
         return os.path.join(repo_dir, 'study', dest_topdir, dest_subdir, dest_file)
 
-    def id_from_path(self, path):
+    def id_from_rel_path(self, path):
         if path.startswith('study/'):
             try:
-                return path.split('/')[-2]
+                p = path.split('/')[-2]
             except:
                 return None
+            if p.endswith('.json'):
+                return p[:-5]
+            return p
 
 phylesystem_path_mapper = PhylesystemFilepathMapper()
-
-def create_phylesystem_git_action(repo, max_file_size=None):
-    return GitActionBase(doc_type='nexson',
-                         repo=repo,
-                         max_file_size=max_file_size,
-                         path_mapper=phylesystem_path_mapper)
-
-
 
 class NexsonDocSchema(object):
     optional_output_detail_keys = ('tip_label', 'bracket_ingroup')
@@ -173,8 +169,6 @@ class PhylesystemShard(TypeAwareGitShard):
     """Wrapper around a git repo holding nexson studies.
     Raises a ValueError if the directory does not appear to be a PhylesystemShard.
     Raises a RuntimeError for errors associated with misconfiguration."""
-    document_type = 'study'
-
     def __init__(self,
                  name,
                  path,
@@ -186,13 +180,11 @@ class PhylesystemShard(TypeAwareGitShard):
         TypeAwareGitShard.__init__(self,
                                    name=name,
                                    path=path,
-                                   doc_holder_subpath='study',
                                    doc_schema=NexsonDocSchema(),
-                                   refresh_doc_index_fn=refresh_study_index,  # populates 'study_index'
-                                   git_action_factory=create_phylesystem_git_action,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author,
-                                   max_file_size=max_file_size)
+                                   max_file_size=max_file_size,
+                                   path_mapper=phylesystem_path_mapper)
         self._id_minting_file = os.path.join(path, 'next_study_id.json')
         self._next_study_id = None
         # _diagnose_repo_nexml2json(self) # needed if we return to supporting >1 NexSON version in a repo
