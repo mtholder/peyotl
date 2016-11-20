@@ -161,6 +161,12 @@ class TypeAwareGitShard(GitShard):
         d = self._locked_create_id2document_info()
         self._doc_index = d
 
+    @property
+    def known_prefixes(self):
+        if self._known_prefixes is None:
+            self._known_prefixes = self._diagnose_prefixes()
+        return self._known_prefixes
+
     def can_mint_new_docs(self):
         return True  # phylesystem shards can only mint new IDs if they have a new_doc_prefix file, overridden.
 
@@ -312,6 +318,17 @@ class TypeAwareGitShard(GitShard):
         ga = self.create_git_action()
         return ga.path_for_doc(doc_id)
 
+
+    def create_git_action_for_new_doc(self, new_doc_id=None):
+        """Checks out master branch as a side effect"""
+        ga = self.create_git_action()
+        new_doc_id = self.check_new_doc_id(new_doc_id)
+        self.register_doc_id(ga, new_doc_id)
+        return ga, new_doc_id
+
+    def check_new_doc_id(self, new_doc_id):
+        "Helper for create_git_action_for_new_doc base class version just verifies that id is not None"
+        assert new_doc_id is not None
 
 def _invert_dict_list_val(d):
     o = {}

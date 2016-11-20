@@ -6,16 +6,17 @@ import re
 
 import anyjson
 import dateutil.parser
-from peyotl.git_storage import (ShardedDocStoreProxy, TypeAwareDocStore, NonAnnotatingDocValidationAdaptor,
-                                GitActionBase)
+from peyotl.git_storage import (ShardedDocStoreProxy, TypeAwareDocStore,
+                                NonAnnotatingDocValidationAdaptor)
 from peyotl.git_storage.git_shard import TypeAwareGitShard
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
-from peyotl.utility import get_logger, doi2url, string_types_tuple, slugify
+from peyotl import (get_logger, doi2url, string_types_tuple, slugify, validate_dict_keys)
 from peyotl.phylesystem import PhylesystemFilepathMapper
 
 _LOG = get_logger(__name__)
 
-
+###############################################################################
+# ID <-> Filepath logic
 class AmendmentFilepathMapper(object):
     # Allow simple slug-ified string with '{known-prefix}-{7-or-8-digit-id}-{7-or-8-digit-id}'
     # (8-digit ottids are probably years away, but allow them to be safe.)
@@ -43,37 +44,10 @@ class AmendmentFilepathMapper(object):
 #   to the filepath generic across document type.
 amendment_path_mapper = AmendmentFilepathMapper()
 
+# End ID <-> Filepath logid
+###############################################################################
+# Amendment Schema
 _string_types = string_types_tuple()
-
-def validate_dict_keys(obj, schema, errors, name):
-    """Takes a dict `obj` and a simple `schema` that is expected to have:
-    `schema.required_elements` and `schema.optional_elements` dicts
-    mapping names of properties of `obj` to types that can be second args
-    to isinstance.
-    `schema.allowed_elements` should be a set of allowed properties
-
-    error strings are appended to the list `errors`, and `name` is used
-    in error strings to describe `obj`
-    """
-    uk = [k for k in obj.keys() if k not in schema.allowed_elements]
-    if uk:
-        uk.sort()
-        msg = 'Found these unexpected properties in a {n} object: "{k}"'
-        msg = msg.format(n=name, k='", "'.join(uk))
-        errors.append(msg)
-    # test for existence and types of all required elements
-    for el_key, el_type in schema.required_elements.items():
-        test_el = obj.get(el_key)
-        if test_el is None:
-            errors.append("Property '{p}' not found!".format(p=el_key))
-        elif not isinstance(test_el, el_type):
-            errors.append("Property '{p}' should be one of these: {t}".format(p=el_key, t=el_type))
-    # test for types of optional elements
-    for el_key, el_type in schema.optional_elements.items():
-        test_el = obj.get(el_key)
-        if (test_el is not None) and not isinstance(test_el, el_type):
-            errors.append("Property '{p}' should be one of these: {t}".format(p=el_key, t=el_type))
-
 
 class _AmendmentTopLevelSchema(object):
     required_elements = {
@@ -226,7 +200,9 @@ def validate_amendment(obj):
     "returns a list of errors and a AmendmentValidationAdaptor object for `obj`"
     return TaxonomicAmendmentDocSchema().validate(obj)
 
-
+# End Validation
+###############################################################################
+# Shard
 
 class TaxonomicAmendmentsShard(TypeAwareGitShard):
     """Wrapper around a git repo holding JSON taxonomic amendments
@@ -253,12 +229,6 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
     def next_ott_id(self):
         return self._next_ott_id
 
-    @property
-    def known_prefixes(self):
-        # this is required by TypeAwareDocStore
-        if self._known_prefixes is None:
-            self._known_prefixes = self._diagnose_prefixes()
-        return self._known_prefixes
 
     def _determine_next_ott_id(self):
         """Read an initial value (int) from our stored counter (file)
@@ -297,14 +267,6 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
                                            is_json=False)
         last_minted_id = self._next_ott_id - 1
         return first_minted_id, last_minted_id
-
-    def create_git_action_for_new_amendment(self, new_amendment_id=None):
-        """Checks out master branch as a side effect"""
-        ga = self.create_git_action()
-        assert new_amendment_id is not None
-        # id should have been sorted out by the caller
-        self.register_doc_id(ga, new_amendment_id)
-        return ga, new_amendment_id
 
 
 def prefix_from_amendment_path(amendment_id):
@@ -374,7 +336,7 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
 
     def create_git_action_for_new_amendment(self, new_amendment_id=None):
         """Checks out master branch of the shard as a side effect"""
-        return self._growing_shard.create_git_action_for_new_amendment(new_amendment_id=new_amendment_id)
+        return self._growing_shard.create_git_action_for_new_doc(new_doc_id=new_amendment_id)
 
     def add_new_amendment(self,
                           json_repr,

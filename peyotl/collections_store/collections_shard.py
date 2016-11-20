@@ -77,13 +77,6 @@ class TreeCollectionsShard(TypeAwareGitShard):
                                    infrastructure_commit_author=infrastructure_commit_author,
                                    path_mapper=collections_path_mapper)
 
-    # rename some generic members in the base class, for clarity and backward compatibility
-    @property
-    def known_prefixes(self):
-        if self._known_prefixes is None:
-            self._known_prefixes = self._diagnose_prefixes()
-        return self._known_prefixes
-
     def _diagnose_prefixes(self):
         """Returns a set of all of the prefixes seen in the main document dir
         """
@@ -93,11 +86,3 @@ class TreeCollectionsShard(TypeAwareGitShard):
             if CollectionsFilepathMapper.id_pattern.match(example_collection_name):
                 p.add(owner_dirname)
         return p
-
-    def create_git_action_for_new_collection(self, new_collection_id=None):
-        """Checks out master branch as a side effect"""
-        ga = self.create_git_action()
-        assert new_collection_id is not None
-        # id should have been sorted out by the caller
-        self.register_doc_id(ga, new_collection_id)
-        return ga, new_collection_id

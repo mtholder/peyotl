@@ -210,12 +210,6 @@ class PhylesystemShard(TypeAwareGitShard):
         return self.get_changed_docs
 
     @property
-    def known_prefixes(self):
-        if self._known_prefixes is None:
-            self._known_prefixes = self._diagnose_prefixes()
-        return self._known_prefixes
-
-    @property
     def new_study_prefix(self):
         return self._new_doc_prefix
 
@@ -302,10 +296,7 @@ class PhylesystemShard(TypeAwareGitShard):
         #   new study IDs!
         return "{p}{c:d}".format(p=self._new_doc_prefix, c=c)
 
-    def create_git_action_for_new_study(self, new_study_id=None):
-        """Checks out master branch as a side effect"""
-        ga = self.create_git_action()
-        if new_study_id is None:
-            new_study_id = self._mint_new_study_id()
-        self.register_doc_id(ga, new_study_id)
-        return ga, new_study_id
+    def check_new_doc_id(self, new_doc_id):
+        if new_doc_id is None:
+            return self._mint_new_study_id()
+        return new_doc_id
