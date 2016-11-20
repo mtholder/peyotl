@@ -1,19 +1,154 @@
 # !/usr/bin/env python
-"""Basic functions for creating and manipulating collection JSON.
 """
-
-__all__ = ['git_actions',
-           'helper',
-           'validation',
-           'collections_shard',
-           'collections_umbrella']
-from peyotl.collections_store.collections_shard import (TreeCollectionsDocSchema,
-                                                        CollectionsFilepathMapper)
-from peyotl.collections_store.collections_umbrella import (TreeCollectionStore,
-                                                           TreeCollectionStoreProxy,
-                                                           OWNER_ID_PATTERN)
+"""
+import os
+import re
+from peyotl.git_storage.git_shard import TypeAwareGitShard
+from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
 from peyotl.utility.input_output import read_as_json
 from peyotl.utility.str_util import is_str_type
+from peyotl.utility import get_logger
+from peyotl.utility.str_util import slugify, increment_slug
+from peyotl.git_storage import (TypeAwareDocStore, ShardedDocStoreProxy,
+                                NonAnnotatingDocValidationAdaptor)
+
+_LOG = get_logger(__name__)
+
+
+def create_validation_adaptor(obj, errors, **kwargs):
+    # just one simple version for now, so one adapter class
+    return CollectionValidationAdaptor(obj, errors, **kwargs)
+
+
+# TODO: Define a simple adapter based on
+# nexson_validation._badgerfish_validation.BadgerFishValidationAdapter.
+# N.B. that this doesn't need to inherit from NexsonValidationAdapter, since
+# we're not adding annotations to the target document. Similarly, we're not using
+# the usual validation logger here, just a list of possible error strings.
+class CollectionValidationAdaptor(NonAnnotatingDocValidationAdaptor):
+    def __init__(self, obj, errors=None, **kwargs):
+        if errors is None:
+            errors = []
+        try:
+            # Python 2.x
+            string_types = (str, unicode)
+        except NameError:
+            # Python 3
+            string_types = (str,)
+        self.required_toplevel_elements = {
+            # N.B. anyjson might parse a text element as str or unicode,
+            # depending on its value. Either is fine here.
+            'url': string_types,
+            'name': string_types,
+            'description': string_types,
+            'creator': dict,
+            'contributors': list,
+            'decisions': list,
+            'queries': list,
+        }
+        # currently all allowed elements are also required
+        # self.optional_toplevel_elements = {}
+        # track unknown keys in top-level object
+        uk = None
+        for k in obj.keys():
+            if k not in self.required_toplevel_elements.keys():
+                if uk is None:
+                    uk = []
+                uk.append(k)
+        if uk:
+            uk.sort()
+            # self._warn_event(_NEXEL.TOP_LEVEL,
+            #                  obj=obj,
+            #                  err_type=gen_UnrecognizedKeyWarning,
+            #                  anc=_EMPTY_TUPLE,
+            #                  obj_nex_id=None,
+            #                  key_list=uk)
+
+        # test for existence and types of all required elements
+        for el_key, el_type in self.required_toplevel_elements.items():
+            test_el = obj.get(el_key, None)
+            try:
+                assert test_el is not None
+            except:
+                errors.append("Property '{p}' not found!".format(p=el_key))
+            try:
+                assert isinstance(test_el, el_type)
+            except:
+                errors.append("Property '{p}' should be one of these: {t}".format(p=el_key, t=el_type))
+        # test a non-empty creator for expected 'login' and 'name' fields
+        self._creator = obj.get('creator')
+        if isinstance(self._creator, dict):
+            for k in self._creator.keys():
+                try:
+                    assert k in ['login', 'name']
+                except:
+                    errors.append("Unexpected key '{k}' found in creator".format(k=k))
+            if 'login' in self._creator:
+                try:
+                    assert isinstance(self._creator.get('name'), string_types)
+                except:
+                    errors.append("Creator 'name' should be a string")
+            if 'name' in self._creator:
+                try:
+                    assert isinstance(self._creator.get('login'), string_types)
+                except:
+                    errors.append("Creator 'login' should be a string")
+        # test any contributors for expected 'login' and 'name' fields
+        self._contributors = obj.get('contributors')
+        if isinstance(self._contributors, list):
+            for c in self._contributors:
+                if isinstance(c, dict):
+                    for k in c.keys():
+                        try:
+                            assert k in ['login', 'name']
+                        except:
+                            errors.append("Unexpected key '{k}' found in contributor".format(k=k))
+                    if 'login' in c:
+                        try:
+                            assert isinstance(c.get('name'), string_types)
+                        except:
+                            errors.append("Contributor 'name' should be a string")
+                    if 'name' in c:
+                        try:
+                            assert isinstance(c.get('login'), string_types)
+                        except:
+                            errors.append("Contributor 'login' should be a string")
+                else:
+                    errors.append("Unexpected type for contributor (should be dict)")
+        # test decisions for valid ids+SHA, valid decision value
+        # N.B. that we use the list position for implicit ranking and
+        # disregard this position for EXCLUDED trees.
+        self._decisions = obj.get('decisions')
+        if isinstance(self._decisions, list):
+            text_props = ['name', 'studyID', 'treeID', 'SHA', 'decision']
+            decision_values = ['INCLUDED', 'EXCLUDED', 'UNDECIDED']
+            for d in self._decisions:
+                try:
+                    assert d.get('decision') in decision_values
+                except:
+                    errors.append("Each 'decision' should be one of {dl}".format(dl=decision_values))
+                for p in text_props:
+                    try:
+                        assert isinstance(d.get(p), string_types)
+                    except:
+                        errors.append("Decision property '{p}' should be one of {t}".format(p=p, t=string_types))
+        # TODO: test queries (currently unused) for valid properties
+        self._queries = obj.get('queries')
+
+def validate_collection(obj, **kwargs):
+    """Takes an `obj` that is a collection object.
+    Returns the pair:
+        errors, adaptor
+    `errors` is a simple list of error messages
+    `adaptor` will be an instance of collections.validation.adaptor.CollectionValidationAdaptor
+        it holds a reference to `obj` and the bookkeepping data necessary to attach
+        the log message to `obj` if
+    """
+    # Gather and report errors in a simple list
+    errors = []
+    n = create_validation_adaptor(obj, errors, **kwargs)
+    return errors, n
+
 
 
 def collection_to_included_trees(collection):
@@ -60,3 +195,257 @@ def concatenate_collections(collection_list):
                     not_inc_set.add(key)
                 r_decisions.append(d)
     return r
+
+
+
+class CollectionsFilepathMapper(object):
+    id_pattern =  re.compile(r'^[a-zA-Z0-9-]+/[a-z0-9-]+$')
+    wip_id_template = r'.*_collection_{i}_[0-9]+',
+    branch_name_template = "{ghu}_collection_{rid}",
+    path_to_user_splitter = '_collection_'
+    doc_holder_subpath = 'collections-by-owner'
+    doc_parent_dir = 'collections-by-owner/'
+    def filepath_for_id(self, repo_dir, doc_id):
+        assert bool(CollectionsFilepathMapper.id_pattern.match(doc_id))
+        return '{r}/collections-by-owner/{s}.json'.format(r=repo_dir, s=doc_id)
+
+    def id_from_rel_path(self, path):
+        doc_parent_dir = 'collections-by-owner/'
+        if path.startswith(doc_parent_dir):
+            p = path.split(doc_parent_dir)[1]
+            if p.endswith('.json'):
+                return p[:-5]
+            return p
+
+    def prefix_from_doc_id(self, doc_id):
+        # The collection id is a sort of "path", e.g. '{owner_id}/{collection-name-as-slug}'
+        #   EXAMPLES: 'jimallman/trees-about-bees', 'kcranston/interesting-trees-2'
+        # Assume that the owner_id will work as a prefix, esp. by assigning all of a
+        # user's collections to a single shard.for grouping in shards
+        _LOG.debug('> prefix_from_collection_path(), testing this id: {i}'.format(i=doc_id))
+        path_parts = doc_id.split('/')
+        _LOG.debug('> prefix_from_collection_path(), found {} path parts'.format(len(path_parts)))
+        if len(path_parts) > 1:
+            owner_id = path_parts[0]
+        elif path_parts[0] == '':
+            owner_id = 'anonymous'
+        else:
+            owner_id = 'anonymous'  # or perhaps None?
+        return owner_id
+
+collections_path_mapper = CollectionsFilepathMapper()
+
+def filepath_for_collection_id(repo_dir, collection_id):
+    # in this case, simply expand the id to a full path
+    collection_filename = '{i}.json'.format(i=collection_id)
+    full_path_to_file = os.path.join(repo_dir, 'collections-by-owner', collection_filename)
+    _LOG.warn(">>>> filepath_for_collection_id: full path is {}".format(full_path_to_file))
+    return full_path_to_file
+
+
+class TreeCollectionsDocSchema(SimpleJSONDocSchema):
+    def __init__(self):
+        SimpleJSONDocSchema.__init__(self,
+                                     document_type='tree collection JSON',
+                                     adaptor_factory=CollectionValidationAdaptor)
+
+    def __repr__(self):
+        return 'TreeCollectionsDocSchema()'
+
+    def create_empty_doc(self):
+        collection = {
+            "url": "",
+            "name": "",
+            "description": "",
+            "creator": {"login": "", "name": ""},
+            "contributors": [],
+            "decisions": [],
+            "queries": []
+        }
+        return collection
+
+
+
+class TreeCollectionsShard(TypeAwareGitShard):
+    """Wrapper around a git repo holding JSON tree collections
+    Raises a ValueError if the directory does not appear to be a TreeCollectionsShard.
+    Raises a RuntimeError for errors associated with misconfiguration."""
+    def __init__(self,
+                 name,
+                 path,
+                 push_mirror_repo_path=None,
+                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
+        TypeAwareGitShard.__init__(self,
+                                   name=name,
+                                   path=path,
+                                   doc_schema=TreeCollectionsDocSchema(),
+                                   push_mirror_repo_path=push_mirror_repo_path,
+                                   infrastructure_commit_author=infrastructure_commit_author,
+                                   path_mapper=collections_path_mapper)
+
+    def _diagnose_prefixes(self):
+        """Returns a set of all of the prefixes seen in the main document dir
+        """
+        p = set()
+        for owner_dirname in os.listdir(self.doc_dir):
+            example_collection_name = "{n}/xxxxx".format(n=owner_dirname)
+            if CollectionsFilepathMapper.id_pattern.match(example_collection_name):
+                p.add(owner_dirname)
+        return p
+
+
+OWNER_ID_PATTERN = re.compile(r'^[a-zA-Z0-9-]+$')
+
+
+class TreeCollectionStoreProxy(ShardedDocStoreProxy):
+    """Proxy for shard when interacting with external resources if given the configuration of a remote Phylesystem
+    """
+
+    def __init__(self, config):
+        ShardedDocStoreProxy.__init__(self, config, 'collections',
+                                      path_mapper=collections_path_mapper,
+                                      doc_schema=TreeCollectionsDocSchema)
+
+class _TreeCollectionStore(TypeAwareDocStore):
+    """Wrapper around a set of sharded git repos.
+    """
+    id_regex = CollectionsFilepathMapper.id_pattern
+    def __init__(self,
+                 repos_dict=None,
+                 repos_par=None,
+                 mirror_info=None,
+                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
+                 **kwargs):
+        """
+        Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
+            or by trusting the `repos_dict` mapping of name to repo filepath.
+        `with_caching` should be True for non-debugging uses.
+        `git_action_class` is a subclass of GitActionBase to use. the __init__ syntax must be compatible
+            with PhylesystemGitAction
+        If you want to use a mirrors of the repo for pushes or pulls, send in a `mirror_info` dict:
+            mirror_info['push'] and mirror_info['pull'] should be dicts with the following keys:
+            'parent_dir' - the parent directory of the mirrored repos
+            'remote_map' - a dictionary of remote name to prefix (the repo name + '.git' will be
+                appended to create the URL for pushing).
+        """
+        TypeAwareDocStore.__init__(self,
+                                   path_mapper=collections_path_mapper,
+                                   repos_dict=repos_dict,
+                                   repos_par=repos_par,
+                                   git_shard_class=TreeCollectionsShard,
+                                   mirror_info=mirror_info,
+                                   infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
+                                   **kwargs)
+
+    # rename some generic members in the base class, for clarity and backward compatibility
+    @property
+    def get_collection_ids(self):
+        return self.get_doc_ids
+
+    @property
+    def delete_collection(self):
+        return self.delete_doc
+
+
+    def add_new_collection(self,
+                           owner_id,
+                           json_repr,
+                           auth_info,
+                           collection_id=None,
+                           commit_msg=''):
+        """Validate and save this JSON. Ensure (and return) a unique collection id"""
+        collection = self._coerce_json_to_collection(json_repr)
+        if collection is None:
+            msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
+            raise ValueError(msg)
+        if not self._is_valid_document_json(collection):
+            msg = "JSON is not a valid collection:\n{j}".format(j=json_repr)
+            raise ValueError(msg)
+        if collection_id:
+            # try to use this id
+            found_owner_id, slug = collection_id.split('/')
+            assert found_owner_id == owner_id
+        else:
+            # extract a working title and "slugify" it
+            slug = self._slugify_internal_collection_name(json_repr)
+            collection_id = '{i}/{s}'.format(i=owner_id, s=slug)
+        # Check the proposed id for uniqueness in any case. Increment until
+        # we have a new id, then "reserve" it using a placeholder value.
+        with self._index_lock:
+            while collection_id in self._doc2shard_map:
+                collection_id = increment_slug(collection_id)
+            self._doc2shard_map[collection_id] = None
+        # pass the id and collection JSON to a proper git action
+        new_collection_id = None
+        r = None
+        try:
+            # assign the new id to a shard (important prep for commit_and_try_merge2master)
+            gd_id_pair = self.create_git_action_for_new_collection(new_collection_id=collection_id)
+            new_collection_id = gd_id_pair[1]
+            try:
+                # let's remove the 'url' field; it will be restored when the doc is fetched (via API)
+                del collection['url']
+                # keep it simple (collection is already validated! no annotations needed!)
+                r = self.commit_and_try_merge2master(file_content=collection,
+                                                     doc_id=new_collection_id,
+                                                     auth_info=auth_info,
+                                                     parent_sha=None,
+                                                     commit_msg=commit_msg,
+                                                     merged_sha=None)
+            except:
+                self._growing_shard.delete_doc_from_index(new_collection_id)
+                raise
+        except:
+            with self._index_lock:
+                if new_collection_id in self._doc2shard_map:
+                    del self._doc2shard_map[new_collection_id]
+            raise
+        with self._index_lock:
+            self._doc2shard_map[new_collection_id] = self._growing_shard
+        return new_collection_id, r
+
+    def get_markdown_comment(self, document_obj):
+        return document_obj.get('description', '')
+
+    def copy_existing_collection(self, owner_id, old_collection_id):
+        """Ensure a unique id, whether from the same user or a different one"""
+        raise NotImplementedError('TODO')
+
+    def rename_existing_collection(self, owner_id, old_collection_id, new_slug=None):
+        """Use slug provided, or use internal name to generate a new id"""
+        raise NotImplementedError('TODO')
+
+    def _slugify_internal_collection_name(self, json_repr):
+        """Parse the JSON, find its name, return a slug of its name"""
+        collection = self._coerce_json_to_collection(json_repr)
+        if collection is None:
+            return None
+        internal_name = collection['name']
+        return slugify(internal_name)
+
+_THE_TREE_COLLECTION_STORE = None
+
+
+# noinspection PyPep8Naming
+def TreeCollectionStore(repos_dict=None,
+                        repos_par=None,
+                        mirror_info=None,
+                        infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
+    """Factory function for a _TreeCollectionStore object.
+
+    A wrapper around the _TreeCollectionStore class instantiation for
+    the most common use case: a singleton _TreeCollectionStore.
+    If you need distinct _TreeCollectionStore objects, you'll need to
+    call that class directly.
+    """
+    global _THE_TREE_COLLECTION_STORE
+    if _THE_TREE_COLLECTION_STORE is None:
+        _THE_TREE_COLLECTION_STORE = _TreeCollectionStore(repos_dict=repos_dict,
+                                                          repos_par=repos_par,
+                                                          mirror_info=mirror_info,
+                                                          infrastructure_commit_author=infrastructure_commit_author)
+    return _THE_TREE_COLLECTION_STORE
+
+
+def create_tree_collection_umbrella(shard_mirror_pair_list):
+    return _TreeCollectionStore(shard_mirror_pair_list=shard_mirror_pair_list)

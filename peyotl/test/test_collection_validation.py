@@ -2,7 +2,7 @@
 # from peyotl.nexson_syntax import detect_nexson_version, get_empty_nexson
 from peyotl.collections_store import TreeCollectionsDocSchema
 from peyotl.utility.str_util import UNICODE
-from peyotl.collections_store.validation import validate_collection
+from peyotl.collections_store import validate_collection
 from peyotl.test.support import pathmap
 from peyotl.test.support.helper import testing_write_json, testing_read_json
 from peyotl.utility import get_logger

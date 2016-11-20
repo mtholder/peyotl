@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 # coding=utf-8
-from peyotl.collections_store.collections_umbrella import _TreeCollectionStore
+from peyotl.collections_store import _TreeCollectionStore
 import unittest
 from peyotl.test.support import pathmap
 import os

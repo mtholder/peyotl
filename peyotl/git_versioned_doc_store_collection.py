@@ -6,7 +6,7 @@ and create the Python objects that provide an interface for them.
 from __future__ import print_function
 from peyotl.utility import get_logger, expand_abspath
 from peyotl.git_storage.helper import dir_to_repos_dict
-from peyotl.collections_store.collections_umbrella import create_tree_collection_umbrella
+from peyotl.collections_store import create_tree_collection_umbrella
 from peyotl.amendments import create_taxonomic_amendments_umbrella
 from peyotl.phylesystem.phylesystem_umbrella import create_phylesystem_umbrella
 from peyotl.git_storage.git_action import read_remotes_config
