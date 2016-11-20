@@ -86,7 +86,7 @@ class _TreeCollectionStore(TypeAwareDocStore):
         if collection is None:
             msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
             raise ValueError(msg)
-        if not self._is_valid_collection_json(collection):
+        if not self._is_valid_document_json(collection):
             msg = "JSON is not a valid collection:\n{j}".format(j=json_repr)
             raise ValueError(msg)
         if collection_id:
@@ -145,7 +145,7 @@ class _TreeCollectionStore(TypeAwareDocStore):
         if collection is None:
             msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
             raise ValueError(msg)
-        if not self._is_valid_collection_json(collection):
+        if not self._is_valid_document_json(collection):
             msg = "JSON is not a valid collection:\n{j}".format(j=json_repr)
             raise ValueError(msg)
         if not collection_id:
@@ -188,38 +188,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
             return None
         internal_name = collection['name']
         return slugify(internal_name)
-
-    def _is_existing_id(self, test_id):
-        """Test to see if this id is non-unique (already exists in a shard)"""
-        return test_id in self.get_collection_ids()
-
-    def _is_valid_collection_json(self, json_repr):
-        """Call the primary validator for a quick test"""
-        collection = self._coerce_json_to_collection(json_repr)
-        if collection is None:
-            # invalid JSON, definitely broken
-            return False
-        aa = validate_collection(collection)
-        errors = aa[0]
-        for e in errors:
-            _LOG.debug('> invalid JSON: {m}'.format(m=e.encode('utf-8')))
-        if len(errors) > 0:
-            return False
-        return True
-
-    def _coerce_json_to_collection(self, json_repr):
-        """Use to ensure that a JSON string (if found) is parsed to the equivalent dict in python.
-        If the incoming value is already parsed, do nothing. If a string fails to parse, return None."""
-        if isinstance(json_repr, dict):
-            collection = json_repr
-        else:
-            try:
-                collection = anyjson.loads(json_repr)
-            except:
-                _LOG.warn('> invalid JSON (failed anyjson parsing)')
-                return None
-        return collection
-
 
 _THE_TREE_COLLECTION_STORE = None
 

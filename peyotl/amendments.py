@@ -332,7 +332,7 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
         if amendment is None:
             msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
             raise ValueError(msg)
-        if not self._is_valid_amendment_json(amendment):
+        if not self._is_valid_document_json(amendment):
             msg = "JSON is not a valid amendment:\n{j}".format(j=json_repr)
             raise ValueError(msg)
 
@@ -504,38 +504,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
         first_ottid = amendment['TODO']
         last_ottid = amendment['TODO']
         return slugify('{s}-{f}-{l}'.format(s=amendment_subtype, f=first_ottid, l=last_ottid))
-
-    def _is_existing_id(self, test_id):
-        """Test to see if this id is non-unique (already exists in a shard)"""
-        return test_id in self.get_doc_ids()
-
-    def _is_valid_amendment_json(self, json_repr):
-        """Call the primary validator for a quick test"""
-        amendment = self._coerce_json_to_amendment(json_repr)
-        if amendment is None:
-            # invalid JSON, definitely broken
-            return False
-        aa = validate_amendment(amendment)
-        errors = aa[0]
-        for e in errors:
-            _LOG.debug('> invalid JSON: {m}'.format(m=e.encode('utf-8')))
-        if len(errors) > 0:
-            return False
-        return True
-
-    def _coerce_json_to_amendment(self, json_repr):
-        """Use to ensure that a JSON string (if found) is parsed to the equivalent dict in python.
-        If the incoming value is already parsed, do nothing. If a string fails to parse, return None."""
-        if isinstance(json_repr, dict):
-            amendment = json_repr
-        else:
-            try:
-                amendment = anyjson.loads(json_repr)
-            except:
-                _LOG.warn('> invalid JSON (failed anyjson parsing)')
-                return None
-        return amendment
-
 
 _THE_TAXONOMIC_AMENDMENT_STORE = None
 

@@ -142,6 +142,31 @@ class TypeAwareDocStore(ShardedDocStore):
         with self._index_lock:
             self._locked_refresh_doc_ids()
 
+    def _is_existing_id(self, test_id):
+        """Test to see if this id is non-unique (already exists in a shard)"""
+        return test_id in self.get_doc_ids()
+
+    def _is_valid_document_json(self, json_repr):
+        """Call the primary validator for a quick test"""
+        document = self._coerce_json_to_document(json_repr)
+        if document is None:
+            return False
+        errors = self.doc_schema.validate(document)[0]
+        for e in errors:
+            _LOG.debug('> invalid JSON: {m}'.format(m=e.encode('utf-8')))
+        return len(errors) == 0
+
+    def _coerce_json_to_document(self, json_repr):
+        """Use to ensure that a JSON string (if found) is parsed to the equivalent dict in python.
+        If the incoming value is already parsed, do nothing. If a string fails to parse, return None."""
+        if isinstance(json_repr, dict):
+            return json_repr
+        try:
+            return anyjson.loads(json_repr)
+        except:
+            _LOG.warn('> invalid JSON (failed anyjson parsing)')
+            return None
+
     def create_git_action_for_new_document(self, new_doc_id=None):
         """Checks out master branch of the shard as a side effect"""
         return self._growing_shard.create_git_action_for_new_doc(new_doc_id=new_doc_id)
