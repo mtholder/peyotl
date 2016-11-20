@@ -10,6 +10,8 @@ from peyotl.phylesystem.git_workflows import validate_and_convert_nexson
 from peyotl.nexson_syntax import PhyloSchema
 from peyotl.phylesystem.git_actions import PhylesystemFilepathMapper
 from peyotl.phylesystem.helper import create_id2study_info
+from peyotl.phylesystem.git_actions import PhylesystemGitAction
+
 _LOG = get_logger(__name__)
 
 
@@ -141,13 +143,11 @@ class PhylesystemShard(TypeAwareGitShard):
     """Wrapper around a git repo holding nexson studies.
     Raises a ValueError if the directory does not appear to be a PhylesystemShard.
     Raises a RuntimeError for errors associated with misconfiguration."""
-    from peyotl.phylesystem.git_actions import PhylesystemGitAction
     document_type = 'study'
 
     def __init__(self,
                  name,
                  path,
-                 git_action_class=PhylesystemGitAction,
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                  max_file_size=None):
@@ -159,7 +159,7 @@ class PhylesystemShard(TypeAwareGitShard):
                                    doc_holder_subpath='study',
                                    doc_schema=NexsonDocSchema(),
                                    refresh_doc_index_fn=refresh_study_index,  # populates 'study_index'
-                                   git_action_class=git_action_class,
+                                   git_action_class=PhylesystemGitAction,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author,
                                    max_file_size=max_file_size)
@@ -287,7 +287,3 @@ class PhylesystemShard(TypeAwareGitShard):
             new_study_id = self._mint_new_study_id()
         self.register_doc_id(ga, new_study_id)
         return ga, new_study_id
-
-    def _create_git_action_for_global_resource(self):
-        return self._ga_class(repo=self.path,
-                              max_file_size=self.max_file_size)

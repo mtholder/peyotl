@@ -101,7 +101,7 @@ class TestPhylesystem(unittest.TestCase):
         # but not for other studies...
         ga.acquire_lock()
         try:
-            t, ts, wip_map = ga.return_document('10', return_WIP_map=True)
+            t, ts, wip_map = ga.return_document('xy_13', return_WIP_map=True)
         finally:
             ga.release_lock()
         self.assertEquals(wip_map['master'], v1b['sha'])

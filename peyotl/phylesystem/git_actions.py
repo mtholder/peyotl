@@ -16,17 +16,10 @@ class PhylesystemFilepathMapper(object):
     path_to_user_splitter = '_study_'
 
     def filepath_for_id(self, repo_dir, study_id):
-        if len(study_id) < 4:
-            while len(study_id) < 2:
-                study_id = '0' + study_id
-            study_id = 'pg_' + study_id
-        elif study_id[2] != '_':
-            study_id = 'pg_' + study_id
-        from peyotl.phylesystem import PhylesystemFilepathMapper
+        assert len(study_id) >= 4
+        assert study_id[2] == '_'
         assert bool(PhylesystemFilepathMapper.id_pattern.match(study_id))
         frag = study_id[-2:]
-        while len(frag) < 2:
-            frag = '0' + frag
         dest_topdir = study_id[:3] + frag
         dest_subdir = study_id
         dest_file = dest_subdir + '.json'
@@ -35,33 +28,22 @@ class PhylesystemFilepathMapper(object):
     def id_from_path(self, path):
         if path.startswith('study/'):
             try:
-                study_id = path.split('/')[-2]
-                return study_id
+                return path.split('/')[-2]
             except:
                 return None
-
 
 phylesystem_path_mapper = PhylesystemFilepathMapper()
 
 class PhylesystemGitAction(GitActionBase):
     def __init__(self,
                  repo,
-                 remote=None,
                  max_file_size=None):
         """Create a GitAction object to interact with a Git repository
-
-        Example:
-        gd   = PhylesystemGitAction(repo="/home/user/git/foo")
-
-        Note that this requires write access to the
-        git repository directory, so it can create a
-        lockfile in the .git directory.
-
+        PhylesystemGitAction(repo="/home/user/git/foo")
         """
         GitActionBase.__init__(self,
                                'nexson',
                                repo,
-                               remote,
                                max_file_size,
                                path_mapper=phylesystem_path_mapper)
 

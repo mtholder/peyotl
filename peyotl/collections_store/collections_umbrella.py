@@ -65,7 +65,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
     def __init__(self,
                  repos_dict=None,
                  repos_par=None,
-                 git_action_class=TreeCollectionsGitAction,
                  mirror_info=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                  **kwargs):
@@ -85,7 +84,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
                                    prefix_from_doc_id=prefix_from_collection_path,
                                    repos_dict=repos_dict,
                                    repos_par=repos_par,
-                                   git_action_class=TreeCollectionsGitAction,
                                    git_shard_class=TreeCollectionsShard,
                                    mirror_info=mirror_info,
                                    infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
@@ -256,7 +254,6 @@ _THE_TREE_COLLECTION_STORE = None
 # noinspection PyPep8Naming
 def TreeCollectionStore(repos_dict=None,
                         repos_par=None,
-                        git_action_class=TreeCollectionsGitAction,
                         mirror_info=None,
                         infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
     """Factory function for a _TreeCollectionStore object.
@@ -270,12 +267,10 @@ def TreeCollectionStore(repos_dict=None,
     if _THE_TREE_COLLECTION_STORE is None:
         _THE_TREE_COLLECTION_STORE = _TreeCollectionStore(repos_dict=repos_dict,
                                                           repos_par=repos_par,
-                                                          git_action_class=git_action_class,
                                                           mirror_info=mirror_info,
                                                           infrastructure_commit_author=infrastructure_commit_author)
     return _THE_TREE_COLLECTION_STORE
 
 
 def create_tree_collection_umbrella(shard_mirror_pair_list):
-    return _TreeCollectionStore(shard_mirror_pair_list=shard_mirror_pair_list,
-                                git_action_class=TreeCollectionsGitAction)
+    return _TreeCollectionStore(shard_mirror_pair_list=shard_mirror_pair_list)

@@ -20,32 +20,19 @@ class CollectionsFilepathMapper(object):
     def id_from_path(self, path):
         doc_parent_dir = 'collections-by-owner/'
         if path.startswith(doc_parent_dir):
-            try:
-                collection_id = path.split(doc_parent_dir)[1]
-                return collection_id
-            except:
-                return None
+            return path.split(doc_parent_dir)[1]
 
 collections_path_mapper = CollectionsFilepathMapper()
 
 class TreeCollectionsGitAction(GitActionBase):
     def __init__(self,
                  repo,
-                 remote=None,
                  max_file_size=None):
         """GitActionBase subclass to interact with a Git repository
-
-        Example:
-        gd   = TreeCollectionsGitAction(repo="/home/user/git/foo")
-
-        Note that this requires write access to the
-        git repository directory, so it can create a
-        lockfile in the .git directory.
-
+        TreeCollectionsGitAction(repo="/home/user/git/foo")
         """
         GitActionBase.__init__(self,
                                'collection',
                                repo,
-                               remote,
                                max_file_size,
                                path_mapper=collections_path_mapper)

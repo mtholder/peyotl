@@ -51,7 +51,7 @@ def _pull_gh(git_action, remote, branch_name):  #
             except:
                 pass
             msg_f = "Could not pull or merge latest %s branch from %s ! Details: \n%s"
-            msg = msg_f % (branch_name, git_action.repo_remote, e.message)
+            msg = msg_f % (branch_name, remote, e.message)
             _LOG.debug(msg)
             raise GitWorkflowError(msg)
 

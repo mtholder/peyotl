@@ -38,7 +38,6 @@ class TypeAwareDocStore(ShardedDocStore):
                  prefix_from_doc_id,
                  repos_dict=None,
                  repos_par=None,
-                 git_action_class=None,  # requires a *type-specific* GitActionBase subclass
                  git_shard_class=None,  # requires a *type-specific* GitShard subclass
                  mirror_info=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
@@ -48,8 +47,6 @@ class TypeAwareDocStore(ShardedDocStore):
             or by trusting the `repos_dict` mapping of name to repo filepath.
         `prefix_from_doc_id` should be a type-specific method defined in the subclass
         `with_caching` should be True for non-debugging uses.
-        `git_action_class` is a subclass of GitActionBase to use. the __init__ syntax must be compatible
-            with PhylesystemGitAction
         If you want to use a mirrors of the repo for pushes or pulls, send in a `mirror_info` dict:
             mirror_info['push'] and mirror_info['pull'] should be dicts with the following keys:
             'parent_dir' - the parent directory of the mirrored repos
@@ -71,7 +68,6 @@ class TypeAwareDocStore(ShardedDocStore):
                     # assumes uniform __init__ arguments for all GitShard subclasses
                     shard = git_shard_class(name=repo_name,
                                             path=repo_filepath,
-                                            git_action_class=git_action_class,
                                             push_mirror_repo_path=push_mirror_repo_path)
                     shards.append(shard)
                 except FailedShardCreationError as x:
@@ -102,7 +98,6 @@ class TypeAwareDocStore(ShardedDocStore):
                     # assumes uniform __init__ arguments for all GitShard subclasses
                     shard = git_shard_class(name=repo_name,
                                             path=repo_filepath,
-                                            git_action_class=git_action_class,
                                             push_mirror_repo_path=push_mirror_repo_path,
                                             infrastructure_commit_author=infrastructure_commit_author)
                 except FailedShardCreationError as x:
@@ -150,7 +145,6 @@ class TypeAwareDocStore(ShardedDocStore):
                 self._prefix2shard[prefix] = shard
         with self._index_lock:
             self._locked_refresh_doc_ids()
-        self.git_action_class = git_action_class
 
     def _locked_refresh_doc_ids(self):
         """Assumes that the caller has the _index_lock !

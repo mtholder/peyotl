@@ -31,34 +31,21 @@ class AmendmentFilepathMapper(object):
     def id_from_path(self, path):
         doc_parent_dir = 'amendments/'
         if path.startswith(doc_parent_dir):
-            try:
-                amendment_id = path.split(doc_parent_dir)[1]
-                return amendment_id
-            except:
-                return None
+            return path.split(doc_parent_dir)[1]
 
 amendment_path_mapper = AmendmentFilepathMapper()
 
 class TaxonomicAmendmentsGitAction(GitActionBase):
     def __init__(self,
                  repo,
-                 remote=None,
                  cache=None,  # pylint: disable=W0613
                  max_file_size=None):
         """GitActionBase subclass to interact with a Git repository
-
-        Example:
-        gd   = TaxonomicAmendmentsGitAction(repo="/home/user/git/foo")
-
-        Note that this requires write access to the
-        git repository directory, so it can create a
-        lockfile in the .git directory.
-
+        TaxonomicAmendmentsGitAction(repo="/home/user/git/foo")
         """
         GitActionBase.__init__(self,
                                'amendment',
                                repo,
-                               remote,
                                max_file_size,
                                path_mapper=amendment_path_mapper)
 
@@ -281,13 +268,11 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
     """Wrapper around a git repo holding JSON taxonomic amendments
     Raises a ValueError if the directory does not appear to be a TaxonomicAmendmentsShard.
     Raises a RuntimeError for errors associated with misconfiguration."""
-    from peyotl.phylesystem.git_actions import PhylesystemGitAction
     document_type = 'taxon_amendment'
 
     def __init__(self,
                  name,
                  path,
-                 git_action_class=PhylesystemGitAction,
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
         TypeAwareGitShard.__init__(self,
@@ -296,7 +281,7 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
                                    doc_holder_subpath='amendments',
                                    doc_schema=TaxonomicAmendmentDocSchema(),
                                    refresh_doc_index_fn=refresh_amendment_index,  # populates _doc_index
-                                   git_action_class=git_action_class,
+                                   git_action_class=TaxonomicAmendmentsGitAction,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author)
         self._next_ott_id = None
@@ -360,10 +345,6 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
         self.register_doc_id(ga, new_amendment_id)
         return ga, new_amendment_id
 
-    def _create_git_action_for_global_resource(self):
-        return self._ga_class(repo=self.path,
-                              max_file_size=self.max_file_size)
-
 
 def prefix_from_amendment_path(amendment_id):
     # The amendment id is in the form '{subtype}-{first ottid}-{last-ottid}'
@@ -400,7 +381,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
     def __init__(self,
                  repos_dict=None,
                  repos_par=None,
-                 git_action_class=TaxonomicAmendmentsGitAction,
                  mirror_info=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                  **kwargs):
@@ -408,8 +388,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
         `with_caching` should be True for non-debugging uses.
-        `git_action_class` is a subclass of GitActionBase to use. the __init__ syntax must be compatible
-            with PhylesystemGitAction
         If you want to use a mirrors of the repo for pushes or pulls, send in a `mirror_info` dict:
             mirror_info['push'] and mirror_info['pull'] should be dicts with the following keys:
             'parent_dir' - the parent directory of the mirrored repos
@@ -420,7 +398,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
                                    prefix_from_doc_id=prefix_from_amendment_path,
                                    repos_dict=repos_dict,
                                    repos_par=repos_par,
-                                   git_action_class=TaxonomicAmendmentsGitAction,
                                    git_shard_class=TaxonomicAmendmentsShard,
                                    mirror_info=mirror_info,
                                    infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
@@ -660,7 +637,6 @@ _THE_TAXONOMIC_AMENDMENT_STORE = None
 # noinspection PyPep8Naming
 def TaxonomicAmendmentStore(repos_dict=None,
                             repos_par=None,
-                            git_action_class=TaxonomicAmendmentsGitAction,
                             mirror_info=None,
                             infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
     """Factory function for a _TaxonomicAmendmentStore object.
@@ -674,13 +650,11 @@ def TaxonomicAmendmentStore(repos_dict=None,
     if _THE_TAXONOMIC_AMENDMENT_STORE is None:
         _THE_TAXONOMIC_AMENDMENT_STORE = _TaxonomicAmendmentStore(repos_dict=repos_dict,
                                                                   repos_par=repos_par,
-                                                                  git_action_class=git_action_class,
                                                                   mirror_info=mirror_info,
                                                                   infrastructure_commit_author=infrastructure_commit_author)
     return _THE_TAXONOMIC_AMENDMENT_STORE
 
 
 def create_taxonomic_amendments_umbrella(shard_mirror_pair_list):
-    return _TaxonomicAmendmentStore(shard_mirror_pair_list=shard_mirror_pair_list,
-                                    git_action_class=TaxonomicAmendmentsGitAction)
+    return _TaxonomicAmendmentStore(shard_mirror_pair_list=shard_mirror_pair_list)
 

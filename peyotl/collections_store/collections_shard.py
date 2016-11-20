@@ -1,6 +1,7 @@
 import os
 from threading import Lock
 from peyotl.utility import get_logger
+from peyotl.collections_store.git_actions import TreeCollectionsGitAction
 from peyotl.collections_store.validation import validate_collection
 from peyotl.git_storage.git_shard import TypeAwareGitShard
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
@@ -65,13 +66,11 @@ class TreeCollectionsShard(TypeAwareGitShard):
     """Wrapper around a git repo holding JSON tree collections
     Raises a ValueError if the directory does not appear to be a TreeCollectionsShard.
     Raises a RuntimeError for errors associated with misconfiguration."""
-    from peyotl.phylesystem.git_actions import PhylesystemGitAction
     document_type = 'tree_collection'
 
     def __init__(self,
                  name,
                  path,
-                 git_action_class=PhylesystemGitAction,
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
         TypeAwareGitShard.__init__(self,
@@ -80,7 +79,7 @@ class TreeCollectionsShard(TypeAwareGitShard):
                                    doc_holder_subpath='collections-by-owner',
                                    doc_schema=TreeCollectionsDocSchema(),
                                    refresh_doc_index_fn=refresh_collection_index,  # populates _doc_index
-                                   git_action_class=git_action_class,
+                                   git_action_class=TreeCollectionsGitAction,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author)
 
@@ -108,7 +107,3 @@ class TreeCollectionsShard(TypeAwareGitShard):
         # id should have been sorted out by the caller
         self.register_doc_id(ga, new_collection_id)
         return ga, new_collection_id
-
-    def _create_git_action_for_global_resource(self):
-        return self._ga_class(repo=self.path,
-                              max_file_size=self.max_file_size)

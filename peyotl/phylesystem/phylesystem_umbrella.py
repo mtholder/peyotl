@@ -8,7 +8,6 @@ except:
 from peyotl.phylesystem.helper import _make_phylesystem_cache_region
 from peyotl.git_storage import (ShardedDocStore, ShardedDocStoreProxy, TypeAwareDocStore)
 from peyotl.phylesystem.phylesystem_shard import PhylesystemShardProxy, PhylesystemShard
-from peyotl.phylesystem.git_actions import PhylesystemGitAction
 from peyotl.phylesystem.git_workflows import validate_and_convert_nexson
 from peyotl.nexson_validation import ot_validate
 from peyotl.nexson_validation._validation_base import NexsonAnnotationAdder, replace_same_agent_annotation
@@ -45,7 +44,6 @@ class _Phylesystem(TypeAwareDocStore):
     def __init__(self,
                  repos_dict=None,
                  repos_par=None,
-                 git_action_class=PhylesystemGitAction,
                  mirror_info=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                  shard_mirror_pair_list=None,
@@ -54,8 +52,6 @@ class _Phylesystem(TypeAwareDocStore):
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
         `with_caching` should be True for non-debugging uses.
-        `git_action_class` is a subclass of GitActionBase to use. the __init__ syntax must be compatible
-            with PhylesystemGitAction
         If you want to use a mirrors of the repo for pushes or pulls, send in a `mirror_info` dict:
             mirror_info['push'] and mirror_info['pull'] should be dicts with the following keys:
             'parent_dir' - the parent directory of the mirrored repos
@@ -67,7 +63,6 @@ class _Phylesystem(TypeAwareDocStore):
                                    prefix_from_doc_id=prefix_from_study_id,
                                    repos_dict=repos_dict,
                                    repos_par=repos_par,
-                                   git_action_class=git_action_class,
                                    git_shard_class=PhylesystemShard,
                                    mirror_info=mirror_info,
                                    infrastructure_commit_author=infrastructure_commit_author,
@@ -209,7 +204,6 @@ _THE_PHYLESYSTEM = None
 
 def Phylesystem(repos_dict=None,
                 repos_par=None,
-                git_action_class=PhylesystemGitAction,
                 mirror_info=None,
                 new_study_prefix=None,  # Unused, TEMP deprecated
                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
@@ -226,12 +220,10 @@ def Phylesystem(repos_dict=None,
         _THE_PHYLESYSTEM = _Phylesystem(repos_dict=repos_dict,
                                         repos_par=repos_par,
                                         with_caching=with_caching,
-                                        git_action_class=git_action_class,
                                         mirror_info=mirror_info,
                                         infrastructure_commit_author=infrastructure_commit_author)
     return _THE_PHYLESYSTEM
 
 
 def create_phylesystem_umbrella(shard_mirror_pair_list):
-    return _Phylesystem(shard_mirror_pair_list=shard_mirror_pair_list,
-                        git_action_class=PhylesystemGitAction)
+    return _Phylesystem(shard_mirror_pair_list=shard_mirror_pair_list)

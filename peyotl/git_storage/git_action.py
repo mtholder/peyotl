@@ -104,7 +104,6 @@ class GitActionBase(object):
     def __init__(self,
                  doc_type,
                  repo,
-                 remote=None,
                  max_file_size=None,
                  path_mapper=None):
         self.repo = repo
@@ -113,7 +112,6 @@ class GitActionBase(object):
         self._lock_file = os.path.join(self.git_dir, "API_WRITE_LOCK")
         self._lock_timeout = 30  # in seconds
         self._lock = locket.lock_file(self._lock_file, timeout=self._lock_timeout)
-        self.repo_remote = remote
         self.max_file_size = max_file_size
         self.path_mapper = path_mapper
         if os.path.isdir("{}/.git".format(self.repo)):

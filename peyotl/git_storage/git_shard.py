@@ -250,9 +250,8 @@ class TypeAwareGitShard(GitShard):
         # TODO:git-action-edits
 
     def _create_git_action_for_global_resource(self):
-        """This should be implemented by all subclasses"""
-        raise NotImplementedError(
-            'Type-specific shard class should have "_create_git_action_for_global_resource" method')
+        return self._ga_class(repo=self.path,
+                              max_file_size=self.max_file_size)
 
     def _read_master_branch_resource(self, fn, is_json=False):
         """This will force the current branch to master! """
