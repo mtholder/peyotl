@@ -125,10 +125,6 @@ class _Phylesystem(TypeAwareDocStore):
         """Checks out master branch of the shard as a side effect"""
         return self._growing_shard._mint_new_study_id()
 
-    def create_git_action_for_new_study(self, new_study_id=None):
-        """Checks out master branch of the shard as a side effect"""
-        return self._growing_shard.create_git_action_for_new_doc(new_doc_id=new_study_id)
-
     def ingest_new_study(self,
                          new_study_nexson,
                          auth_info,

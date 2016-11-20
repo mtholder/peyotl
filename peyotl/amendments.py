@@ -323,19 +323,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
                                    **kwargs)
         self._growing_shard._determine_next_ott_id()
 
-    # rename some generic members in the base class, for clarity and backward compatibility
-    @property
-    def get_amendment_ids(self):
-        return self.get_doc_ids
-
-    @property
-    def delete_amendment(self):
-        return self.delete_doc
-
-    def create_git_action_for_new_amendment(self, new_amendment_id=None):
-        """Checks out master branch of the shard as a side effect"""
-        return self._growing_shard.create_git_action_for_new_doc(new_doc_id=new_amendment_id)
-
     def add_new_amendment(self,
                           json_repr,
                           auth_info,
@@ -520,7 +507,7 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
 
     def _is_existing_id(self, test_id):
         """Test to see if this id is non-unique (already exists in a shard)"""
-        return test_id in self.get_amendment_ids()
+        return test_id in self.get_doc_ids()
 
     def _is_valid_amendment_json(self, json_repr):
         """Call the primary validator for a quick test"""

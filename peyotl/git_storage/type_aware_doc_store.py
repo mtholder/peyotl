@@ -142,6 +142,10 @@ class TypeAwareDocStore(ShardedDocStore):
         with self._index_lock:
             self._locked_refresh_doc_ids()
 
+    def create_git_action_for_new_document(self, new_doc_id=None):
+        """Checks out master branch of the shard as a side effect"""
+        return self._growing_shard.create_git_action_for_new_doc(new_doc_id=new_doc_id)
+
     def _locked_refresh_doc_ids(self):
         """Assumes that the caller has the _index_lock !
         """

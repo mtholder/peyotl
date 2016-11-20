@@ -74,9 +74,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
     def delete_collection(self):
         return self.delete_doc
 
-    def create_git_action_for_new_collection(self, new_collection_id=None):
-        """Checks out master branch of the shard as a side effect"""
-        return self._growing_shard.create_git_action_for_new_doc(new_doc_id=new_collection_id)
 
     def add_new_collection(self,
                            owner_id,

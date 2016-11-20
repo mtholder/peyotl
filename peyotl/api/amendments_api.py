@@ -85,7 +85,7 @@ class _TaxonomicAmendmentsAPIWrapper(_WSWrapper):
     def amendment_list(self):
         if self._src_code == _GET_API:
             return self._remote_amendment_list()
-        return self.docstore_obj.get_amendment_ids()
+        return self.docstore_obj.get_doc_ids()
 
     @property
     def push_failure_state(self):
