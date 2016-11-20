@@ -11,14 +11,10 @@ from peyotl.utility import get_logger
 from peyotl.utility.str_util import slugify, increment_slug
 import anyjson
 from peyotl.git_storage import TypeAwareDocStore, ShardedDocStoreProxy
-from peyotl.collections_store.collections_shard import TreeCollectionsShard
+from peyotl.collections_store.collections_shard import (TreeCollectionsShard,
+                                                        CollectionsFilepathMapper,
+                                                        TreeCollectionsDocSchema)
 from peyotl.collections_store.validation import validate_collection
-from peyotl.collections_store.git_actions import TreeCollectionsGitAction, CollectionsFilepathMapper
-from peyotl.collections_store.collections_shard import TreeCollectionsDocSchema
-# from peyotl.phylesystem.git_workflows import commit_and_try_merge2master, \
-#                                             delete_study, \
-#                                             validate_and_convert_nexson
-# from peyotl.nexson_validation import ot_validate
 import re
 
 OWNER_ID_PATTERN = re.compile(r'^[a-zA-Z0-9-]+$')

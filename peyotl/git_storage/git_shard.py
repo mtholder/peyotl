@@ -86,7 +86,7 @@ class TypeAwareGitShard(GitShard):
                  doc_holder_subpath,
                  doc_schema=None,
                  refresh_doc_index_fn=None,
-                 git_action_class=None,
+                 git_action_factory=None,
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                  max_file_size=None):
@@ -95,7 +95,7 @@ class TypeAwareGitShard(GitShard):
         self._infrastructure_commit_author = infrastructure_commit_author
         self._locked_refresh_doc_index = refresh_doc_index_fn
         self._master_branch_repo_lock = Lock()
-        self._ga_class = git_action_class
+        self._ga_factory = git_action_factory
         path = os.path.abspath(path)
         dot_git = os.path.join(path, '.git')
         doc_dir = os.path.join(path, doc_holder_subpath)  # type-specific, e.g. 'study'
@@ -143,8 +143,8 @@ class TypeAwareGitShard(GitShard):
                 pass
 
     def create_git_action(self):
-        return self._ga_class(repo=self.path,
-                              max_file_size=self.max_file_size)
+        return self._ga_factory(repo=self.path,
+                                max_file_size=self.max_file_size)
 
     def pull(self, remote='origin', branch_name='master'):
         with self._index_lock:
@@ -161,8 +161,8 @@ class TypeAwareGitShard(GitShard):
     def _create_git_action_for_mirror(self):
         # If a document makes it into the working dir, we don't want to reject it from the mirror, so
         #   we use max_file_size= None
-        mirror_ga = self._ga_class(repo=self.push_mirror_repo_path,
-                                   max_file_size=None)
+        mirror_ga = self._ga_factory(repo=self.push_mirror_repo_path,
+                                     max_file_size=None)
         return mirror_ga
 
     def push_to_remote(self, remote_name):
@@ -250,8 +250,8 @@ class TypeAwareGitShard(GitShard):
         # TODO:git-action-edits
 
     def _create_git_action_for_global_resource(self):
-        return self._ga_class(repo=self.path,
-                              max_file_size=self.max_file_size)
+        return self._ga_factory(repo=self.path,
+                                max_file_size=self.max_file_size)
 
     def _read_master_branch_resource(self, fn, is_json=False):
         """This will force the current branch to master! """

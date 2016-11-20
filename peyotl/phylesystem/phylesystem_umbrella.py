@@ -7,11 +7,10 @@ except:
     pass  # caching is optional
 from peyotl.phylesystem.helper import _make_phylesystem_cache_region
 from peyotl.git_storage import (ShardedDocStore, ShardedDocStoreProxy, TypeAwareDocStore)
-from peyotl.phylesystem.phylesystem_shard import PhylesystemShardProxy, PhylesystemShard
+from peyotl.phylesystem.phylesystem_shard import PhylesystemShardProxy, PhylesystemShard, PhylesystemFilepathMapper
 from peyotl.phylesystem.git_workflows import validate_and_convert_nexson
 from peyotl.nexson_validation import ot_validate
 from peyotl.nexson_validation._validation_base import NexsonAnnotationAdder, replace_same_agent_annotation
-from peyotl.phylesystem.git_actions import PhylesystemFilepathMapper
 
 _LOG = get_logger(__name__)
 

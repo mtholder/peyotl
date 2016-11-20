@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from peyotl.collections_store.collections_umbrella import TreeCollectionStore, TreeCollectionStoreProxy
 from peyotl.api.wrapper import _WSWrapper, APIWrapper
-from peyotl.collections_store.git_actions import CollectionsFilepathMapper
+from peyotl.collections_store.collections_shard import CollectionsFilepathMapper
 from peyotl.utility import get_logger
 from peyotl.git_storage import get_doc_store_repo_parent
 from peyotl import create_doc_store_wrapper

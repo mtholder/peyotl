@@ -1,12 +1,36 @@
 import os
-from threading import Lock
+import re
 from peyotl.utility import get_logger
-from peyotl.collections_store.git_actions import TreeCollectionsGitAction
 from peyotl.collections_store.validation import validate_collection
 from peyotl.git_storage.git_shard import TypeAwareGitShard
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
-from peyotl.collections_store.git_actions import CollectionsFilepathMapper
+from peyotl.git_storage import GitActionBase
 _LOG = get_logger(__name__)
+
+
+class CollectionsFilepathMapper(object):
+    id_pattern =  re.compile(r'^[a-zA-Z0-9-]+/[a-z0-9-]+$')
+    wip_id_template = r'.*_collection_{i}_[0-9]+',
+    branch_name_template = "{ghu}_collection_{rid}",
+    path_to_user_splitter = '_collection_'
+
+    def filepath_for_id(self, repo_dir, collection_id):
+        assert bool(CollectionsFilepathMapper.id_pattern.match(collection_id))
+        return '{r}/collections-by-owner/{s}.json'.format(r=repo_dir, s=collection_id)
+
+    def id_from_path(self, path):
+        doc_parent_dir = 'collections-by-owner/'
+        if path.startswith(doc_parent_dir):
+            return path.split(doc_parent_dir)[1]
+
+collections_path_mapper = CollectionsFilepathMapper()
+
+def create_tree_collections_git_action(repo, max_file_size=None):
+    return GitActionBase(doc_type='collection',
+                         repo=repo,
+                         max_file_size=max_file_size,
+                         path_mapper=collections_path_mapper)
+
 
 def filepath_for_collection_id(repo_dir, collection_id):
     # in this case, simply expand the id to a full path
@@ -79,7 +103,7 @@ class TreeCollectionsShard(TypeAwareGitShard):
                                    doc_holder_subpath='collections-by-owner',
                                    doc_schema=TreeCollectionsDocSchema(),
                                    refresh_doc_index_fn=refresh_collection_index,  # populates _doc_index
-                                   git_action_class=TreeCollectionsGitAction,
+                                   git_action_factory=create_tree_collections_git_action,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author)
 

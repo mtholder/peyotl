@@ -2,17 +2,47 @@ import os
 import re
 import json
 import codecs
-from threading import Lock
 from peyotl.utility import get_config_setting, get_logger
 from peyotl.git_storage.git_shard import (GitShardProxy,
                                           TypeAwareGitShard)
 from peyotl.phylesystem.git_workflows import validate_and_convert_nexson
 from peyotl.nexson_syntax import PhyloSchema
-from peyotl.phylesystem.git_actions import PhylesystemFilepathMapper
 from peyotl.phylesystem.helper import create_id2study_info
-from peyotl.phylesystem.git_actions import PhylesystemGitAction
+from peyotl.git_storage import GitActionBase
 
 _LOG = get_logger(__name__)
+
+class PhylesystemFilepathMapper(object):
+    id_pattern = re.compile(r'[a-zA-Z][a-zA-Z]_[0-9]+')
+    wip_id_template = '.*_study_{i}_[0-9]+'
+    branch_name_template = "{ghu}_study_{rid}"
+    path_to_user_splitter = '_study_'
+
+    def filepath_for_id(self, repo_dir, study_id):
+        assert len(study_id) >= 4
+        assert study_id[2] == '_'
+        assert bool(PhylesystemFilepathMapper.id_pattern.match(study_id))
+        frag = study_id[-2:]
+        dest_topdir = study_id[:3] + frag
+        dest_subdir = study_id
+        dest_file = dest_subdir + '.json'
+        return os.path.join(repo_dir, 'study', dest_topdir, dest_subdir, dest_file)
+
+    def id_from_path(self, path):
+        if path.startswith('study/'):
+            try:
+                return path.split('/')[-2]
+            except:
+                return None
+
+phylesystem_path_mapper = PhylesystemFilepathMapper()
+
+def create_phylesystem_git_action(repo, max_file_size=None):
+    return GitActionBase(doc_type='nexson',
+                         repo=repo,
+                         max_file_size=max_file_size,
+                         path_mapper=phylesystem_path_mapper)
+
 
 
 class NexsonDocSchema(object):
@@ -159,7 +189,7 @@ class PhylesystemShard(TypeAwareGitShard):
                                    doc_holder_subpath='study',
                                    doc_schema=NexsonDocSchema(),
                                    refresh_doc_index_fn=refresh_study_index,  # populates 'study_index'
-                                   git_action_class=PhylesystemGitAction,
+                                   git_action_factory=create_phylesystem_git_action,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author,
                                    max_file_size=max_file_size)

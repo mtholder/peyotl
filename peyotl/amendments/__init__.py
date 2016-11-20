@@ -33,23 +33,16 @@ class AmendmentFilepathMapper(object):
         if path.startswith(doc_parent_dir):
             return path.split(doc_parent_dir)[1]
 
-
+# immutable, singleton "FilepathMapper" objects are passed to the GitAction
+#   initialization function as a means of making the mapping of a document ID
+#   to the filepath generic across document type.
 amendment_path_mapper = AmendmentFilepathMapper()
 
-
-class TaxonomicAmendmentsGitAction(GitActionBase):
-    def __init__(self,
-                 repo,
-                 cache=None,  # pylint: disable=W0613
-                 max_file_size=None):
-        """GitActionBase subclass to interact with a Git repository
-        TaxonomicAmendmentsGitAction(repo="/home/user/git/foo")
-        """
-        GitActionBase.__init__(self,
-                               'amendment',
-                               repo,
-                               max_file_size,
-                               path_mapper=amendment_path_mapper)
+def create_amendment_git_action(repo, max_file_size=None):
+    return GitActionBase(doc_type='amendment',
+                         repo=repo,
+                         max_file_size=max_file_size,
+                         path_mapper=amendment_path_mapper)
 
 
 def filepath_for_amendment_id(repo_dir, amendment_id):
@@ -292,7 +285,7 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
                                    doc_holder_subpath='amendments',
                                    doc_schema=TaxonomicAmendmentDocSchema(),
                                    refresh_doc_index_fn=refresh_amendment_index,  # populates _doc_index
-                                   git_action_class=TaxonomicAmendmentsGitAction,
+                                   git_action_factory=create_amendment_git_action,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author)
         self._next_ott_id = None
