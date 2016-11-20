@@ -2,6 +2,8 @@
 """Basic functions for creating and manipulating amendments JSON.
 """
 import os
+import re
+
 import anyjson
 import dateutil.parser
 from peyotl.git_storage import (ShardedDocStoreProxy, TypeAwareDocStore, NonAnnotatingDocValidationAdaptor,
@@ -9,17 +11,16 @@ from peyotl.git_storage import (ShardedDocStoreProxy, TypeAwareDocStore, NonAnno
 from peyotl.git_storage.git_shard import TypeAwareGitShard
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
 from peyotl.utility import get_logger, doi2url, string_types_tuple, slugify
-import re
 
 _LOG = get_logger(__name__)
+
 
 class AmendmentFilepathMapper(object):
     # Allow simple slug-ified string with '{known-prefix}-{7-or-8-digit-id}-{7-or-8-digit-id}'
     # (8-digit ottids are probably years away, but allow them to be safe.)
     # N.B. currently only the 'additions' prefix is supported!
     id_pattern = re.compile(r'^(additions|changes|deletions)-[0-9]{7,8}-[0-9]{7,8}$')
-
-    wip_id_pattern = r'.*_amendment_{i}_[0-9]+'
+    wip_id_template = r'.*_amendment_{i}_[0-9]+'
     branch_name_template = "{ghu}_amendment_{rid}"
     path_to_user_splitter = '_amendment_'
 
@@ -27,13 +28,14 @@ class AmendmentFilepathMapper(object):
         assert bool(AmendmentFilepathMapper.id_pattern.match(amendment_id))
         return '{r}/amendments/{s}.json'.format(r=repo_dir, s=amendment_id)
 
-
     def id_from_path(self, path):
         doc_parent_dir = 'amendments/'
         if path.startswith(doc_parent_dir):
             return path.split(doc_parent_dir)[1]
 
+
 amendment_path_mapper = AmendmentFilepathMapper()
+
 
 class TaxonomicAmendmentsGitAction(GitActionBase):
     def __init__(self,
@@ -62,7 +64,9 @@ def create_validation_adaptor(obj, errors, **kwargs):
     # just one simple version for now, so one adapter class
     return AmendmentValidationAdaptor(obj, errors, **kwargs)
 
+
 _string_types = string_types_tuple()
+
 
 def validate_dict_keys(obj, schema, errors, name):
     uk = [k for k in obj.keys() if k not in schema.allowed_elements]
@@ -103,6 +107,7 @@ class _AmendmentTopLevelSchema(object):
     allowed_elements.update(optional_elements.keys())
     allowed_elements = frozenset(allowed_elements)
 
+
 class _AmendmentCuratorSchema(object):
     required_elements = {}
     optional_elements = {
@@ -111,6 +116,7 @@ class _AmendmentCuratorSchema(object):
         'email': _string_types,  # provided by some agents
     }
     allowed_elements = frozenset(optional_elements.keys())
+
 
 class _AmendmentTaxonSchema(object):
     required_elements = {
@@ -133,6 +139,7 @@ class _AmendmentTaxonSchema(object):
     allowed_elements.update(optional_elements.keys())
     allowed_elements = frozenset(allowed_elements)
 
+
 class _AmendmentSourceSchema(object):
     # we need at least one source with type and (sometimes) non-empty value
     requiring_value = frozenset([
@@ -140,11 +147,12 @@ class _AmendmentSourceSchema(object):
         'Link (DOI) to publication',
         'Other',
     ])
-    not_requiring_value = frozenset(['The taxon is described in this study',])
+    not_requiring_value = frozenset(['The taxon is described in this study', ])
     allowed_elements = set(requiring_value)
     allowed_elements.update(not_requiring_value)
     allowed_elements = frozenset(allowed_elements)
-    requiring_URL = frozenset(['Link to online taxonomy', 'Link (DOI) to publication',])
+    requiring_URL = frozenset(['Link to online taxonomy', 'Link (DOI) to publication', ])
+
 
 def _validate_amendment_source(s, errors):
     valid_source_found = False
@@ -164,6 +172,7 @@ def _validate_amendment_source(s, errors):
             msg = "Source '{s}' (of type '{t}') should be a URL!".format(s=s_val, t=s_type)
             errors.append(msg)
     return valid_source_found
+
 
 class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
     def __init__(self, obj, errors, **kwargs):
@@ -210,8 +219,10 @@ class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
                 if not valid_source_found:
                     errors.append("Taxon must have at least one valid source (none found)!")
 
+
 def validate_amendment(obj):
     return TaxonomicAmendmentDocSchema().validate(obj)
+
 
 class TaxonomicAmendmentDocSchema(SimpleJSONDocSchema):
     def __init__(self):
@@ -657,4 +668,3 @@ def TaxonomicAmendmentStore(repos_dict=None,
 
 def create_taxonomic_amendments_umbrella(shard_mirror_pair_list):
     return _TaxonomicAmendmentStore(shard_mirror_pair_list=shard_mirror_pair_list)
-

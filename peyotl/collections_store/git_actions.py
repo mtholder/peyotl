@@ -5,11 +5,8 @@ import re
 _LOG = get_logger(__name__)
 
 class CollectionsFilepathMapper(object):
-    # Allow simple slug-ified string with '{known-prefix}-{7-or-8-digit-id}-{7-or-8-digit-id}'
-    # (8-digit ottids are probably years away, but allow them to be safe.)
-    # N.B. currently only the 'additions' prefix is supported!
     id_pattern =  re.compile(r'^[a-zA-Z0-9-]+/[a-z0-9-]+$')
-    wip_id_pattern = r'.*_collection_{i}_[0-9]+',
+    wip_id_template = r'.*_collection_{i}_[0-9]+',
     branch_name_template = "{ghu}_collection_{rid}",
     path_to_user_splitter = '_collection_'
 

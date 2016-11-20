@@ -139,7 +139,7 @@ class GitActionBase(object):
         return self._remove_document(gh_user, study_id, parent_sha, author, commit_msg)
 
     def find_WIP_branches(self, collection_id):
-        pat = re.compile(self.path_mapper.wip_id_pattern.format(i=collection_id))
+        pat = re.compile(self.path_mapper.wip_id_template.format(i=collection_id))
         return self._find_WIP_branches(collection_id, branch_pattern=pat)
 
 

@@ -7,11 +7,8 @@ from peyotl.git_storage import GitActionBase
 _LOG = get_logger(__name__)
 
 class PhylesystemFilepathMapper(object):
-    # Allow simple slug-ified string with '{known-prefix}-{7-or-8-digit-id}-{7-or-8-digit-id}'
-    # (8-digit ottids are probably years away, but allow them to be safe.)
-    # N.B. currently only the 'additions' prefix is supported!
     id_pattern = re.compile(r'[a-zA-Z][a-zA-Z]_[0-9]+')
-    wip_id_pattern = '.*_study_{i}_[0-9]+'
+    wip_id_template = '.*_study_{i}_[0-9]+'
     branch_name_template = "{ghu}_study_{rid}"
     path_to_user_splitter = '_study_'
 
