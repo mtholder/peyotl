@@ -10,8 +10,8 @@ __all__ = ['git_actions',
 from peyotl.collections_store.collections_shard import TreeCollectionsDocSchema
 from peyotl.collections_store.collections_umbrella import (TreeCollectionStore,
                                                            TreeCollectionStoreProxy,
-                                                           OWNER_ID_PATTERN,
-                                                           COLLECTION_ID_PATTERN)
+                                                           OWNER_ID_PATTERN)
+from peyotl.collections_store.git_actions import CollectionsFilepathMapper
 from peyotl.utility.input_output import read_as_json
 from peyotl.utility.str_util import is_str_type
 

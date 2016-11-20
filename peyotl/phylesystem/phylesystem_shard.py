@@ -8,9 +8,9 @@ from peyotl.git_storage.git_shard import (GitShardProxy,
                                           TypeAwareGitShard)
 from peyotl.phylesystem.git_workflows import validate_and_convert_nexson
 from peyotl.nexson_syntax import PhyloSchema
-
+from peyotl.phylesystem.git_actions import PhylesystemFilepathMapper
+from peyotl.phylesystem.helper import create_id2study_info
 _LOG = get_logger(__name__)
-# class PhylesystemShardBase(object):
 
 
 class NexsonDocSchema(object):
@@ -132,10 +132,7 @@ def _diagnose_repo_nexml2json(shard):
 
 
 def refresh_study_index(shard, initializing=False):
-    from peyotl.phylesystem.helper import create_id2study_info, \
-        get_filepath_for_namespaced_id
     d = create_id2study_info(shard.doc_dir, shard.name)
-    shard.filepath_for_doc_id_fn = get_filepath_for_namespaced_id
     shard.has_aliases = False
     shard.study_index = d
 
@@ -166,9 +163,7 @@ class PhylesystemShard(TypeAwareGitShard):
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author,
                                    max_file_size=max_file_size)
-        self._doc_counter_lock = Lock()
         self._id_minting_file = os.path.join(path, 'next_study_id.json')
-        self.filepath_for_global_resource_fn = lambda frag: os.path.join(path, frag)
         self._next_study_id = None
         # _diagnose_repo_nexml2json(self) # needed if we return to supporting >1 NexSON version in a repo
 
@@ -222,8 +217,6 @@ class PhylesystemShard(TypeAwareGitShard):
 
         Checks out master branch as a side effect!
         """
-        if self._doc_counter_lock is None:
-            self._doc_counter_lock = Lock()
         prefix = self._new_doc_prefix
         lp = len(prefix)
         n = 0
@@ -270,10 +263,9 @@ class PhylesystemShard(TypeAwareGitShard):
     def _diagnose_prefixes(self):
         """Returns a set of all of the prefixes seen in the main document dir
         """
-        from peyotl.phylesystem import STUDY_ID_PATTERN
         p = set()
         for name in os.listdir(self.doc_dir):
-            if STUDY_ID_PATTERN.match(name):
+            if PhylesystemFilepathMapper.id_pattern.match(name):
                 p.add(name[:3])
         return p
 
@@ -298,5 +290,4 @@ class PhylesystemShard(TypeAwareGitShard):
 
     def _create_git_action_for_global_resource(self):
         return self._ga_class(repo=self.path,
-                              path_for_doc_fn=self.filepath_for_global_resource_fn,
                               max_file_size=self.max_file_size)

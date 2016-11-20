@@ -2,7 +2,7 @@
 like PhylesystemProxy by introducing more business rules and differences between document types
 in the store (eg, Nexson studies in Phylesystem, tree collections in TreeCollectionStore)."""
 import os
-
+from threading import Lock
 from peyotl.utility.imports import StringIO
 import anyjson
 from peyotl.git_storage import ShardedDocStore

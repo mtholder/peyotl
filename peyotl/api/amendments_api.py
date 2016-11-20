@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from peyotl.amendments import TaxonomicAmendmentStoreProxy
 from peyotl.api.wrapper import _WSWrapper, APIWrapper
-from peyotl.amendments import AMENDMENT_ID_PATTERN
+from peyotl.amendments import AmendmentFilepathMapper
 from peyotl.utility import get_logger
 from peyotl.git_storage import get_doc_store_repo_parent
 from peyotl import create_doc_store_wrapper
@@ -109,7 +109,7 @@ class _TaxonomicAmendmentsAPIWrapper(_WSWrapper):
             w.get('pg_10', tree_id='tree3')
         see:
         """
-        assert AMENDMENT_ID_PATTERN.match(amendment_id)
+        assert AmendmentFilepathMapper.id_pattern.match(amendment_id)
         r = self.get_amendment(amendment_id)
         if isinstance(r, dict) and ('data' in r):
             return r['data']

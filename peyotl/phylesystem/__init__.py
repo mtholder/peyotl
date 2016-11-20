@@ -8,5 +8,5 @@ __all__ = ['git_actions',
            'phylesystem_umbrella']
 from peyotl.phylesystem.phylesystem_shard import NexsonDocSchema
 from peyotl.phylesystem.phylesystem_umbrella import (Phylesystem,
-                                                     PhylesystemProxy,
-                                                     STUDY_ID_PATTERN)
+                                                     PhylesystemProxy)
+from peyotl.phylesystem.git_actions import PhylesystemFilepathMapper

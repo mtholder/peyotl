@@ -13,7 +13,7 @@ import anyjson
 from peyotl.git_storage import TypeAwareDocStore, ShardedDocStoreProxy
 from peyotl.collections_store.collections_shard import TreeCollectionsShard
 from peyotl.collections_store.validation import validate_collection
-from peyotl.collections_store.git_actions import TreeCollectionsGitAction
+from peyotl.collections_store.git_actions import TreeCollectionsGitAction, CollectionsFilepathMapper
 from peyotl.collections_store.collections_shard import TreeCollectionsDocSchema
 # from peyotl.phylesystem.git_workflows import commit_and_try_merge2master, \
 #                                             delete_study, \
@@ -22,7 +22,6 @@ from peyotl.collections_store.collections_shard import TreeCollectionsDocSchema
 import re
 
 OWNER_ID_PATTERN = re.compile(r'^[a-zA-Z0-9-]+$')
-COLLECTION_ID_PATTERN = re.compile(r'^[a-zA-Z0-9-]+/[a-z0-9-]+$')
 # Allow simple slug-ified strings and slash separator (no whitespace!)
 
 _LOG = get_logger(__name__)
@@ -60,7 +59,7 @@ class TreeCollectionStoreProxy(ShardedDocStoreProxy):
 class _TreeCollectionStore(TypeAwareDocStore):
     """Wrapper around a set of sharded git repos.
     """
-    id_regex = COLLECTION_ID_PATTERN
+    id_regex = CollectionsFilepathMapper.id_pattern
     document_type = 'tree_collection'
 
     def __init__(self,

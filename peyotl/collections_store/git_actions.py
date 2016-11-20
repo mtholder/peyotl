@@ -1,39 +1,37 @@
 #!/usr/bin/env python
 from peyotl.utility import get_logger
-import re
 from peyotl.git_storage import GitActionBase
-
-# extract a collection id from a git repo path (as returned by git-tree)
-
+import re
 _LOG = get_logger(__name__)
 
+class CollectionsFilepathMapper(object):
+    # Allow simple slug-ified string with '{known-prefix}-{7-or-8-digit-id}-{7-or-8-digit-id}'
+    # (8-digit ottids are probably years away, but allow them to be safe.)
+    # N.B. currently only the 'additions' prefix is supported!
+    id_pattern =  re.compile(r'^[a-zA-Z0-9-]+/[a-z0-9-]+$')
+    wip_id_pattern = r'.*_collection_{i}_[0-9]+',
+    branch_name_template = "{ghu}_collection_{rid}",
+    path_to_user_splitter = '_collection_'
 
-class MergeException(Exception):
-    pass
+    def filepath_for_id(self, repo_dir, collection_id):
+        assert bool(CollectionsFilepathMapper.id_pattern.match(collection_id))
+        return '{r}/collections-by-owner/{s}.json'.format(r=repo_dir, s=collection_id)
 
+    def id_from_path(self, path):
+        doc_parent_dir = 'collections-by-owner/'
+        if path.startswith(doc_parent_dir):
+            try:
+                collection_id = path.split(doc_parent_dir)[1]
+                return collection_id
+            except:
+                return None
 
-def get_filepath_for_id(repo_dir, collection_id):
-    from peyotl.collections_store import COLLECTION_ID_PATTERN
-    assert bool(COLLECTION_ID_PATTERN.match(collection_id))
-    return '{r}/collections-by-owner/{s}.json'.format(r=repo_dir, s=collection_id)
-
-
-def collection_id_from_repo_path(path):
-    doc_parent_dir = 'collections-by-owner/'
-    if path.startswith(doc_parent_dir):
-        try:
-            collection_id = path.split(doc_parent_dir)[1]
-            return collection_id
-        except:
-            return None
-
+collections_path_mapper = CollectionsFilepathMapper()
 
 class TreeCollectionsGitAction(GitActionBase):
     def __init__(self,
                  repo,
                  remote=None,
-                 cache=None,  # pylint: disable=W0613
-                 path_for_doc_fn=None,
                  max_file_size=None):
         """GitActionBase subclass to interact with a Git repository
 
@@ -49,11 +47,5 @@ class TreeCollectionsGitAction(GitActionBase):
                                'collection',
                                repo,
                                remote,
-                               cache,
-                               path_for_doc_fn,
                                max_file_size,
-                               id_from_path_fn=collection_id_from_repo_path,
-                               path_for_doc_id_fn=get_filepath_for_id,
-                               wip_id_pattern=r'.*_collection_{i}_[0-9]+',
-                               branch_name_template="{ghu}_collection_{rid}",
-                               path_to_user_splitter='_collection_')
+                               path_mapper=collections_path_mapper)

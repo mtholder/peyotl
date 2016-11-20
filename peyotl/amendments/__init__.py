@@ -2,50 +2,48 @@
 """Basic functions for creating and manipulating amendments JSON.
 """
 import os
-from threading import Lock
-
 import anyjson
 import dateutil.parser
-from peyotl.git_storage import NonAnnotatingDocValidationAdaptor
-from peyotl.git_storage import (ShardedDocStoreProxy, TypeAwareDocStore)
+from peyotl.git_storage import (ShardedDocStoreProxy, TypeAwareDocStore, NonAnnotatingDocValidationAdaptor,
+                                GitActionBase)
 from peyotl.git_storage.git_shard import TypeAwareGitShard
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
 from peyotl.utility import get_logger, doi2url, string_types_tuple, slugify
-from peyotl.utility import get_logger
 import re
-from peyotl.git_storage import GitActionBase
-
-# extract an amendment id from a git repo path (as returned by git-tree)
 
 _LOG = get_logger(__name__)
 
+class AmendmentFilepathMapper(object):
+    # Allow simple slug-ified string with '{known-prefix}-{7-or-8-digit-id}-{7-or-8-digit-id}'
+    # (8-digit ottids are probably years away, but allow them to be safe.)
+    # N.B. currently only the 'additions' prefix is supported!
+    id_pattern = re.compile(r'^(additions|changes|deletions)-[0-9]{7,8}-[0-9]{7,8}$')
 
-class MergeException(Exception):
-    pass
+    wip_id_pattern = r'.*_amendment_{i}_[0-9]+'
+    branch_name_template = "{ghu}_amendment_{rid}"
+    path_to_user_splitter = '_amendment_'
+
+    def filepath_for_id(self, repo_dir, amendment_id):
+        assert bool(AmendmentFilepathMapper.id_pattern.match(amendment_id))
+        return '{r}/amendments/{s}.json'.format(r=repo_dir, s=amendment_id)
 
 
-def get_filepath_for_id(repo_dir, amendment_id):
-    from peyotl.amendments import AMENDMENT_ID_PATTERN
-    assert bool(AMENDMENT_ID_PATTERN.match(amendment_id))
-    return '{r}/amendments/{s}.json'.format(r=repo_dir, s=amendment_id)
+    def id_from_path(self, path):
+        doc_parent_dir = 'amendments/'
+        if path.startswith(doc_parent_dir):
+            try:
+                amendment_id = path.split(doc_parent_dir)[1]
+                return amendment_id
+            except:
+                return None
 
-
-def amendment_id_from_repo_path(path):
-    doc_parent_dir = 'amendments/'
-    if path.startswith(doc_parent_dir):
-        try:
-            amendment_id = path.split(doc_parent_dir)[1]
-            return amendment_id
-        except:
-            return None
-
+amendment_path_mapper = AmendmentFilepathMapper()
 
 class TaxonomicAmendmentsGitAction(GitActionBase):
     def __init__(self,
                  repo,
                  remote=None,
                  cache=None,  # pylint: disable=W0613
-                 path_for_doc_fn=None,
                  max_file_size=None):
         """GitActionBase subclass to interact with a Git repository
 
@@ -61,19 +59,9 @@ class TaxonomicAmendmentsGitAction(GitActionBase):
                                'amendment',
                                repo,
                                remote,
-                               cache,
-                               path_for_doc_fn,
                                max_file_size,
-                               id_from_path_fn=amendment_id_from_repo_path,
-                               path_for_doc_id_fn=get_filepath_for_id,
-                               wip_id_pattern=r'.*_amendment_{i}_[0-9]+',
-                               branch_name_template="{ghu}_amendment_{rid}",
-                               path_to_user_splitter=None)
+                               path_mapper=amendment_path_mapper)
 
-# Allow simple slug-ified string with '{known-prefix}-{7-or-8-digit-id}-{7-or-8-digit-id}'
-# (8-digit ottids are probably years away, but allow them to be safe.)
-# N.B. currently only the 'additions' prefix is supported!
-AMENDMENT_ID_PATTERN = re.compile(r'^(additions|changes|deletions)-[0-9]{7,8}-[0-9]{7,8}$')
 
 def filepath_for_amendment_id(repo_dir, amendment_id):
     # in this case, simply expand the id to a full path
@@ -196,7 +184,9 @@ class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
 
         # test a non-empty id against our expected pattern
         self._id = obj.get('id')
-        if not (self._id and isinstance(self._id, _string_types) and bool(AMENDMENT_ID_PATTERN.match(self._id))):
+        if not (self._id
+                and isinstance(self._id, _string_types)
+                and bool(AmendmentFilepathMapper.id_pattern.match(self._id))):
             errors.append("The top-level amendment 'id' provided is not valid")
 
         # test a non-empty curator for expected 'login' and 'name' fields
@@ -212,8 +202,8 @@ class AmendmentValidationAdaptor(NonAnnotatingDocValidationAdaptor):
         # study_id (if it's not an empty string)
         self._study_id = obj.get('study_id')
         if self._study_id and isinstance(self._study_id, _string_types):
-            from peyotl.phylesystem import STUDY_ID_PATTERN
-            if not bool(STUDY_ID_PATTERN.match(self._study_id)):
+            from peyotl.phylesystem import PhylesystemFilepathMapper
+            if not bool(PhylesystemFilepathMapper.id_pattern.match(self._study_id)):
                 errors.append("The 'study_id' provided is not valid")
         # taxa
         self._taxa = obj.get('taxa')
@@ -309,13 +299,8 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
                                    git_action_class=git_action_class,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author)
-        self.filepath_for_doc_id_fn = filepath_for_amendment_id
-        self._doc_counter_lock = Lock()
         self._next_ott_id = None
         self._id_minting_file = os.path.join(path, 'next_ott_id.json')
-        # N.B. This is for minting invididual taxon (OTT) ids, not amendment ids!
-        # We construct each amendment from its unique series of ottids.
-        self.filepath_for_global_resource_fn = lambda frag: os.path.join(path, frag)
 
     # rename some generic members in the base class, for clarity and backward compatibility
     @property
@@ -334,8 +319,6 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
 
         Checks out master branch as a side effect!
         """
-        if self._doc_counter_lock is None:
-            self._doc_counter_lock = Lock()
         with self._doc_counter_lock:
             _LOG.debug('Reading "{}"'.format(self._id_minting_file))
             noi_contents = self._read_master_branch_resource(self._id_minting_file, is_json=True)
@@ -379,7 +362,6 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
 
     def _create_git_action_for_global_resource(self):
         return self._ga_class(repo=self.path,
-                              path_for_doc_fn=self.filepath_for_global_resource_fn,
                               max_file_size=self.max_file_size)
 
 
@@ -412,7 +394,7 @@ class TaxonomicAmendmentStoreProxy(ShardedDocStoreProxy):
 class _TaxonomicAmendmentStore(TypeAwareDocStore):
     """Wrapper around a set of sharded git repos.
     """
-    id_regex = AMENDMENT_ID_PATTERN
+    id_regex = AmendmentFilepathMapper.id_pattern
     document_type = 'taxon_amendment'
 
     def __init__(self,

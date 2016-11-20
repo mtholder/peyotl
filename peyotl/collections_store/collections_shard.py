@@ -4,7 +4,7 @@ from peyotl.utility import get_logger
 from peyotl.collections_store.validation import validate_collection
 from peyotl.git_storage.git_shard import TypeAwareGitShard
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
-
+from peyotl.collections_store.git_actions import CollectionsFilepathMapper
 _LOG = get_logger(__name__)
 
 def filepath_for_collection_id(repo_dir, collection_id):
@@ -83,9 +83,6 @@ class TreeCollectionsShard(TypeAwareGitShard):
                                    git_action_class=git_action_class,
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author)
-        self.filepath_for_doc_id_fn = filepath_for_collection_id
-        self._doc_counter_lock = Lock()
-        self.filepath_for_global_resource_fn = lambda frag: os.path.join(path, frag)
 
     # rename some generic members in the base class, for clarity and backward compatibility
     @property
@@ -97,11 +94,10 @@ class TreeCollectionsShard(TypeAwareGitShard):
     def _diagnose_prefixes(self):
         """Returns a set of all of the prefixes seen in the main document dir
         """
-        from peyotl.collections_store import COLLECTION_ID_PATTERN
         p = set()
         for owner_dirname in os.listdir(self.doc_dir):
             example_collection_name = "{n}/xxxxx".format(n=owner_dirname)
-            if COLLECTION_ID_PATTERN.match(example_collection_name):
+            if CollectionsFilepathMapper.id_pattern.match(example_collection_name):
                 p.add(owner_dirname)
         return p
 
@@ -115,5 +111,4 @@ class TreeCollectionsShard(TypeAwareGitShard):
 
     def _create_git_action_for_global_resource(self):
         return self._ga_class(repo=self.path,
-                              path_for_doc_fn=self.filepath_for_global_resource_fn,
                               max_file_size=self.max_file_size)

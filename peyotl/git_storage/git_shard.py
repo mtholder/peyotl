@@ -91,7 +91,7 @@ class TypeAwareGitShard(GitShard):
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                  max_file_size=None):
         GitShard.__init__(self, name, doc_schema=doc_schema)
-        self.filepath_for_doc_id_fn = None  # overwritten in refresh_doc_index_fn
+        self._doc_counter_lock = Lock()
         self._infrastructure_commit_author = infrastructure_commit_author
         self._locked_refresh_doc_index = refresh_doc_index_fn
         self._master_branch_repo_lock = Lock()
@@ -144,7 +144,6 @@ class TypeAwareGitShard(GitShard):
 
     def create_git_action(self):
         return self._ga_class(repo=self.path,
-                              path_for_doc_fn=self.filepath_for_doc_id_fn,
                               max_file_size=self.max_file_size)
 
     def pull(self, remote='origin', branch_name='master'):
@@ -163,7 +162,6 @@ class TypeAwareGitShard(GitShard):
         # If a document makes it into the working dir, we don't want to reject it from the mirror, so
         #   we use max_file_size= None
         mirror_ga = self._ga_class(repo=self.push_mirror_repo_path,
-                                   path_for_doc_fn=self.filepath_for_doc_id_fn,
                                    max_file_size=None)
         return mirror_ga
 

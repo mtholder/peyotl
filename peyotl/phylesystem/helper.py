@@ -1,5 +1,4 @@
 from peyotl.utility import get_logger
-from peyotl.phylesystem.git_actions import get_filepath_for_namespaced_id, get_filepath_for_simple_id
 import os
 import re
 from threading import Lock

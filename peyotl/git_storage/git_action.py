@@ -105,14 +105,8 @@ class GitActionBase(object):
                  doc_type,
                  repo,
                  remote=None,
-                 cache=None,  # pylint: disable=W0613
-                 path_for_doc_fn=None,
                  max_file_size=None,
-                 id_from_path_fn=None,
-                 path_for_doc_id_fn=None,
-                 wip_id_pattern='{i}',
-                 branch_name_template="{ghu}{rid}",
-                 path_to_user_splitter=None):
+                 path_mapper=None):
         self.repo = repo
         self.doc_type = doc_type
         self.git_dir = os.path.join(repo, '.git')
@@ -121,12 +115,7 @@ class GitActionBase(object):
         self._lock = locket.lock_file(self._lock_file, timeout=self._lock_timeout)
         self.repo_remote = remote
         self.max_file_size = max_file_size
-        self.path_for_doc_fn = path_for_doc_fn
-        self.path_for_doc_id_fn = path_for_doc_id_fn
-        self.id_from_path_fn = id_from_path_fn
-        self.wip_id_pattern = wip_id_pattern
-        self.branch_name_template = branch_name_template
-        self.path_to_user_splitter = path_to_user_splitter
+        self.path_mapper = path_mapper
         if os.path.isdir("{}/.git".format(self.repo)):
             self.gitdir = "--git-dir={}/.git".format(self.repo)
             self.gitwd = "--work-tree={}".format(self.repo)
@@ -141,11 +130,9 @@ class GitActionBase(object):
         and attribute the commit to author.
         Returns the SHA of the commit on branch.
         """
-        if not self.path_to_user_splitter:
-            raise NotImplementedError('Removal is not supported for this document type')
         if fourth_arg is None:
             study_id, branch_name, author = first_arg, sec_arg, third_arg
-            gh_user = branch_name.split(self.path_to_user_splitter)[0]
+            gh_user = branch_name.split(self.path_mapper.path_to_user_splitter)[0]
             parent_sha = self.get_master_sha()
         else:
             gh_user, study_id, parent_sha, author = first_arg, sec_arg, third_arg, fourth_arg
@@ -154,7 +141,7 @@ class GitActionBase(object):
         return self._remove_document(gh_user, study_id, parent_sha, author, commit_msg)
 
     def find_WIP_branches(self, collection_id):
-        pat = re.compile(self.wip_id_pattern.format(i=collection_id))
+        pat = re.compile(self.path_mapper.wip_id_pattern.format(i=collection_id))
         return self._find_WIP_branches(collection_id, branch_pattern=pat)
 
 
@@ -178,9 +165,7 @@ class GitActionBase(object):
     def path_for_doc(self, doc_id):
         """Returns doc_dir and doc_filepath for doc_id.
         """
-        full_path = self.path_for_doc_fn(self.repo, doc_id)
-        # _LOG.debug('>>>>>>>>>> GitActionBase.path_for_doc_fn: {}'.format(self.path_for_doc_fn))
-        # _LOG.debug('>>>>>>>>>> GitActionBase.path_for_doc returning: [{}]'.format(full_path))
+        full_path = self.path_mapper.filepath_for_id(self.repo, doc_id)
         return full_path
 
     def lock(self):
@@ -364,7 +349,7 @@ class GitActionBase(object):
         else:
             self.checkout(commit_sha)
             head_sha = commit_sha
-        doc_filepath = self.path_for_doc(doc_id)
+        doc_filepath = self.path_mapper.filepath_for_id(self.repo, doc_id)
         try:
             with codecs.open(doc_filepath, mode='r', encoding='utf-8') as f:
                 content = f.read()
@@ -406,7 +391,7 @@ class GitActionBase(object):
             return False
         touched = set()
         for f in x.split('\n'):
-            found_id = self.id_from_path_fn(f)
+            found_id = self.path_mapper.id_from_path(f)
             if found_id:
                 touched.add(found_id)
 
@@ -437,7 +422,7 @@ class GitActionBase(object):
                                    force_branch_name=False):
         if force_branch_name:
             # @TEMP deprecated
-            branch = self.branch_name_template.format(ghu=gh_user, rid=doc_id)
+            branch = self.path_mapper.branch_name_template.format(ghu=gh_user, rid=doc_id)
             if not self.branch_exists(branch):
                 try:
                     git(self.gitdir, self.gitwd, "branch", branch, parent_sha)
@@ -447,7 +432,7 @@ class GitActionBase(object):
             self.checkout(branch)
             return branch
 
-        frag = self.branch_name_template.format(ghu=gh_user, rid=doc_id) + "_"
+        frag = self.path_mapper.branch_name_template.format(ghu=gh_user, rid=doc_id) + "_"
         branch = self._find_head_sha(frag, parent_sha)
         _LOG.debug('Found branch "{b}" for sha "{s}"'.format(b=branch, s=parent_sha))
         if not branch:
@@ -472,7 +457,7 @@ class GitActionBase(object):
         Returns the SHA of the commit on branch.
         """
         # _LOG.debug("@@@@@@@@ GitActionBase._remove_document, doc_id={}".format(doc_id))
-        doc_filepath = self.path_for_doc(doc_id)
+        doc_filepath = self.path_mapper.filepath_for_id(self.repo, doc_id)
         # _LOG.debug("@@@@@@@@ GitActionBase._remove_document, doc_filepath={}".format(doc_filepath))
 
         branch = self.create_or_checkout_branch(gh_user, doc_id, parent_sha)
@@ -519,7 +504,7 @@ class GitActionBase(object):
             write_as_json(file_content, fc)
         fc.flush()
         try:
-            doc_filepath = self.path_for_doc(doc_id)
+            doc_filepath = self.path_mapper.filepath_for_id(self.repo, doc_id)
             doc_dir = os.path.split(doc_filepath)[0]
             if parent_sha is None:
                 self.checkout_master()
@@ -565,7 +550,7 @@ class GitActionBase(object):
         """Given a doc_id, temporary filename of content, branch and auth_info
         """
         gh_user, author = get_user_author(auth_info)
-        doc_filepath = self.path_for_doc(doc_id)
+        doc_filepath = self.path_mapper.filepath_for_id(self.repo, doc_id)
         doc_dir = os.path.split(doc_filepath)[0]
         if parent_sha is None:
             self.checkout_master()

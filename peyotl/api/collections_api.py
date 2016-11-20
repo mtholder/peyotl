@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from peyotl.collections_store.collections_umbrella import TreeCollectionStore, TreeCollectionStoreProxy
 from peyotl.api.wrapper import _WSWrapper, APIWrapper
-from peyotl.collections_store import COLLECTION_ID_PATTERN
+from peyotl.collections_store.git_actions import CollectionsFilepathMapper
 from peyotl.utility import get_logger
 from peyotl.git_storage import get_doc_store_repo_parent
 from peyotl import create_doc_store_wrapper
@@ -109,7 +109,7 @@ class _TreeCollectionsAPIWrapper(_WSWrapper):
             w.get('pg_10', tree_id='tree3')
         see:
         """
-        assert COLLECTION_ID_PATTERN.match(collection_id)
+        assert CollectionsFilepathMapper.id_pattern.match(collection_id)
         r = self.get_collection(collection_id)
         if isinstance(r, dict) and ('data' in r):
             return r['data']
