@@ -569,14 +569,14 @@ class _Phylesystem(TypeAwareDocStore):
                                                      self.doc_schema.schema_version,
                                                      allow_invalid=True)
                 nexson, annotation, nexson_adaptor = bundle[0], bundle[1], bundle[3]
-                r = self.annotate_and_write(git_data=gd,
-                                            nexson=nexson,
-                                            doc_id=new_study_id,
+                r = self.annotate_and_write(doc_id=new_study_id,
+                                            document=nexson,
                                             auth_info=auth_info,
                                             adaptor=nexson_adaptor,
                                             annotation=annotation,
                                             parent_sha=None,
-                                            master_file_blob_included=None)
+                                            merged_sha=None,
+                                            git_action=gd)
             except:
                 self._growing_shard.delete_doc_from_index(new_study_id)
                 raise

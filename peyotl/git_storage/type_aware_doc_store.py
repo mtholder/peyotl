@@ -306,9 +306,11 @@ class TypeAwareDocStore(ShardedDocStore):
                                     auth_info,
                                     parent_sha,
                                     commit_msg='',
-                                    merged_sha=None):
+                                    merged_sha=None,
+                                    git_action=None):
         from peyotl.git_storage.git_workflow import commit_and_try_merge2master
-        git_action = self.create_git_action(doc_id)
+        if git_action is None:
+            git_action = self.create_git_action(doc_id)
         resp = commit_and_try_merge2master(git_action,
                                            file_content,
                                            doc_id,
@@ -349,7 +351,8 @@ class TypeAwareDocStore(ShardedDocStore):
                            parent_sha,
                            commit_msg='',
                            merged_sha=None,
-                           add_agent_only=True):
+                           add_agent_only=True,
+                           git_action=None):
         """
         This is the heart of the api's __finish_write_verb
         It was moved to phylesystem to make it easier to coordinate it
@@ -368,7 +371,8 @@ class TypeAwareDocStore(ShardedDocStore):
                                                 auth_info=auth_info,
                                                 parent_sha=parent_sha,
                                                 commit_msg=commit_msg,
-                                                merged_sha=merged_sha)
+                                                merged_sha=merged_sha,
+                                                git_action=git_action)
 
     def delete_doc(self, doc_id, auth_info, parent_sha, **kwargs):
         git_action = self.create_git_action(doc_id)
