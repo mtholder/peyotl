@@ -12,20 +12,55 @@ from peyotl.utility import get_logger
 from peyotl.utility.str_util import slugify, increment_slug
 from peyotl.git_storage import (TypeAwareDocStore, ShardedDocStoreProxy,
                                 NonAnnotatingDocValidationAdaptor)
+from peyotl.validation import SimpleCuratorSchema
 
 _LOG = get_logger(__name__)
 
 
-def create_validation_adaptor(obj, errors, **kwargs):
-    # just one simple version for now, so one adapter class
-    return CollectionValidationAdaptor(obj, errors, **kwargs)
+###############################################################################
+# ID <-> Filepath logic
+class CollectionsFilepathMapper(object):
+    id_pattern =  re.compile(r'^[a-zA-Z0-9-]+/[a-z0-9-]+$')
+    wip_id_template = r'.*_collection_{i}_[0-9]+',
+    branch_name_template = "{ghu}_collection_{rid}",
+    path_to_user_splitter = '_collection_'
+    doc_holder_subpath = 'collections-by-owner'
+    doc_parent_dir = 'collections-by-owner/'
+    def filepath_for_id(self, repo_dir, doc_id):
+        assert bool(CollectionsFilepathMapper.id_pattern.match(doc_id))
+        return '{r}/collections-by-owner/{s}.json'.format(r=repo_dir, s=doc_id)
+
+    def id_from_rel_path(self, path):
+        doc_parent_dir = 'collections-by-owner/'
+        if path.startswith(doc_parent_dir):
+            p = path.split(doc_parent_dir)[1]
+            if p.endswith('.json'):
+                return p[:-5]
+            return p
+
+    def prefix_from_doc_id(self, doc_id):
+        # The collection id is a sort of "path", e.g. '{owner_id}/{collection-name-as-slug}'
+        #   EXAMPLES: 'jimallman/trees-about-bees', 'kcranston/interesting-trees-2'
+        # Assume that the owner_id will work as a prefix, esp. by assigning all of a
+        # user's collections to a single shard.for grouping in shards
+        _LOG.debug('> prefix_from_collection_path(), testing this id: {i}'.format(i=doc_id))
+        path_parts = doc_id.split('/')
+        _LOG.debug('> prefix_from_collection_path(), found {} path parts'.format(len(path_parts)))
+        if len(path_parts) > 1:
+            owner_id = path_parts[0]
+        elif path_parts[0] == '':
+            owner_id = 'anonymous'
+        else:
+            owner_id = 'anonymous'  # or perhaps None?
+        return owner_id
+
+collections_path_mapper = CollectionsFilepathMapper()
 
 
 # End ID <-> Filepath logid
 ###############################################################################
 # Tree Collections Schema
 _string_types = string_types_tuple()
-
 
 class _TreeCollectionTopLevelSchema(object):
     required_elements = {
@@ -40,7 +75,7 @@ class _TreeCollectionTopLevelSchema(object):
         'queries': list,
     }
     optional_elements = {}
-    allowed_element = frozenset(required_elements.keys())
+    allowed_elements = frozenset(required_elements.keys())
 
 
 # TODO: Define a simple adapter based on
@@ -49,93 +84,18 @@ class _TreeCollectionTopLevelSchema(object):
 # we're not adding annotations to the target document. Similarly, we're not using
 # the usual validation logger here, just a list of possible error strings.
 class CollectionValidationAdaptor(NonAnnotatingDocValidationAdaptor):
-    def __init__(self, obj, errors=None, **kwargs):
-        if errors is None:
-            errors = []
-        try:
-            # Python 2.x
-            string_types = (str, unicode)
-        except NameError:
-            # Python 3
-            string_types = (str,)
-        self.required_toplevel_elements = {
-            # N.B. anyjson might parse a text element as str or unicode,
-            # depending on its value. Either is fine here.
-            'url': string_types,
-            'name': string_types,
-            'description': string_types,
-            'creator': dict,
-            'contributors': list,
-            'decisions': list,
-            'queries': list,
-        }
-        # currently all allowed elements are also required
-        # self.optional_toplevel_elements = {}
-        # track unknown keys in top-level object
-        uk = None
-        for k in obj.keys():
-            if k not in self.required_toplevel_elements.keys():
-                if uk is None:
-                    uk = []
-                uk.append(k)
-        if uk:
-            uk.sort()
-            # self._warn_event(_NEXEL.TOP_LEVEL,
-            #                  obj=obj,
-            #                  err_type=gen_UnrecognizedKeyWarning,
-            #                  anc=_EMPTY_TUPLE,
-            #                  obj_nex_id=None,
-            #                  key_list=uk)
-
-        # test for existence and types of all required elements
-        for el_key, el_type in self.required_toplevel_elements.items():
-            test_el = obj.get(el_key, None)
-            try:
-                assert test_el is not None
-            except:
-                errors.append("Property '{p}' not found!".format(p=el_key))
-            try:
-                assert isinstance(test_el, el_type)
-            except:
-                errors.append("Property '{p}' should be one of these: {t}".format(p=el_key, t=el_type))
+    def __init__(self, obj, errors, **kwargs):
+        validate_dict_keys(obj, _TreeCollectionTopLevelSchema, errors, 'collection')
         # test a non-empty creator for expected 'login' and 'name' fields
         self._creator = obj.get('creator')
         if isinstance(self._creator, dict):
-            for k in self._creator.keys():
-                try:
-                    assert k in ['login', 'name']
-                except:
-                    errors.append("Unexpected key '{k}' found in creator".format(k=k))
-            if 'login' in self._creator:
-                try:
-                    assert isinstance(self._creator.get('name'), string_types)
-                except:
-                    errors.append("Creator 'name' should be a string")
-            if 'name' in self._creator:
-                try:
-                    assert isinstance(self._creator.get('login'), string_types)
-                except:
-                    errors.append("Creator 'login' should be a string")
+            validate_dict_keys(self._creator, SimpleCuratorSchema, errors, 'collection.creator')
         # test any contributors for expected 'login' and 'name' fields
         self._contributors = obj.get('contributors')
         if isinstance(self._contributors, list):
             for c in self._contributors:
                 if isinstance(c, dict):
-                    for k in c.keys():
-                        try:
-                            assert k in ['login', 'name']
-                        except:
-                            errors.append("Unexpected key '{k}' found in contributor".format(k=k))
-                    if 'login' in c:
-                        try:
-                            assert isinstance(c.get('name'), string_types)
-                        except:
-                            errors.append("Contributor 'name' should be a string")
-                    if 'name' in c:
-                        try:
-                            assert isinstance(c.get('login'), string_types)
-                        except:
-                            errors.append("Contributor 'login' should be a string")
+                    validate_dict_keys(c, SimpleCuratorSchema, errors, 'collection.contributors element')
                 else:
                     errors.append("Unexpected type for contributor (should be dict)")
         # test decisions for valid ids+SHA, valid decision value
@@ -152,9 +112,9 @@ class CollectionValidationAdaptor(NonAnnotatingDocValidationAdaptor):
                     errors.append("Each 'decision' should be one of {dl}".format(dl=decision_values))
                 for p in text_props:
                     try:
-                        assert isinstance(d.get(p), string_types)
+                        assert isinstance(d.get(p), _string_types)
                     except:
-                        errors.append("Decision property '{p}' should be one of {t}".format(p=p, t=string_types))
+                        errors.append("Decision property '{p}' should be one of {t}".format(p=p, t=_string_types))
         # TODO: test queries (currently unused) for valid properties
         self._queries = obj.get('queries')
 
@@ -169,7 +129,7 @@ def validate_collection(obj, **kwargs):
     """
     # Gather and report errors in a simple list
     errors = []
-    n = create_validation_adaptor(obj, errors, **kwargs)
+    n = CollectionValidationAdaptor(obj, errors, **kwargs)
     return errors, n
 
 
@@ -219,51 +179,6 @@ def concatenate_collections(collection_list):
                 r_decisions.append(d)
     return r
 
-
-
-class CollectionsFilepathMapper(object):
-    id_pattern =  re.compile(r'^[a-zA-Z0-9-]+/[a-z0-9-]+$')
-    wip_id_template = r'.*_collection_{i}_[0-9]+',
-    branch_name_template = "{ghu}_collection_{rid}",
-    path_to_user_splitter = '_collection_'
-    doc_holder_subpath = 'collections-by-owner'
-    doc_parent_dir = 'collections-by-owner/'
-    def filepath_for_id(self, repo_dir, doc_id):
-        assert bool(CollectionsFilepathMapper.id_pattern.match(doc_id))
-        return '{r}/collections-by-owner/{s}.json'.format(r=repo_dir, s=doc_id)
-
-    def id_from_rel_path(self, path):
-        doc_parent_dir = 'collections-by-owner/'
-        if path.startswith(doc_parent_dir):
-            p = path.split(doc_parent_dir)[1]
-            if p.endswith('.json'):
-                return p[:-5]
-            return p
-
-    def prefix_from_doc_id(self, doc_id):
-        # The collection id is a sort of "path", e.g. '{owner_id}/{collection-name-as-slug}'
-        #   EXAMPLES: 'jimallman/trees-about-bees', 'kcranston/interesting-trees-2'
-        # Assume that the owner_id will work as a prefix, esp. by assigning all of a
-        # user's collections to a single shard.for grouping in shards
-        _LOG.debug('> prefix_from_collection_path(), testing this id: {i}'.format(i=doc_id))
-        path_parts = doc_id.split('/')
-        _LOG.debug('> prefix_from_collection_path(), found {} path parts'.format(len(path_parts)))
-        if len(path_parts) > 1:
-            owner_id = path_parts[0]
-        elif path_parts[0] == '':
-            owner_id = 'anonymous'
-        else:
-            owner_id = 'anonymous'  # or perhaps None?
-        return owner_id
-
-collections_path_mapper = CollectionsFilepathMapper()
-
-def filepath_for_collection_id(repo_dir, collection_id):
-    # in this case, simply expand the id to a full path
-    collection_filename = '{i}.json'.format(i=collection_id)
-    full_path_to_file = os.path.join(repo_dir, 'collections-by-owner', collection_filename)
-    _LOG.warn(">>>> filepath_for_collection_id: full path is {}".format(full_path_to_file))
-    return full_path_to_file
 
 
 class TreeCollectionsDocSchema(SimpleJSONDocSchema):
