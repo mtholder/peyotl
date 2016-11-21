@@ -3,10 +3,11 @@
 """
 import os
 import re
+from peyotl.validation import validate_dict_keys
 from peyotl.git_storage.git_shard import TypeAwareGitShard
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
 from peyotl.utility.input_output import read_as_json
-from peyotl.utility.str_util import is_str_type
+from peyotl.utility.str_util import is_str_type, string_types_tuple
 from peyotl.utility import get_logger
 from peyotl.utility.str_util import slugify, increment_slug
 from peyotl.git_storage import (TypeAwareDocStore, ShardedDocStoreProxy,
@@ -18,6 +19,28 @@ _LOG = get_logger(__name__)
 def create_validation_adaptor(obj, errors, **kwargs):
     # just one simple version for now, so one adapter class
     return CollectionValidationAdaptor(obj, errors, **kwargs)
+
+
+# End ID <-> Filepath logid
+###############################################################################
+# Tree Collections Schema
+_string_types = string_types_tuple()
+
+
+class _TreeCollectionTopLevelSchema(object):
+    required_elements = {
+        # N.B. anyjson might parse a text element as str or unicode,
+        # depending on its value. Either is fine here.
+        'url': _string_types,
+        'name': _string_types,
+        'description': _string_types,
+        'creator': dict,
+        'contributors': list,
+        'decisions': list,
+        'queries': list,
+    }
+    optional_elements = {}
+    allowed_element = frozenset(required_elements.keys())
 
 
 # TODO: Define a simple adapter based on

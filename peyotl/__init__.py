@@ -8,6 +8,7 @@ repositories.
 from __future__ import absolute_import, print_function, division
 
 __version__ = '0.1.4dev'  # sync with setup.py
+
 from peyotl.utility import (doi2url,
                             expand_path,
                             expand_abspath,
@@ -15,8 +16,7 @@ from peyotl.utility import (doi2url,
                             get_config_object,
                             get_logger,
                             slugify,
-                            string_types_tuple,
-                            validate_dict_keys)
+                            string_types_tuple)
 from peyotl.utility.input_output import pretty_dict_str
 from peyotl.collections_store import collection_to_included_trees, concatenate_collections
 from peyotl.nexson_syntax import (can_convert_nexson_forms,
@@ -84,9 +84,11 @@ __all__ = ['utility',
            'manip',
            'struct_diff',
            'evaluate_tree',
+           'validation',
            ]
 from peyotl.phylesystem import NexsonDocSchema
 from peyotl.git_storage.git_workflow import GitWorkflowError
+
 
 # It is important to keep this import last
 from peyotl.git_versioned_doc_store_collection import create_doc_store_wrapper

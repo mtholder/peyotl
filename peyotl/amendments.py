@@ -5,7 +5,9 @@ import os
 import re
 
 import dateutil.parser
-from peyotl import (get_logger, doi2url, string_types_tuple, slugify, validate_dict_keys)
+from peyotl.validation import validate_dict_keys
+from peyotl.validation import SimpleCuratorSchema as _AmendmentCuratorSchema
+from peyotl import (get_logger, doi2url, string_types_tuple, slugify)
 from peyotl.git_storage import (ShardedDocStoreProxy, TypeAwareDocStore,
                                 NonAnnotatingDocValidationAdaptor)
 from peyotl.git_storage.git_shard import TypeAwareGitShard
@@ -83,16 +85,6 @@ class _AmendmentTopLevelSchema(object):
     allowed_elements = set(required_elements.keys())
     allowed_elements.update(optional_elements.keys())
     allowed_elements = frozenset(allowed_elements)
-
-
-class _AmendmentCuratorSchema(object):
-    required_elements = {}
-    optional_elements = {
-        'login': _string_types,  # not present in initial request
-        'name': _string_types,
-        'email': _string_types,  # provided by some agents
-    }
-    allowed_elements = frozenset(optional_elements.keys())
 
 
 class _AmendmentTaxonSchema(object):
