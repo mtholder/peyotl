@@ -307,15 +307,15 @@ class TypeAwareDocStore(ShardedDocStore):
                                     parent_sha,
                                     commit_msg='',
                                     merged_sha=None):
-        from peyotl.git_storage.git_workflow import generic_commit_and_try_merge2master_wf
+        from peyotl.git_storage.git_workflow import commit_and_try_merge2master
         git_action = self.create_git_action(doc_id)
-        resp = generic_commit_and_try_merge2master_wf(git_action,
-                                                      file_content,
-                                                      doc_id,
-                                                      auth_info,
-                                                      parent_sha,
-                                                      commit_msg,
-                                                      merged_sha=merged_sha)
+        resp = commit_and_try_merge2master(git_action,
+                                           file_content,
+                                           doc_id,
+                                           auth_info,
+                                           parent_sha,
+                                           commit_msg,
+                                           merged_sha=merged_sha)
         if not resp['merge_needed']:
             self._doc_merged_hook(git_action, doc_id)
         return resp

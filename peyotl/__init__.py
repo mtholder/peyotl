@@ -27,7 +27,7 @@ from peyotl.nexson_syntax import (can_convert_nexson_forms,
                                   write_as_json,
                                   write_obj_as_nexml,
                                   _is_by_id_hbf)
-from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
+from peyotl.phylesystem import Phylesystem
 from peyotl.utility.str_util import UNICODE, is_str_type
 from peyotl.phylo.entities import OTULabelStyleEnum
 from peyotl.git_storage import (get_phylesystem_repo_parent, get_doc_store_repo_parent)

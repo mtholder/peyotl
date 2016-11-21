@@ -8,7 +8,7 @@ For example:
 
 prints out the study's URL for each study that has this property set.
 """
-from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
+from peyotl.phylesystem import Phylesystem
 from peyotl.nexson_syntax import get_nexml_el
 from peyotl.manip import iter_trees
 from collections import defaultdict

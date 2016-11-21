@@ -5,7 +5,7 @@
 import time
 
 start_clock = time.time()
-from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
+from peyotl.phylesystem import Phylesystem
 from peyotl.nexson_syntax import get_nexml_el
 from peyotl import gen_otu_dict, iter_node
 from peyotl.manip import iter_trees

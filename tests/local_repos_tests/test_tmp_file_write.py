@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-from peyotl.phylesystem.phylesystem_shard import create_phylesystem_git_action
+from peyotl.phylesystem import create_phylesystem_git_action
 import unittest
 from peyotl.utility.input_output import read_as_json
 from peyotl.test.support import pathmap

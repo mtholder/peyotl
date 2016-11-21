@@ -9,7 +9,7 @@ orig_prop_name = '^ot:originalLabel'
 label_prop_name = '@label'
 from peyotl import gen_otu_dict, iter_node
 from peyotl.manip import iter_trees
-from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
+from peyotl.phylesystem import Phylesystem
 import codecs
 import sys
 

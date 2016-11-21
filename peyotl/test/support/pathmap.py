@@ -113,7 +113,7 @@ def get_test_phylesystem_mirror_info():
 
 
 def get_test_phylesystem():
-    from peyotl.phylesystem.phylesystem_umbrella import _Phylesystem
+    from peyotl.phylesystem import _Phylesystem
     r = get_test_repos()
     mi = get_test_phylesystem_mirror_info()
     mi['push']['remote_map'] = {'GitHubRemote': 'git@github.com:mtholder'}

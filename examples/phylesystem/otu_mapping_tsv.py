@@ -2,7 +2,7 @@
 """reports the number of unmapped OTUS (to stderr) and (for all mapped OTUs)
 reports the ^ot:originalLabel\t^ot:ottTaxonName to standard out
 """
-from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
+from peyotl.phylesystem import Phylesystem
 from peyotl.nexson_syntax import get_nexml_el
 from peyotl.manip import iter_otus
 from collections import defaultdict

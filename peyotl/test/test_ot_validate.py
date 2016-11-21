@@ -2,7 +2,7 @@
 from peyotl.nexson_validation import ot_validate
 from peyotl.test.support import pathmap
 from peyotl.utility import get_logger
-from peyotl.phylesystem.git_workflows import validate_and_convert_nexson
+from peyotl.phylesystem import validate_and_convert_nexson
 import unittest
 import os
 

@@ -4,7 +4,7 @@ from __future__ import print_function
 '''Examines the tags (ot:tag) study. Prints out a list
 of each unique tag used in the studies '''
 from peyotl.manip import iter_trees
-from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
+from peyotl.phylesystem import Phylesystem
 from peyotl.nexson_syntax import get_nexml_el
 from collections import defaultdict
 import codecs

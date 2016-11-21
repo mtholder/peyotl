@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function
-from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
+from peyotl.phylesystem import Phylesystem
 from peyotl.nexson_syntax import extract_tree_nexson
 import sys
 try:

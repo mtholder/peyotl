@@ -3,7 +3,7 @@ import sys
 import unittest
 
 from peyotl import write_as_json
-from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
+from peyotl.phylesystem import Phylesystem
 from peyotl.test.support import pathmap
 
 

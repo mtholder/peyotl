@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from peyotl.phylesystem.phylesystem_umbrella import Phylesystem, PhylesystemProxy
+from peyotl.phylesystem import PhylesystemProxy
 from peyotl.api.wrapper import _WSWrapper, APIWrapper
 from peyotl.api.study_ref import TreeRef
 from peyotl.nexson_syntax import create_content_spec

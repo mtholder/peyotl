@@ -6,7 +6,7 @@ from __future__ import print_function
 from __future__ import print_function
 from __future__ import print_function
 from __future__ import print_function
-from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
+from peyotl.phylesystem import Phylesystem
 from peyotl.api.phylesystem_api import PhylesystemAPI
 from peyotl.manip import iter_trees
 from peyotl.nexson_syntax import get_nexml_el

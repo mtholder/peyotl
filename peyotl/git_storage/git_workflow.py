@@ -156,20 +156,16 @@ def merge_from_master(git_action, doc_id, auth_info, parent_sha, doctype_display
     }
 
 
-def generic_commit_and_try_merge2master_wf(git_action,
-                                           file_content,
-                                           doc_id,
-                                           auth_info,
-                                           parent_sha,
-                                           commit_msg='',
-                                           merged_sha=None,
-                                           doctype_display_name="document"):
+def commit_and_try_merge2master(git_action,
+                                file_content,
+                                doc_id,
+                                auth_info,
+                                parent_sha,
+                                commit_msg='',
+                                merged_sha=None,
+                                doctype_display_name="document"):
     """Actually make a local Git commit and push it to our remote
     """
-    # _LOG.debug('generic_commit_and_try_merge2master_wf: doc_id="{s}" \
-    #            parent_sha="{p}" merged_sha="{m}"'.format(
-    #            s=doc_id, p=parent_sha, m=merged_sha))
-    merge_needed = False
     fc = tempfile.NamedTemporaryFile()
     # N.B. we currently assume file_content is text/JSON, or should be serialized from a dict
     try:
