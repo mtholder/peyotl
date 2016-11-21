@@ -133,7 +133,6 @@ def validate_collection(obj, **kwargs):
     return errors, n
 
 
-
 def collection_to_included_trees(collection):
     """Takes a collection object (or a filepath to collection object), returns
     each element of the `decisions` list that has the decision set to included.
