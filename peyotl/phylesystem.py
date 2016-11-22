@@ -11,15 +11,16 @@ from peyotl.git_storage.git_action import GitWorkflowError
 from peyotl.nexson_syntax import convert_nexson_format
 import traceback
 from peyotl.utility import get_logger, get_config_setting
+
 try:
-    # noinspection PyPackageRequirements
+    # noinspection PyPackageRequirements,PyUnresolvedReferences
     from dogpile.cache.api import NO_VALUE
 except:
     pass  # caching is optional
-from peyotl.git_storage import (ShardedDocStore, ShardedDocStoreProxy, TypeAwareDocStore)
+from peyotl.git_storage import (ShardedDocStore, ShardedDocStoreProxy, TypeAwareDocStore,
+                                get_phylesystem_repo_parent)
 from peyotl.nexson_validation import ot_validate
 from peyotl.nexson_validation._validation_base import NexsonAnnotationAdder, replace_same_agent_annotation
-
 
 _LOG = get_logger(__name__)
 _study_index_lock = Lock()
@@ -46,7 +47,7 @@ _CACHE_REGION_CONFIGURED = False
 _REGION = None
 
 
-def _make_phylesystem_cache_region(**kwargs):
+def _make_phylesystem_cache_region():
     """Only intended to be called by the Phylesystem singleton.
     """
     global _CACHE_REGION_CONFIGURED, _REGION
@@ -54,12 +55,11 @@ def _make_phylesystem_cache_region(**kwargs):
         return _REGION
     _CACHE_REGION_CONFIGURED = True
     try:
-        # noinspection PyPackageRequirements
+        # noinspection PyPackageRequirements,PyUnresolvedReferences
         from dogpile.cache import make_region
     except:
         _LOG.debug('dogpile.cache not available')
         return
-    region = None
     trial_key = 'test_key'
     trial_val = {'test_val': [4, 3]}
     trying_redis = True
@@ -83,7 +83,6 @@ def _make_phylesystem_cache_region(**kwargs):
             return region
         except:
             _LOG.debug('redis cache set up failed.')
-            region = None
     trying_file_dbm = False
     if trying_file_dbm:
         _LOG.debug('Going to try dogpile.cache.dbm ...')
@@ -149,6 +148,8 @@ def validate_and_convert_nexson(nexson, output_version, allow_invalid, **kwargs)
         _write_to_next_free('converted', nexson)
     return nexson, annotation, validation_log, nexson_adaptor
 
+
+# noinspection PyMethodMayBeStatic
 class PhylesystemFilepathMapper(object):
     id_pattern = re.compile(r'[a-zA-Z][a-zA-Z]_[0-9]+')
     wip_id_template = '.*_study_{i}_[0-9]+'
@@ -156,6 +157,7 @@ class PhylesystemFilepathMapper(object):
     path_to_user_splitter = '_study_'
     doc_holder_subpath = 'study'
     doc_parent_dir = 'study/'
+
     def filepath_for_id(self, repo_dir, study_id):
         assert len(study_id) >= 4
         assert study_id[2] == '_'
@@ -182,6 +184,7 @@ class PhylesystemFilepathMapper(object):
 
 
 phylesystem_path_mapper = PhylesystemFilepathMapper()
+
 
 class NexsonDocSchema(object):
     optional_output_detail_keys = ('tip_label', 'bracket_ingroup')
@@ -242,6 +245,7 @@ class NexsonDocSchema(object):
             return True, annotate_and_transform_closure, syntax_str
 
         else:
+            # noinspection PyUnusedLocal
             def transform_closure(doc_store_umbrella, doc_id, document_obj, head_sha):
                 return schema.convert(document_obj)
 
@@ -302,7 +306,7 @@ def _diagnose_repo_nexml2json(shard):
         return
 
 
-def refresh_study_index(shard, initializing=False):
+def refresh_study_index(shard):
     d = create_id2study_info(shard.doc_dir, shard.name)
     shard.has_aliases = False
     shard.study_index = d
@@ -312,6 +316,7 @@ class PhylesystemShard(TypeAwareGitShard):
     """Wrapper around a git repo holding nexson studies.
     Raises a ValueError if the directory does not appear to be a PhylesystemShard.
     Raises a RuntimeError for errors associated with misconfiguration."""
+
     def __init__(self,
                  name,
                  path,
@@ -499,7 +504,7 @@ class _Phylesystem(TypeAwareDocStore):
         self._cache_hits = 0
 
     def get_markdown_comment(self, document_obj):
-        return document_obj, get('nexml', {}).get('^ot:comment', '')
+        return document_obj.get('nexml', {}).get('^ot:comment', '')
 
     def get_study_ids(self):
         k = []
@@ -561,7 +566,7 @@ class _Phylesystem(TypeAwareDocStore):
             raise NotImplementedError("Creating new studies with pre-assigned IDs was only supported when "
                                       "Open Tree of Life was still ingesting trees from phylografter.")
         try:
-            gd, new_study_id = self.create_git_action_for_new_study(new_study_id=new_study_id)
+            gd, new_study_id = self.create_git_action_for_new_document(new_doc_id=new_study_id)
             try:
                 nexml = new_study_nexson['nexml']
                 nexml['^ot:studyId'] = new_study_id
@@ -590,6 +595,7 @@ class _Phylesystem(TypeAwareDocStore):
             self._doc2shard_map[new_study_id] = self._growing_shard
         return new_study_id, r
 
+    # noinspection PyUnboundLocalVariable
     def add_validation_annotation(self, doc_obj, sha):
         need_to_cache = False
         adaptor = None
@@ -608,9 +614,6 @@ class _Phylesystem(TypeAwareDocStore):
             bundle = ot_validate(doc_obj)
             annotation = bundle[0]
             annot_event = annotation['annotationEvent']
-            # del annot_event['@dateCreated'] #TEMP
-            # del annot_event['@id'] #TEMP
-            adaptor = bundle[2]
         replace_same_agent_annotation(doc_obj, annot_event)
         if need_to_cache:
             self._cache_region.set(key, annot_event)
@@ -621,10 +624,10 @@ class _Phylesystem(TypeAwareDocStore):
 _THE_PHYLESYSTEM = None
 
 
+# noinspection PyPep8Naming
 def Phylesystem(repos_dict=None,
                 repos_par=None,
                 mirror_info=None,
-                new_study_prefix=None,  # Unused, TEMP deprecated
                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                 with_caching=True):
     """Factory function for a _Phylesystem object.
@@ -646,4 +649,3 @@ def Phylesystem(repos_dict=None,
 
 def create_phylesystem_umbrella(shard_mirror_pair_list):
     return _Phylesystem(shard_mirror_pair_list=shard_mirror_pair_list)
-

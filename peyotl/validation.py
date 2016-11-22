@@ -3,7 +3,10 @@
 
 """
 from peyotl.utility.str_util import string_types_tuple
+
 _string_types = string_types_tuple()
+
+
 def validate_dict_keys(obj, schema, errors, name):
     """Takes a dict `obj` and a simple `schema` that is expected to have:
     `schema.required_elements` and `schema.optional_elements` dicts
@@ -42,4 +45,3 @@ class SimpleCuratorSchema(object):
         'email': _string_types,  # provided by some agents
     }
     allowed_elements = frozenset(optional_elements.keys())
-
