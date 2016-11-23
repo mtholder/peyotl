@@ -19,13 +19,15 @@ _LOG = get_logger(__name__)
 
 ###############################################################################
 # ID <-> Filepath logic
+# noinspection PyMethodMayBeStatic
 class CollectionsFilepathMapper(object):
-    id_pattern =  re.compile(r'^[a-zA-Z0-9-]+/[a-z0-9-]+$')
+    id_pattern = re.compile(r'^[a-zA-Z0-9-]+/[a-z0-9-]+$')
     wip_id_template = r'.*_collection_{i}_[0-9]+',
     branch_name_template = "{ghu}_collection_{rid}",
     path_to_user_splitter = '_collection_'
     doc_holder_subpath = 'collections-by-owner'
     doc_parent_dir = 'collections-by-owner/'
+
     def filepath_for_id(self, repo_dir, doc_id):
         assert bool(CollectionsFilepathMapper.id_pattern.match(doc_id))
         return '{r}/collections-by-owner/{s}.json'.format(r=repo_dir, s=doc_id)
@@ -54,13 +56,14 @@ class CollectionsFilepathMapper(object):
             owner_id = 'anonymous'  # or perhaps None?
         return owner_id
 
-collections_path_mapper = CollectionsFilepathMapper()
 
+collections_path_mapper = CollectionsFilepathMapper()
 
 # End ID <-> Filepath logid
 ###############################################################################
 # Tree Collections Schema
 _string_types = string_types_tuple()
+
 
 class _TreeCollectionTopLevelSchema(object):
     required_elements = {
@@ -117,6 +120,7 @@ class CollectionValidationAdaptor(NonAnnotatingDocValidationAdaptor):
                         errors.append("Decision property '{p}' should be one of {t}".format(p=p, t=_string_types))
         # TODO: test queries (currently unused) for valid properties
         self._queries = obj.get('queries')
+
 
 def validate_collection(obj, **kwargs):
     """Takes an `obj` that is a collection object.
@@ -179,7 +183,6 @@ def concatenate_collections(collection_list):
     return r
 
 
-
 class TreeCollectionsDocSchema(SimpleJSONDocSchema):
     def __init__(self):
         SimpleJSONDocSchema.__init__(self,
@@ -189,6 +192,7 @@ class TreeCollectionsDocSchema(SimpleJSONDocSchema):
     def __repr__(self):
         return 'TreeCollectionsDocSchema()'
 
+    # noinspection PyMethodMayBeStatic
     def create_empty_doc(self):
         collection = {
             "url": "",
@@ -202,11 +206,11 @@ class TreeCollectionsDocSchema(SimpleJSONDocSchema):
         return collection
 
 
-
 class TreeCollectionsShard(TypeAwareGitShard):
     """Wrapper around a git repo holding JSON tree collections
     Raises a ValueError if the directory does not appear to be a TreeCollectionsShard.
     Raises a RuntimeError for errors associated with misconfiguration."""
+
     def __init__(self,
                  name,
                  path,
@@ -243,10 +247,12 @@ class TreeCollectionStoreProxy(ShardedDocStoreProxy):
                                       path_mapper=collections_path_mapper,
                                       doc_schema=TreeCollectionsDocSchema)
 
+
 class _TreeCollectionStore(TypeAwareDocStore):
     """Wrapper around a set of sharded git repos.
     """
     id_regex = CollectionsFilepathMapper.id_pattern
+
     def __init__(self,
                  repos_dict=None,
                  repos_par=None,
@@ -271,7 +277,7 @@ class _TreeCollectionStore(TypeAwareDocStore):
                                    repos_par=repos_par,
                                    git_shard_class=TreeCollectionsShard,
                                    mirror_info=mirror_info,
-                                   infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
+                                   infrastructure_commit_author=infrastructure_commit_author,
                                    **kwargs)
 
     # rename some generic members in the base class, for clarity and backward compatibility
@@ -283,7 +289,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
     def delete_collection(self):
         return self.delete_doc
 
-
     def add_new_collection(self,
                            owner_id,
                            json_repr,
@@ -291,7 +296,7 @@ class _TreeCollectionStore(TypeAwareDocStore):
                            collection_id=None,
                            commit_msg=''):
         """Validate and save this JSON. Ensure (and return) a unique collection id"""
-        collection = self._coerce_json_to_collection(json_repr)
+        collection = self._coerce_json_to_document(json_repr)
         if collection is None:
             msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
             raise ValueError(msg)
@@ -314,10 +319,9 @@ class _TreeCollectionStore(TypeAwareDocStore):
             self._doc2shard_map[collection_id] = None
         # pass the id and collection JSON to a proper git action
         new_collection_id = None
-        r = None
         try:
             # assign the new id to a shard (important prep for commit_and_try_merge2master)
-            gd_id_pair = self.create_git_action_for_new_collection(new_collection_id=collection_id)
+            gd_id_pair = self.create_git_action_for_new_document(new_doc_id=collection_id)
             new_collection_id = gd_id_pair[1]
             try:
                 # let's remove the 'url' field; it will be restored when the doc is fetched (via API)
@@ -354,11 +358,12 @@ class _TreeCollectionStore(TypeAwareDocStore):
 
     def _slugify_internal_collection_name(self, json_repr):
         """Parse the JSON, find its name, return a slug of its name"""
-        collection = self._coerce_json_to_collection(json_repr)
+        collection = self._coerce_json_to_document(json_repr)
         if collection is None:
             return None
         internal_name = collection['name']
         return slugify(internal_name)
+
 
 _THE_TREE_COLLECTION_STORE = None
 

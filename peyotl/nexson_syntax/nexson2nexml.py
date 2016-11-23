@@ -4,7 +4,7 @@ from peyotl.nexson_syntax.helper import (NexsonConverter,
                                          _add_value_to_dict_bf,
                                          _convert_hbf_meta_val_for_xml,
                                          _index_list_of_values,
-                                         _is_badgerfish_version)
+                                         is_badgerfish_version)
 from peyotl.utility.str_util import UNICODE
 from peyotl.utility import get_logger
 import xml.dom.minidom
@@ -78,7 +78,7 @@ class Nexson2Nexml(NexsonConverter):
         self.otu_label = conv_cfg.get('otu_label', 'ot:originalLabel')
         if self.otu_label.startswith('^'):
             self.otu_label = self.otu_label[1:]
-        self._migrating_from_bf = _is_badgerfish_version(self.input_format)
+        self._migrating_from_bf = is_badgerfish_version(self.input_format)
         # TreeBase and phylografter trees often lack the tree xsi:type
         self._adding_tree_xsi_type = True
         # we have started using ot:ottTaxonName, ot:originalLabel or ot:ottId

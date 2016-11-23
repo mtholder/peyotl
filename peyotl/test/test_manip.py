@@ -1,5 +1,6 @@
 #! /usr/bin/env python
-from peyotl.manip import count_num_trees, iter_trees
+from peyotl.nexson_syntax.inspect import count_num_trees
+from peyotl.manip import iter_trees
 from peyotl.test.support import pathmap
 from peyotl.utility import get_logger
 import unittest

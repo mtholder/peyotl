@@ -2,15 +2,13 @@
 """Simple manipulations of data structure in peyotl
 """
 from __future__ import absolute_import, print_function, division
-from peyotl.nexson_syntax.helper import _add_uniq_value_to_dict_bf
+from peyotl.nexson_syntax.helper import add_uniq_value_to_dict_bf
 from peyotl.nexson_syntax import (BY_ID_HONEY_BADGERFISH,
                                   convert_nexson_format,
                                   detect_nexson_version,
                                   get_nexml_el,
-                                  _is_by_id_hbf)
-# For backwards-comp we import count_num_trees which used to be
-#   defined here
-from peyotl.nexson_syntax.inspect import count_num_trees
+                                  is_by_id_hbf)
+
 from peyotl.utility import get_logger
 
 _LOG = get_logger(__name__)
@@ -25,7 +23,7 @@ def iter_otus(nexson, nexson_version=None):
     """
     if nexson_version is None:
         nexson_version = detect_nexson_version(nexson)
-    if not _is_by_id_hbf(nexson_version):
+    if not is_by_id_hbf(nexson_version):
         convert_nexson_format(nexson, BY_ID_HONEY_BADGERFISH)  # TODO shouldn't modify...
     nex = get_nexml_el(nexson)
     otus_group_by_id = nex['otusById']
@@ -52,7 +50,7 @@ def iter_trees(nexson, nexson_version=None):
     if nexson_version is None:
         nexson_version = detect_nexson_version(nexson)
     nex = get_nexml_el(nexson)
-    if _is_by_id_hbf(nexson_version):
+    if is_by_id_hbf(nexson_version):
         trees_group_by_id = nex['treesById']
         group_order = nex.get('^ot:treesElementOrder', [])
         if len(group_order) < len(trees_group_by_id):
@@ -118,7 +116,7 @@ def _merge_otu_do_not_fix_references(src, dest):
             dest[k] = src[k]
     for k, v in src.items():
         if k not in _special_otu_keys:
-            _add_uniq_value_to_dict_bf(dest, k, v)
+            add_uniq_value_to_dict_bf(dest, k, v)
 
 
 def merge_otus_and_trees(nexson_blob):

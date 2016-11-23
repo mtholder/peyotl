@@ -7,7 +7,7 @@ from peyotl.nexson_syntax.helper import (NexsonConverter,
                                          _cull_redundant_about,
                                          _get_index_list_of_values,
                                          _index_list_of_values,
-                                         _is_badgerfish_version,
+                                         is_badgerfish_version,
                                          _LITERAL_META_PAT,
                                          _RESOURCE_META_PAT)
 
@@ -84,7 +84,7 @@ class Nexml2Nexson(NexsonConverter):
     def __init__(self, conv_cfg):
         NexsonConverter.__init__(self, conv_cfg)
         self.output_format = conv_cfg.output_format
-        self._badgerfish_style_conversion = _is_badgerfish_version(conv_cfg.output_format)
+        self._badgerfish_style_conversion = is_badgerfish_version(conv_cfg.output_format)
 
     def convert(self, doc_root):
         key, val = self._gen_hbf_el(doc_root)

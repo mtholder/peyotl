@@ -133,7 +133,7 @@ def _add_value_to_dict_bf(d, k, v):
             d[k] = [prev, v]
 
 
-def _add_uniq_value_to_dict_bf(d, k, v):
+def add_uniq_value_to_dict_bf(d, k, v):
     """Like _add_value_to_dict_bf but will not add v if another
     element in under key `k` has the same value.
     """
@@ -168,10 +168,17 @@ def _add_uniq_value_to_dict_bf(d, k, v):
             d[k] = [prev, v]
 
 
-_is_badgerfish_version = lambda x: x.startswith('0.')
-_is_direct_hbf = lambda x: x.startswith('1.0.')
-_is_by_id_hbf = lambda x: x.startswith('1.2')
-_is_supported_nexson_vers = lambda x: x in SUPPORTED_NEXSON_VERSIONS_AND_ALIASES
+def is_badgerfish_version(x):
+    return x.startswith('0.')
+
+def is_direct_hbf(x):
+    return x.startswith('1.0.')
+
+def is_by_id_hbf(x):
+    return x.startswith('1.2')
+
+def is_supported_nexson_vers(x):
+    return x in SUPPORTED_NEXSON_VERSIONS_AND_ALIASES
 
 
 def _debug_dump_dom(el):
@@ -337,7 +344,7 @@ def find_val_for_first_hbf_l_meta(d, prop_name):
 
 
 def find_val_literal_meta_first(d, prop_name, version):
-    if _is_badgerfish_version(version):
+    if is_badgerfish_version(version):
         return find_val_for_first_bf_l_meta(d, prop_name)
     p = '^' + prop_name
     return d.get(p)
@@ -360,21 +367,21 @@ def find_nested_meta_first_bf(d, prop_name):
 
 def find_nested_meta_first(d, prop_name, version):
     """Returns obj. for badgerfish and val for hbf. Appropriate for nested literals"""
-    if _is_badgerfish_version(version):
+    if is_badgerfish_version(version):
         return find_nested_meta_first_bf(d, prop_name)
     p = '^' + prop_name
     return d.get(p)
 
 
 def find_val_resource_meta_first(d, prop_name, version):
-    if _is_badgerfish_version(version):
+    if is_badgerfish_version(version):
         return find_val_for_first_bf_r_meta(d, prop_name)
     p = '^' + prop_name
     return d.get(p)
 
 
 def add_literal_meta(obj, prop_name, value, version):
-    if _is_badgerfish_version(version):
+    if is_badgerfish_version(version):
         m = obj.setdefault('meta', [])
         if not isinstance(m, list):
             m = [m]
@@ -391,7 +398,7 @@ def add_literal_meta(obj, prop_name, value, version):
 
 
 def delete_first_literal_meta(obj, prop_name, version):
-    if _is_badgerfish_version(version):
+    if is_badgerfish_version(version):
         m = obj.setdefault('meta', [])
         if not isinstance(m, list):
             m = [m]

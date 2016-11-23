@@ -26,7 +26,7 @@ from peyotl.nexson_syntax import (can_convert_nexson_forms,
                                   read_as_json,
                                   write_as_json,
                                   write_obj_as_nexml,
-                                  _is_by_id_hbf)
+                                  is_by_id_hbf)
 from peyotl.phylesystem import Phylesystem
 from peyotl.utility.str_util import UNICODE, is_str_type
 from peyotl.phylo.entities import OTULabelStyleEnum
@@ -39,7 +39,7 @@ def gen_otu_dict(nex_obj, nexson_version=None):
     """
     if nexson_version is None:
         nexson_version = detect_nexson_version(nex_obj)
-    if _is_by_id_hbf(nexson_version):
+    if is_by_id_hbf(nexson_version):
         otus = nex_obj['nexml']['otusById']
         if len(otus) > 1:
             d = {}

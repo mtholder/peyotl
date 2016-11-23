@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 from peyotl.nexson_syntax.helper import (extract_meta,
-                                         _is_badgerfish_version,
-                                         _is_by_id_hbf,
-                                         _is_direct_hbf)
+                                         is_badgerfish_version,
+                                         is_by_id_hbf,
+                                         is_direct_hbf)
 from peyotl.utility.str_util import is_str_type
 from peyotl.utility import get_logger
 
@@ -17,11 +17,11 @@ def add_schema_attributes(container, nexson_version):
     and the following _SchemaFragment instances:
     _NexmlEl_Schema
     """
-    if _is_by_id_hbf(nexson_version):
+    if is_by_id_hbf(nexson_version):
         _add_by_id_nexson_schema_attributes(container)
-    elif _is_badgerfish_version(nexson_version):
+    elif is_badgerfish_version(nexson_version):
         _add_badgerfish_nexson_schema_attributes(container)
-    elif _is_direct_hbf(nexson_version):
+    elif is_direct_hbf(nexson_version):
         _add_direct_nexson_schema_attributes(container)
     else:
         raise NotImplementedError('unrecognized nexson variant {}'.format(nexson_version))

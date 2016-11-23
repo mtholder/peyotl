@@ -15,10 +15,10 @@ from peyotl.nexson_syntax.helper import (ConversionConfig,
                                          _add_value_to_dict_bf,
                                          _get_index_list_of_values,
                                          _index_list_of_values,
-                                         _is_badgerfish_version,
-                                         _is_by_id_hbf,
-                                         _is_direct_hbf,
-                                         _is_supported_nexson_vers,
+                                         is_badgerfish_version,
+                                         is_by_id_hbf,
+                                         is_direct_hbf,
+                                         is_supported_nexson_vers,
                                          BADGER_FISH_NEXSON_VERSION,
                                          DEFAULT_NEXSON_VERSION,
                                          DIRECT_HONEY_BADGERFISH,
@@ -55,7 +55,7 @@ _LOG = get_logger(__name__)
 def iter_otu(nexson, nexson_version=None):
     if nexson_version is None:
         nexson_version = detect_nexson_version(nexson)
-    if not _is_by_id_hbf(nexson_version):
+    if not is_by_id_hbf(nexson_version):
         raise NotImplementedError('iter_otu is only supported for nexson 1.2 at this point')
     nexml = get_nexml_el(nexson)
     for og in nexml.get('otusById', {}).values():
@@ -67,7 +67,7 @@ def strip_to_meta_only(blob, nexson_version):
     if nexson_version is None:
         nexson_version = detect_nexson_version(blob)
     nex = get_nexml_el(blob)
-    if _is_by_id_hbf(nexson_version):
+    if is_by_id_hbf(nexson_version):
         for otus_group in nex.get('otusById', {}).values():
             if 'otuById' in otus_group:
                 del otus_group['otuById']
@@ -298,7 +298,7 @@ class PhyloSchema(object):
                         self.version = kwargs['version']
                 if self.version == 'native':
                     self.version = kwargs['repo_nexml2json']
-                if not _is_supported_nexson_vers(self.version):
+                if not is_supported_nexson_vers(self.version):
                     raise ValueError('The "{}" version of NexSON is not supported'.format(self.version))
             except:
                 msg = 'Expecting version of NexSON to be specified using ' \
@@ -548,7 +548,7 @@ def get_ot_study_info_from_nexml(src=None,
         removes nexml/characters @TODO: should replace it with a URI for
             where the removed character data can be found.
     """
-    if _is_by_id_hbf(nexson_syntax_version):
+    if is_by_id_hbf(nexson_syntax_version):
         nsv = DIRECT_HONEY_BADGERFISH
     else:
         nsv = nexson_syntax_version
@@ -569,7 +569,7 @@ def get_ot_study_info_from_nexml(src=None,
     ccfg = ConversionConfig(output_format=nsv, input_format=NEXML_NEXSON_VERSION)
     converter = Nexml2Nexson(ccfg)
     o = converter.convert(doc_root)
-    if _is_by_id_hbf(nexson_syntax_version):
+    if is_by_id_hbf(nexson_syntax_version):
         o = convert_nexson_format(o, BY_ID_HONEY_BADGERFISH, current_format=nsv)
     if 'nex:nexml' in o:
         n = o['nex:nexml']
@@ -580,8 +580,8 @@ def get_ot_study_info_from_nexml(src=None,
 
 def _nexson_directly_translatable_to_nexml(vers):
     """TEMP: until we refactor nexml writing code to be more general..."""
-    return (_is_badgerfish_version(vers)
-            or _is_direct_hbf(vers)
+    return (is_badgerfish_version(vers)
+            or is_direct_hbf(vers)
             or vers == 'nexml')
 
 
@@ -658,8 +658,8 @@ def convert_nexson_format(blob,
         if sort_arbitrary:
             sort_arbitrarily_ordered_nexson(blob)
         return blob
-    two2zero = _is_by_id_hbf(out_nexson_format) and _is_badgerfish_version(current_format)
-    zero2two = _is_by_id_hbf(current_format) and _is_badgerfish_version(out_nexson_format)
+    two2zero = is_by_id_hbf(out_nexson_format) and is_badgerfish_version(current_format)
+    zero2two = is_by_id_hbf(current_format) and is_badgerfish_version(out_nexson_format)
     if two2zero or zero2two:
         # go from 0.0 -> 1.0 then the 1.0->1.2 should succeed without nexml...
         blob = convert_nexson_format(blob,
@@ -673,14 +673,14 @@ def convert_nexson_format(blob,
               'remove_old_structs': remove_old_structs,
               'pristine_if_invalid': pristine_if_invalid}
     ccfg = ConversionConfig(ccdict)
-    if _is_badgerfish_version(current_format):
+    if is_badgerfish_version(current_format):
         converter = Badgerfish2DirectNexson(ccfg)
-    elif _is_badgerfish_version(out_nexson_format):
-        assert _is_direct_hbf(current_format)
+    elif is_badgerfish_version(out_nexson_format):
+        assert is_direct_hbf(current_format)
         converter = Direct2BadgerfishNexson(ccfg)
-    elif _is_direct_hbf(current_format) and (out_nexson_format == BY_ID_HONEY_BADGERFISH):
+    elif is_direct_hbf(current_format) and (out_nexson_format == BY_ID_HONEY_BADGERFISH):
         converter = Direct2OptimalNexson(ccfg)
-    elif _is_direct_hbf(out_nexson_format) and (current_format == BY_ID_HONEY_BADGERFISH):
+    elif is_direct_hbf(out_nexson_format) and (current_format == BY_ID_HONEY_BADGERFISH):
         converter = Optimal2DirectNexson(ccfg)
     else:
         raise NotImplementedError('Conversion from {i} to {o}'.format(i=current_format, o=out_nexson_format))
@@ -719,7 +719,7 @@ def sort_meta_elements(blob):
     and sorts each meta by @property or @rel values.
     """
     v = detect_nexson_version(blob)
-    if _is_badgerfish_version(v):
+    if is_badgerfish_version(v):
         _recursive_sort_meta(blob, '')
     return blob
 
@@ -744,7 +744,7 @@ def sort_arbitrarily_ordered_nexson(blob):
     # otu, node and edge elements have no necessary orger in v0.0 or v1.0
     v = detect_nexson_version(blob)
     nex = get_nexml_el(blob)
-    if _is_by_id_hbf(v):
+    if is_by_id_hbf(v):
         return blob
     sort_meta_elements(blob)
     for ob in _get_index_list_of_values(nex, 'otus'):
@@ -757,7 +757,7 @@ def sort_arbitrarily_ordered_nexson(blob):
 
 
 def add_resource_meta(obj, rel, href, version):
-    if _is_badgerfish_version(version):
+    if is_badgerfish_version(version):
         m = obj.setdefault('meta', [])
         if not isinstance(m, list):
             m = [m]
@@ -1111,7 +1111,7 @@ def convert_trees(tid_tree_otus_list, schema, subtree_id=None):
 def nexml_el_of_by_id(nexson, curr_version=None):
     if curr_version is None:
         curr_version = detect_nexson_version(nexson)
-    if not _is_by_id_hbf(curr_version):
+    if not is_by_id_hbf(curr_version):
         nexson = convert_nexson_format(nexson, BY_ID_HONEY_BADGERFISH)
     return get_nexml_el(nexson)
 
@@ -1152,7 +1152,7 @@ def cull_nonmatching_trees(nexson, tree_id, curr_version=None):
     """
     if curr_version is None:
         curr_version = detect_nexson_version(nexson)
-    if not _is_by_id_hbf(curr_version):
+    if not is_by_id_hbf(curr_version):
         nexson = convert_nexson_format(nexson, BY_ID_HONEY_BADGERFISH)
 
     nexml_el = get_nexml_el(nexson)
@@ -1178,7 +1178,7 @@ def extract_tree_nexson(nexson, tree_id, curr_version=None):
     """
     if curr_version is None:
         curr_version = detect_nexson_version(nexson)
-    if not _is_by_id_hbf(curr_version):
+    if not is_by_id_hbf(curr_version):
         nexson = convert_nexson_format(nexson, BY_ID_HONEY_BADGERFISH)
 
     nexml_el = get_nexml_el(nexson)
@@ -1228,7 +1228,7 @@ def _get_supporting_file_messages_for_this_obj(o):
 
 def extract_supporting_file_messages(nexson):
     curr_version = detect_nexson_version(nexson)
-    if not _is_by_id_hbf(curr_version):
+    if not is_by_id_hbf(curr_version):
         nexson = convert_nexson_format(nexson, BY_ID_HONEY_BADGERFISH)
     nex = nexson['nexml']
     m_list = []
