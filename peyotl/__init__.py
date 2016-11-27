@@ -89,6 +89,6 @@ __all__ = ['utility',
 from peyotl.phylesystem import NexsonDocSchema
 from peyotl.git_storage.git_workflow import GitWorkflowError
 
-
-# It is important to keep this import last
+# It is important to keep these imports last an in this order...
 from peyotl.git_versioned_doc_store_collection import create_doc_store_wrapper
+from peyotl.api import OTI

@@ -221,6 +221,11 @@ class _OTIWrapper(_WSWrapper):
                 self.indexing_prefix = '{d}/oti/IndexServices/graphdb'.format(d=d)
                 self.query_prefix = '{d}/v2/studies'.format(d=d)
 
+    def find_studies_by_doi(self, doi):
+        """Returns a list of study IDs that have `doi` as their publication @href"""
+        slist = self.find_studies({"ot:studyPublication": doi}, exact=True)
+        return [i['ot:studyId'] for i in slist]
+
     @property
     def node_search_term_set(self):
         if self._node_search_prop is None:
@@ -293,10 +298,14 @@ class _OTIWrapper(_WSWrapper):
             data['value'] = r[1]
         return data
 
+    # Some kwargs are used by the peyotl wrapper, not the OTI service. So we cull those from the query
+    _wrapper_keys = frozenset(['wrap_response'])
     def _process_query_dict(self, query_dict, valid_keys, kwargs):
         if query_dict is None:
             query_dict = {}
         for k, v in kwargs.items():
+            if k in self._wrapper_keys:
+                continue
             if k in valid_keys:
                 query_dict[k] = v
             else:

@@ -7,6 +7,7 @@ from __future__ import print_function
 '''
 import sys
 import json
+from peyotl import OTI
 
 
 def ot_find_studies(arg_dict, exact=True, verbose=False, oti_wrapper=None):
@@ -25,10 +26,11 @@ def ot_find_studies(arg_dict, exact=True, verbose=False, oti_wrapper=None):
                                     wrap_response=True)
 
 
-def print_matching_studies(arg_dict, exact, verbose):
+def print_matching_studies(arg_dict, exact, verbose, oti_wrapper):
     """ """
-    from peyotl.sugar import phylesystem_api
-    study_list = ot_find_studies(arg_dict, exact=exact, verbose=verbose)
+    study_list = ot_find_studies(arg_dict, exact=exact, verbose=verbose, oti_wrapper=oti_wrapper)
+    if not study_list:
+        sys.stderr.write('No matching studies.\n')
     for study in study_list:
         print(study)
 
@@ -46,8 +48,9 @@ def main(argv):
     parser.add_argument('--fuzzy', action='store_true', default=False,
                         required=False)  # exact matching and verbose not working atm...
     parser.add_argument('--verbose', action='store_true', default=False, required=False)
+    parser.add_argument('--host', default=None, type=str, required=False)
+    args = parser.parse_args(argv)
     try:
-        args = parser.parse_args(argv)
         arg_dict = args.arg_dict
         exact = not args.fuzzy
         verbose = args.verbose
@@ -56,11 +59,14 @@ def main(argv):
         sys.stderr.write('Running a demonstration query with {}\n'.format(arg_dict))
         exact = True
         verbose = False
-    print_matching_studies(arg_dict, exact=exact, verbose=verbose)
+    oti_wrapper = None
+    if args.host:
+        oti_wrapper = OTI(domain=args.host)
+    print_matching_studies(arg_dict, exact=exact, verbose=verbose, oti_wrapper=oti_wrapper)
 
 
 if __name__ == '__main__':
     try:
         main(sys.argv[1:])
     except Exception as x:
-        sys.exit('{}\n'.format(str(x)))
+        raise # sys.exit('{}\n'.format(str(x)))
