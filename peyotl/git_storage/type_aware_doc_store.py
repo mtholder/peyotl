@@ -142,6 +142,10 @@ class TypeAwareDocStore(ShardedDocStore):
         with self._index_lock:
             self._locked_refresh_doc_ids()
 
+    @property
+    def document_type(self):
+        return self._growing_shard.document_type
+
     def _is_existing_id(self, test_id):
         """Test to see if this id is non-unique (already exists in a shard)"""
         return test_id in self.get_doc_ids()
