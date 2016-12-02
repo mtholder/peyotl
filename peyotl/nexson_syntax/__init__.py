@@ -810,8 +810,11 @@ def get_empty_nexson(vers='1.2.1', include_cc0=False):
     }
     # N.B. We no longer require the CC0 waiver, so we should not assume it's here
     if include_cc0:
-        nexson['nexml']['^xhtml:license'] = {'@href': 'http://creativecommons.org/publicdomain/zero/1.0/'}
+        add_cc0_waiver(nexson=nexson)
     return nexson
+
+def add_cc0_waiver(nexson):
+    nexson['nexml']['^xhtml:license'] = {'@href': 'http://creativecommons.org/publicdomain/zero/1.0/'}
 
 
 _EMPTY_TUPLE = tuple

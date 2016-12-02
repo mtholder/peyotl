@@ -231,7 +231,7 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
         TypeAwareGitShard.__init__(self,
                                    name=name,
                                    path=path,
-                                   doc_schema=TaxonomicAmendmentDocSchema(),
+                                   document_schema=TaxonomicAmendmentDocSchema(),
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author,
                                    path_mapper=amendment_path_mapper)
@@ -289,7 +289,7 @@ class TaxonomicAmendmentStoreProxy(ShardedDocStoreProxy):
     def __init__(self, config):
         ShardedDocStoreProxy.__init__(self, config, 'amendments',
                                       path_mapper=amendment_path_mapper,
-                                      doc_schema=TaxonomicAmendmentDocSchema)
+                                      document_schema=TaxonomicAmendmentDocSchema)
 
 
 # noinspection PyProtectedMember

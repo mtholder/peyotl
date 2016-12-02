@@ -16,3 +16,9 @@ try:
     from cStringIO import StringIO
 except ImportError:
     from io import StringIO  # pylint: disable=E0611,W0403
+
+try:
+    # noinspection PyCompatibility
+    from HTMLParser import HTMLParser
+except ImportError:
+    from html.parser import HTMLParser  # pylint: disable=E0611,W0403

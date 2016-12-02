@@ -219,7 +219,7 @@ class TreeCollectionsShard(TypeAwareGitShard):
         TypeAwareGitShard.__init__(self,
                                    name=name,
                                    path=path,
-                                   doc_schema=TreeCollectionsDocSchema(),
+                                   document_schema=TreeCollectionsDocSchema(),
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author,
                                    path_mapper=collections_path_mapper)
@@ -245,7 +245,7 @@ class TreeCollectionStoreProxy(ShardedDocStoreProxy):
     def __init__(self, config):
         ShardedDocStoreProxy.__init__(self, config, 'collections',
                                       path_mapper=collections_path_mapper,
-                                      doc_schema=TreeCollectionsDocSchema)
+                                      document_schema=TreeCollectionsDocSchema)
 
 
 class _TreeCollectionStore(TypeAwareDocStore):

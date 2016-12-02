@@ -21,7 +21,7 @@ from peyotl.git_storage import (ShardedDocStore, ShardedDocStoreProxy, TypeAware
                                 get_phylesystem_repo_parent)
 from peyotl.nexson_validation import ot_validate
 from peyotl.nexson_validation._validation_base import NexsonAnnotationAdder, replace_same_agent_annotation
-
+from peyotl.nexson_syntax import get_empty_nexson
 _LOG = get_logger(__name__)
 _study_index_lock = Lock()
 
@@ -265,6 +265,9 @@ class NexsonDocSchema(object):
             return document, [err.msg or 'No message found'], None, None
         return converted_nexson, [], annotation, nexson_adaptor
 
+    def create_empty_doc(self):
+        return get_empty_nexson(vers=self.schema_version)
+
 
 class PhylesystemShardProxy(GitShardProxy):
     """Proxy for shard when interacting with external resources if given the configuration of a remote Phylesystem
@@ -272,12 +275,12 @@ class PhylesystemShardProxy(GitShardProxy):
 
     def __init__(self, config):
         GitShardProxy.__init__(self, config, 'studies',
-                               path_mapper=phylesystem_path_mapper, doc_schema=NexsonDocSchema)
+                               path_mapper=phylesystem_path_mapper, document_schema=NexsonDocSchema)
 
     # rename some generic members in the base class, for clarity and backward compatibility
     @property
     def repo_nexml2json(self):
-        return self.doc_schema.schema_version
+        return self.document_schema.schema_version
 
     @property
     def study_index(self):
@@ -302,7 +305,7 @@ def _diagnose_repo_nexml2json(shard):
     with codecs.open(fp, mode='r', encoding='utf-8') as fo:
         fj = json.load(fo)
         from peyotl.nexson_syntax import detect_nexson_version
-        shard.doc_schema.schema_version = detect_nexson_version(fj)
+        shard.document_schema.schema_version = detect_nexson_version(fj)
         return
 
 
@@ -328,7 +331,7 @@ class PhylesystemShard(TypeAwareGitShard):
         TypeAwareGitShard.__init__(self,
                                    name=name,
                                    path=path,
-                                   doc_schema=NexsonDocSchema(),
+                                   document_schema=NexsonDocSchema(),
                                    push_mirror_repo_path=push_mirror_repo_path,
                                    infrastructure_commit_author=infrastructure_commit_author,
                                    max_file_size=max_file_size,
@@ -371,7 +374,7 @@ class PhylesystemShard(TypeAwareGitShard):
 
     @property
     def repo_nexml2json(self):
-        return self.doc_schema.schema_version
+        return self.document_schema.schema_version
 
     def get_study_ids(self):
         return self.get_doc_ids()
@@ -551,7 +554,7 @@ class _Phylesystem(TypeAwareDocStore):
 
     @property
     def repo_nexml2json(self):
-        return self.doc_schema.schema_version
+        return self.document_schema.schema_version
 
     def _mint_new_study_id(self):
         """Checks out master branch of the shard as a side effect"""
@@ -571,7 +574,7 @@ class _Phylesystem(TypeAwareDocStore):
                 nexml = new_study_nexson['nexml']
                 nexml['^ot:studyId'] = new_study_id
                 bundle = validate_and_convert_nexson(new_study_nexson,
-                                                     self.doc_schema.schema_version,
+                                                     self.document_schema.schema_version,
                                                      allow_invalid=True)
                 nexson, annotation, nexson_adaptor = bundle[0], bundle[1], bundle[3]
                 r = self.annotate_and_write(doc_id=new_study_id,

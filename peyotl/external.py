@@ -8,7 +8,7 @@ from peyotl.nexson_syntax import (get_ot_study_info_from_nexml,
                                   convert_nexson_format,
                                   sort_arbitrarily_ordered_nexson)
 from peyotl.nexson_syntax.helper import _simplify_all_meta_by_id_del
-from peyotl.utility import get_logger
+from peyotl.utility import get_logger, download_json, HTMLParser
 
 _LOG = get_logger(__name__)
 
@@ -211,3 +211,50 @@ def import_nexson_from_treebase(treebase_id,
     except Exception:
         _LOG.exception('Error parsing NeXML from {}'.format(url))
         raise
+
+def import_nexson_from_crossref_metadata(doi=None,
+                                         ref_string=None,
+                                         include_cc0=False,
+                                         nexson_syntax_version=DEFAULT_NEXSON_VERSION):
+    if doi:
+        search_term = doi
+    elif ref_string:
+        search_term = ref_string
+    else:
+        raise ValueError("Either doi or ref_string must be provided")
+    # look for matching studies via CrossRef.org API
+    matching_records = download_json(url='http://search.crossref.org/dois', params={'q': search_term})
+    # if we got a match, grab the first (probably only) record
+    if len(matching_records) > 0:
+        match = matching_records[0];
+        # Convert HTML reference string to plain text
+        raw_publication_reference = match.get('fullCitation', '')
+        import sys ; sys.exit(raw_publication_reference + '\n')
+        """
+        parser = HTMLParser()
+        ref_element_tree = web2pyHTMLParser(raw_publication_reference).tree
+        # root of this tree is the complete mini-DOM
+        ref_root = ref_element_tree.elements()[0]
+        # reduce this root to plain text (strip any tags)
+
+        meta_publication_reference = ref_root.flatten().decode('utf-8')
+        meta_publication_url = match.get('doi')  # already in URL form
+        meta_year = match.get('year')"""
+    else:
+        # Add a bogus reference string to signal the lack of results
+        if doi:
+            meta_publication_reference = u'No matching publication found for this DOI!'
+        else:
+            meta_publication_reference = u'No matching publication found for this reference string'
+        meta_publication_url = u''
+        meta_year = u''
+
+    # add any found values to a fresh NexSON template
+    nexson = get_empty_nexson(nexson_syntax_version, include_cc0=include_cc0)
+    nexml_el = nexson['nexml']
+    nexml_el[u'^ot:studyPublicationReference'] = meta_publication_reference
+    if meta_publication_url:
+        nexml_el[u'^ot:studyPublication'] = {'@href': meta_publication_url}
+    if meta_year:
+        nexml_el[u'^ot:studyYear'] = meta_year
+    return nexson

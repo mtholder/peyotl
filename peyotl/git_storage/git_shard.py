@@ -20,7 +20,7 @@ class FailedShardCreationError(ValueError):
 class GitShard(object):
     """Bare-bones functionality needed by both normal and proxy shards."""
 
-    def __init__(self, name, doc_schema=None):
+    def __init__(self, name, document_schema=None):
         self._index_lock = Lock()
         self._doc_index = {}
         self.name = name
@@ -28,7 +28,7 @@ class GitShard(object):
         # ' ' mimics place of the abspath of repo in path -> relpath mapping
         self.has_aliases = False
         self._new_doc_prefix = None
-        self.doc_schema = doc_schema
+        self.document_schema = document_schema
 
 
     # pylint: disable=E1101
@@ -43,11 +43,11 @@ class GitShard(object):
         return fp[(len(self.path) + 1):]  # "+ 1" to remove the /
 
     def validate_annotate_convert_doc(self, document, **kwargs):
-        return self.doc_schema.validate_annotate_convert_doc(document, **kwargs)
+        return self.document_schema.validate_annotate_convert_doc(document, **kwargs)
 
     @property
     def document_type(self):
-        return self.doc_schema.document_type
+        return self.document_schema.document_type
 
     @property
     def doc_index(self):
@@ -67,10 +67,10 @@ class GitShard(object):
         return self._new_doc_prefix
 
 class GitShardProxy(GitShard):
-    def __init__(self, config, config_key, path_mapper, doc_schema):
+    def __init__(self, config, config_key, path_mapper, document_schema):
         self.path_mapper = path_mapper
         doc_holder_path = path_mapper.doc_holder_subpath
-        GitShard.__init__(self, config['name'], doc_schema=doc_schema)
+        GitShard.__init__(self, config['name'], document_schema=document_schema)
         d = {}
         for obj in config[config_key]:
             kl = obj['keys']
@@ -91,12 +91,12 @@ class TypeAwareGitShard(GitShard):
     def __init__(self,
                  name,
                  path,
-                 doc_schema,
+                 document_schema,
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                  max_file_size=None,
                  path_mapper=None):
-        GitShard.__init__(self, name, doc_schema=doc_schema)
+        GitShard.__init__(self, name, document_schema=document_schema)
         self.path_mapper = path_mapper
         self._doc_counter_lock = Lock()
         self._infrastructure_commit_author = infrastructure_commit_author
@@ -261,7 +261,7 @@ class TypeAwareGitShard(GitShard):
         """Generic configuration, may be overridden by type-specific version"""
         rd = {'name': self.name,
               'path': self.path,
-              'doc_schema': repr(self.doc_schema)
+              'document_schema': repr(self.document_schema)
               }
         with self._index_lock:
             si = self._doc_index

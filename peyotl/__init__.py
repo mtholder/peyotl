@@ -10,23 +10,19 @@ from __future__ import absolute_import, print_function, division
 __version__ = '0.1.4dev'  # sync with setup.py
 
 from peyotl.utility import (doi2url,
-                            expand_path,
-                            expand_abspath,
-                            get_config_setting,
-                            get_config_object,
-                            get_logger,
-                            slugify,
-                            string_types_tuple)
+                            expand_path, expand_abspath,
+                            get_config_setting, get_config_object, get_logger,
+                            HTMLParser,
+                            SafeConfigParser, slugify, string_types_tuple, StringIO)
 from peyotl.utility.input_output import pretty_dict_str
 from peyotl.collections_store import collection_to_included_trees, concatenate_collections
-from peyotl.nexson_syntax import (can_convert_nexson_forms,
-                                  convert_nexson_format,
+from peyotl.nexson_syntax import (add_cc0_waiver,
+                                  can_convert_nexson_forms, convert_nexson_format,
                                   detect_nexson_version,
                                   get_ot_study_info_from_nexml,
+                                  is_by_id_hbf,
                                   read_as_json,
-                                  write_as_json,
-                                  write_obj_as_nexml,
-                                  is_by_id_hbf)
+                                  write_as_json, write_obj_as_nexml)
 from peyotl.phylesystem import Phylesystem
 from peyotl.utility.str_util import UNICODE, is_str_type
 from peyotl.phylo.entities import OTULabelStyleEnum
@@ -88,6 +84,7 @@ __all__ = ['utility',
            ]
 from peyotl.phylesystem import NexsonDocSchema
 from peyotl.git_storage.git_workflow import GitWorkflowError
+from peyotl.external import import_nexson_from_treebase, import_nexson_from_crossref_metadata
 
 # It is important to keep these imports last an in this order...
 from peyotl.git_versioned_doc_store_collection import create_doc_store_wrapper

@@ -84,10 +84,10 @@ class ShardedDocStore(object):
 
 
 class ShardedDocStoreProxy(ShardedDocStore):
-    def __init__(self, config, config_key, path_mapper, doc_schema):
+    def __init__(self, config, config_key, path_mapper, document_schema):
         ShardedDocStore.__init__(self, path_mapper=path_mapper)
         for s in config.get('shards', []):
-            sp = GitShardProxy(s, config_key, path_mapper=path_mapper, doc_schema=doc_schema)
+            sp = GitShardProxy(s, config_key, path_mapper=path_mapper, document_schema=document_schema)
             self._shards.append(sp)
         self._doc2shard_map = None
         self.create_doc_index(config_key)

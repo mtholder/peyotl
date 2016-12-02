@@ -7,6 +7,7 @@ import codecs
 import json
 import stat
 import os
+import requests
 
 
 def open_for_group_write(fp, mode, encoding='utf-8'):
@@ -56,10 +57,15 @@ def expand_abspath(p):
 
 def download(url, encoding='utf-8'):
     """Returns the text fetched via http GET from URL, read as `encoding`"""
-    import requests
     response = requests.get(url)
+    response.raise_for_status()
     response.encoding = encoding
     return response.text
+
+def download_json(url, params=None):
+    response = requests.get(url, params=params)
+    response.raise_for_status()
+    return response.json()
 
 
 def write_as_json(blob, dest, indent=0, sort_keys=True):

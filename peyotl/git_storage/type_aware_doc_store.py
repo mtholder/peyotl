@@ -131,7 +131,7 @@ class TypeAwareDocStore(ShardedDocStore):
         #_LOG.debug('shards = {} growing_shards = {}'.format(shards, growing_shards))
         assert len(growing_shards) == 1
         self._growing_shard = growing_shards[-1]
-        self.doc_schema = self._growing_shard.doc_schema
+        self._document_schema = self._growing_shard.document_schema
         self._shards = shards
         self._prefix2shard = {}
         for shard in shards:
@@ -141,7 +141,9 @@ class TypeAwareDocStore(ShardedDocStore):
                 self._prefix2shard[prefix] = shard
         with self._index_lock:
             self._locked_refresh_doc_ids()
-
+    @property
+    def document_schema(self):
+        return self._document_schema
     @property
     def document_type(self):
         return self._growing_shard.document_type
@@ -155,7 +157,7 @@ class TypeAwareDocStore(ShardedDocStore):
         document = self._coerce_json_to_document(json_repr)
         if document is None:
             return False
-        errors = self.doc_schema.validate(document)[0]
+        errors = self.document_schema.validate(document)[0]
         for e in errors:
             _LOG.debug('> invalid JSON: {m}'.format(m=e.encode('utf-8')))
         return len(errors) == 0
@@ -183,7 +185,7 @@ class TypeAwareDocStore(ShardedDocStore):
         if document is None:
             msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
             raise ValueError(msg)
-        dt = self.doc_schema.document_type
+        dt = self.document_schema.document_type
         if not self._is_valid_document_json(document):
             msg = "JSON is not a valid {t}:\n{j}".format(t=dt, j=json_repr)
             raise ValueError(msg)
@@ -479,7 +481,7 @@ class TypeAwareDocStore(ShardedDocStore):
 
     def is_plausible_transformation(self, subresource_request):
         try:
-            return self.doc_schema.is_plausible_transformation_or_raise(subresource_request)
+            return self.document_schema.is_plausible_transformation_or_raise(subresource_request)
         except ValueError as ve:
             return False, ve.message, None
         except Exception as x:
