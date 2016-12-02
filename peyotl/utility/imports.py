@@ -22,3 +22,22 @@ try:
     from HTMLParser import HTMLParser
 except ImportError:
     from html.parser import HTMLParser  # pylint: disable=E0611,W0403
+
+
+# MLStripper and strip_tag function taken from
+# http://stackoverflow.com/a/925630
+class MLStripper(HTMLParser):
+    def __init__(self):
+        self.reset()
+        self.strict = False
+        self.convert_charrefs= True
+        self.fed = []
+    def handle_data(self, d):
+        self.fed.append(d)
+    def get_data(self):
+        return ''.join(self.fed)
+
+def strip_tags(html):
+    s = MLStripper()
+    s.feed(html)
+    return s.get_data()

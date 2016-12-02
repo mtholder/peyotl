@@ -3,3 +3,5 @@ were based on Jeet Sukumaran's work in the DendroPy package.
 
 Funding was provided by the National Science Foundation's award to the
 Open Tree of Life project.
+
+The functions for stripping markup syntax from a string were taken from http://stackoverflow.com/a/925630

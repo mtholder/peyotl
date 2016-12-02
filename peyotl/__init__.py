@@ -13,7 +13,7 @@ from peyotl.utility import (doi2url,
                             expand_path, expand_abspath,
                             get_config_setting, get_config_object, get_logger,
                             HTMLParser,
-                            SafeConfigParser, slugify, string_types_tuple, StringIO)
+                            SafeConfigParser, slugify, string_types_tuple, StringIO, strip_tags)
 from peyotl.utility.input_output import pretty_dict_str
 from peyotl.collections_store import collection_to_included_trees, concatenate_collections
 from peyotl.nexson_syntax import (add_cc0_waiver,

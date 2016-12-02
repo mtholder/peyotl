@@ -13,7 +13,7 @@ from peyotl.utility.input_output import (download, download_json,
                                          expand_path, expand_abspath,
                                          parse_study_tree_list,
                                          write_to_filepath)
-from peyotl.utility.imports import HTMLParser, SafeConfigParser, StringIO
+from peyotl.utility.imports import HTMLParser, SafeConfigParser, StringIO, strip_tags
 import time
 import os
 

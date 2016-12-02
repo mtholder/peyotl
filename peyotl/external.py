@@ -2,13 +2,13 @@
 """Functions that interact with external tools/services
 """
 from __future__ import absolute_import, print_function, division
-from peyotl.nexson_syntax import (get_ot_study_info_from_nexml,
-                                  DEFAULT_NEXSON_VERSION,
-                                  BY_ID_HONEY_BADGERFISH,
+from peyotl.nexson_syntax import (BY_ID_HONEY_BADGERFISH,
                                   convert_nexson_format,
+                                  DEFAULT_NEXSON_VERSION,
+                                  get_ot_study_info_from_nexml, get_empty_nexson,
                                   sort_arbitrarily_ordered_nexson)
 from peyotl.nexson_syntax.helper import _simplify_all_meta_by_id_del
-from peyotl.utility import get_logger, download_json, HTMLParser
+from peyotl.utility import get_logger, download_json, strip_tags
 
 _LOG = get_logger(__name__)
 
@@ -229,17 +229,9 @@ def import_nexson_from_crossref_metadata(doi=None,
         match = matching_records[0];
         # Convert HTML reference string to plain text
         raw_publication_reference = match.get('fullCitation', '')
-        import sys ; sys.exit(raw_publication_reference + '\n')
-        """
-        parser = HTMLParser()
-        ref_element_tree = web2pyHTMLParser(raw_publication_reference).tree
-        # root of this tree is the complete mini-DOM
-        ref_root = ref_element_tree.elements()[0]
-        # reduce this root to plain text (strip any tags)
-
-        meta_publication_reference = ref_root.flatten().decode('utf-8')
+        meta_publication_reference = strip_tags(raw_publication_reference)
         meta_publication_url = match.get('doi')  # already in URL form
-        meta_year = match.get('year')"""
+        meta_year = match.get('year')
     else:
         # Add a bogus reference string to signal the lack of results
         if doi:
