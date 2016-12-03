@@ -19,6 +19,7 @@ from peyotl.collections_store import collection_to_included_trees, concatenate_c
 from peyotl.nexson_syntax import (add_cc0_waiver,
                                   can_convert_nexson_forms, convert_nexson_format,
                                   detect_nexson_version,
+                                  extract_tree_nexson,
                                   get_ot_study_info_from_nexml,
                                   is_by_id_hbf,
                                   read_as_json,

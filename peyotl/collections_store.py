@@ -345,6 +345,49 @@ class _TreeCollectionStore(TypeAwareDocStore):
             self._doc2shard_map[new_collection_id] = self._growing_shard
         return new_collection_id, r
 
+    def append_include_decision(self, doc_id, include_decision, auth_info, commit_msg):
+        """Appends `include_decision` to the collection doc_id"""
+        collection, parent_sha = self.return_doc(doc_id)
+        collection['decisions'].append(include_decision)
+        return self.commit_and_try_merge2master(file_content=collection,
+                                                doc_id=doc_id,
+                                                auth_info=auth_info,
+                                                parent_sha=parent_sha,
+                                                commit_msg=commit_msg,
+                                                merged_sha=None)
+
+    def purge_tree_from_collection(self, doc_id, study_id, tree_id, auth_info, commit_msg):
+        """Removes any decision involving (study_id, tree_id) from the collection doc_id"""
+        collection, parent_sha = self.return_doc(doc_id)
+        decision_list = collection['decisions']
+        nd = [d for d in decision_list if not (d['studyID'] == study_id and d['treeID'] == tree_id)]
+        if len(nd) == len(decision_list):
+            return {}
+        collection['decisions'] = nd
+        return self.commit_and_try_merge2master(file_content=collection,
+                                                doc_id=doc_id,
+                                                auth_info=auth_info,
+                                                parent_sha=parent_sha,
+                                                commit_msg=commit_msg,
+                                                merged_sha=None)
+
+    @staticmethod
+    def collection_includes_tree(collection, study_id, tree_id):
+        for decision in collection.get('decisions', []):
+            if decision['studyID'] == study_id and decision['treeID'] == tree_id:
+                return True
+        return False
+
+    @staticmethod
+    def create_tree_inclusion_decision(study_id, tree_id, name='', comment='', sha=''):
+        return {'name': name,
+                'treeID': tree_id,
+                'studyID': study_id,
+                'SHA': sha,
+                'decision': "INCLUDED",
+                'comments': comment}
+
+
     def get_markdown_comment(self, document_obj):
         return document_obj.get('description', '')
 
