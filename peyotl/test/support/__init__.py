@@ -85,3 +85,60 @@ def test_tol_about(self, cdict):
     tree_id = cdict['tree_id']
     node_id = str(cdict['root_node_id'])  # Odd that this is a string
     return tree_id, node_id
+
+tests_expected_coll_list = ['TestUserB/fungal-trees', 'TestUserB/my-favorite-trees',
+                      'josephwb/hypocreales',
+                      'kcranston/barnacles',
+                      'mwestneat/reef-fishes',
+                      'opentreeoflife/default',
+                      'opentreeoflife/fungi',
+                      'opentreeoflife/metazoa',
+                      'opentreeoflife/plants',
+                      'opentreeoflife/safe-microbes',
+                      'pcart/cnidaria',
+                      'test-user-a/my-favorite-trees', 'test-user-a/trees-about-bees']
+tests_expected_coll_list.sort()
+tests_expected_change_set = {'TestUserB/fungal-trees', 'josephwb/hypocreales',
+                      'kcranston/barnacles',
+                      'mwestneat/reef-fishes',
+                      'opentreeoflife/default',
+                      'opentreeoflife/fungi',
+                      'opentreeoflife/metazoa',
+                      'opentreeoflife/plants',
+                      'opentreeoflife/safe-microbes',
+                      'pcart/cnidaria', }
+
+
+def test_collection_indexing(unittestcase, c):
+    k = list(c.get_doc_ids())
+    k.sort()
+    unittestcase.assertEqual(k, tests_expected_coll_list)
+    k = list(c._doc2shard_map.keys())
+    k.sort()
+    unittestcase.assertEqual(k, tests_expected_coll_list)
+
+def test_changed_collections(unittestcase, c):
+    c.pull()  # get the full git history
+    # check for known changed collections in this repo
+    changed = c.get_changed_docs('637bb5a35f861d84c115e5e6c11030d1ecec92e0')
+    unittestcase.assertEqual(tests_expected_change_set, changed)
+    changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247')
+    unittestcase.assertEqual(tests_expected_change_set, changed)
+    changed = c.get_changed_docs('af72fb2cc060936c9afce03495ec0ab662a783f6')
+    expected = {u'test-user-a/my-favorite-trees'}
+    expected.update(tests_expected_change_set)
+    unittestcase.assertEqual(expected, changed)
+    # check a doc that changed
+    changed = c.get_changed_docs('af72fb2cc060936c9afce03495ec0ab662a783f6',
+                                 [u'TestUserB/fungal-trees'])
+    unittestcase.assertEqual({u'TestUserB/fungal-trees'}, changed)
+    # check a doc that didn't change
+    changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247',
+                                 [u'test-user-a/my-favorite-trees'])
+    unittestcase.assertEqual(set(), changed)
+    # check a bogus doc id should work, but find nothing
+    changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247',
+                                 [u'bogus/fake-trees'])
+    unittestcase.assertEqual(set(), changed)
+    # passing a foreign (or nonsense) SHA should raise a ValueError
+    unittestcase.assertRaises(ValueError, c.get_changed_docs, 'bogus')

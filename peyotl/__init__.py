@@ -54,13 +54,6 @@ def gen_otu_dict(nex_obj, nexson_version=None):
     return o_dict
 
 
-def iter_tree(nex_obj):
-    """Generator over each tree object in the NexSON object."""
-    for tb in nex_obj.get('trees', []):
-        for tree in tb.get('tree', []):
-            yield tree
-
-
 def iter_node(tree):
     """Generator over each node object in the tree object."""
     for nd in tree.get('nodeById', {}).items():
@@ -87,7 +80,7 @@ __all__ = ['utility',
 from peyotl.phylesystem import NexsonDocSchema
 from peyotl.git_storage.git_workflow import GitWorkflowError
 from peyotl.external import import_nexson_from_treebase, import_nexson_from_crossref_metadata
-
+from peyotl.nexson_proxy import tree_iter_nexson_proxy
 # It is important to keep these imports last an in this order...
 from peyotl.git_versioned_doc_store_collection import create_doc_store_wrapper
 from peyotl.api import OTI

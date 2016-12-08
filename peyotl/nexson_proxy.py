@@ -49,8 +49,9 @@ def otu_iter_nexson_proxy(nexson_proxy, otu_sort=None):
                 yield nexson_proxy._create_otu_proxy(k, v)
 
 
-def tree_iter_nexson_proxy(nexson_proxy):
+def tree_iter_nexson_proxy(nexson):
     """Iterates over NexsonTreeProxy objects in order determined by the nexson blob"""
+    nexson_proxy = nexson if isinstance(nexson, NexsonProxy) else NexsonProxy(nexson=nexson)
     nexml_el = nexson_proxy._nexml_el
     tg_order = nexml_el['^ot:treesElementOrder']
     tgd = nexml_el['treesById']
@@ -293,6 +294,10 @@ class NexsonTreeProxy(object):
 
     def __setitem__(self, key, value):
         self._nexson_tree[key] = value
+
+    @property
+    def tree_id(self):
+        return self._tree_id
 
     @property
     def edge_by_target(self):

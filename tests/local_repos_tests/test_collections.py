@@ -3,6 +3,7 @@
 from peyotl.collections_store import _TreeCollectionStore
 import unittest
 from peyotl.test.support import pathmap
+from peyotl.test.support import test_collection_indexing, test_changed_collections
 import os
 
 from peyotl.utility import get_logger
@@ -15,6 +16,8 @@ mc = _repos['mini_collections']
 
 # TODO: filter repo list to just tree-collection shards? or rely on smart (failed) shard creation?
 # _repos = {'mini_collections': mc}
+
+
 
 @unittest.skipIf(not os.path.isdir(mc),
                  'Peyotl not configured for maintainer test of mini_collections.'
@@ -39,25 +42,9 @@ class TestTreeCollections(unittest.TestCase):
         c = _TreeCollectionStore(repos_dict=self.r)
         self.assertEqual(1, len(c._shards))
 
-    def testCollectionIndexing(self):
-        c = _TreeCollectionStore(repos_dict=self.r)
-        k = list(c._doc2shard_map.keys())
-        k.sort()
-        expected = ['TestUserB/fungal-trees', 'TestUserB/my-favorite-trees',
-                    'test-user-a/my-favorite-trees', 'test-user-a/trees-about-bees']
-        self.assertEqual(k, expected)
-
     def testURL(self):
         c = _TreeCollectionStore(repos_dict=self.r)
         self.assertTrue(c.get_public_url('TestUserB/fungal-trees').endswith('ngal-trees.json'))
-
-    def testCollectionIds(self):
-        c = _TreeCollectionStore(repos_dict=self.r)
-        k = list(c.get_doc_ids())
-        k.sort()
-        expected = ['TestUserB/fungal-trees', 'TestUserB/my-favorite-trees',
-                    'test-user-a/my-favorite-trees', 'test-user-a/trees-about-bees']
-        self.assertEqual(k, expected)
 
     def testCollectionCreation(self):
         c = _TreeCollectionStore(repos_dict=self.r)
@@ -81,32 +68,11 @@ class TestTreeCollections(unittest.TestCase):
         # TODO: create a new collection with a unique name, confirm it exists
         # TODO: delete the collection, make sure it's gone
 
-    def testChangedCollections(self):
-        c = _TreeCollectionStore(repos_dict=self.r)
-        c.pull()  # get the full git history
-        # check for known changed collections in this repo
-        changed = c.get_changed_docs('637bb5a35f861d84c115e5e6c11030d1ecec92e0')
-        self.assertEqual({u'TestUserB/fungal-trees'}, changed)
-        changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247')
-        self.assertEqual({u'TestUserB/fungal-trees'}, changed)
-        changed = c.get_changed_docs('af72fb2cc060936c9afce03495ec0ab662a783f6')
-        expected = {u'test-user-a/my-favorite-trees', u'TestUserB/fungal-trees'}
-        self.assertEqual(expected, changed)
-        # check a doc that changed
-        changed = c.get_changed_docs('af72fb2cc060936c9afce03495ec0ab662a783f6',
-                                     [u'TestUserB/fungal-trees'])
-        self.assertEqual({u'TestUserB/fungal-trees'}, changed)
-        # check a doc that didn't change
-        changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247',
-                                     [u'test-user-a/my-favorite-trees'])
-        self.assertEqual(set(), changed)
-        # check a bogus doc id should work, but find nothing
-        changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247',
-                                     [u'bogus/fake-trees'])
-        self.assertEqual(set(), changed)
-        # passing a foreign (or nonsense) SHA should raise a ValueError
-        self.assertRaises(ValueError, c.get_changed_docs, 'bogus')
+    def testCollectionIndexing(self):
+        test_collection_indexing(self, _TreeCollectionStore(repos_dict=self.r))
 
+    def testChangedCollectionsShell(self):
+        test_changed_collections(self, _TreeCollectionStore(repos_dict=self.r))
 
 if __name__ == "__main__":
     unittest.main(verbosity=5)

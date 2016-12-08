@@ -11,7 +11,7 @@ from peyotl.test.support.pathmap import get_test_repo_parent
 from peyotl.utility import get_logger
 from peyotl.utility.input_output import read_as_json
 from peyotl.utility.str_util import slugify
-
+from peyotl.test.support import test_collection_indexing, test_changed_collections
 _LOG = get_logger(__name__)
 
 repo_par = get_test_repo_parent()
@@ -132,22 +132,6 @@ class TestPhylesystem(unittest.TestCase):
         # self.assertEqual(u'километр', slugify(u'Километр'))
         self.assertEqual(u'untitled', slugify(u'Километр'))  # no support for now
 
-    def testCollectionIndexing(self):
-        c = self.wrapper.tree_collections
-        k = list(c._doc2shard_map.keys())
-        k.sort()
-        expected = ['TestUserB/fungal-trees', 'TestUserB/my-favorite-trees',
-                    'test-user-a/my-favorite-trees', 'test-user-a/trees-about-bees']
-        self.assertEqual(k, expected)
-
-    def testCollectionIds(self):
-        c = self.wrapper.tree_collections
-        k = list(c.get_doc_ids())
-        k.sort()
-        expected = ['TestUserB/fungal-trees', 'TestUserB/my-favorite-trees',
-                    'test-user-a/my-favorite-trees', 'test-user-a/trees-about-bees']
-        self.assertEqual(k, expected)
-
     def testCollectionCreation(self):
         c = self.wrapper.tree_collections
         # TODO: create a new collection with a unique name, confirm it exists
@@ -170,31 +154,11 @@ class TestPhylesystem(unittest.TestCase):
         # TODO: create a new collection with a unique name, confirm it exists
         # TODO: delete the collection, make sure it's gone
 
-    def testChangedCollections(self):
-        c = self.wrapper.tree_collections
-        c.pull()  # get the full git history
-        # check for known changed collections in this repo
-        changed = c.get_changed_docs('637bb5a35f861d84c115e5e6c11030d1ecec92e0')
-        self.assertEqual({u'TestUserB/fungal-trees'}, changed)
-        changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247')
-        self.assertEqual({u'TestUserB/fungal-trees'}, changed)
-        changed = c.get_changed_docs('af72fb2cc060936c9afce03495ec0ab662a783f6')
-        expected = {u'test-user-a/my-favorite-trees', u'TestUserB/fungal-trees'}
-        self.assertEqual(expected, changed)
-        # check a doc that changed
-        changed = c.get_changed_docs('af72fb2cc060936c9afce03495ec0ab662a783f6',
-                                     [u'TestUserB/fungal-trees'])
-        self.assertEqual({u'TestUserB/fungal-trees'}, changed)
-        # check a doc that didn't change
-        changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247',
-                                     [u'test-user-a/my-favorite-trees'])
-        self.assertEqual(set(), changed)
-        # check a bogus doc id should work, but find nothing
-        changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247',
-                                     [u'bogus/fake-trees'])
-        self.assertEqual(set(), changed)
-        # passing a foreign (or nonsense) SHA should raise a ValueError
-        self.assertRaises(ValueError, c.get_changed_docs, 'bogus')
+    def testCollectionIndexing(self):
+        test_collection_indexing(self, self.wrapper.tree_collections)
+
+    def testChangedCollectionsShell(self):
+        test_changed_collections(self, self.wrapper.tree_collections)
 
 
 if __name__ == "__main__":
