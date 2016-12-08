@@ -4,7 +4,6 @@ from peyotl.api.wrapper import _WSWrapper, APIWrapper
 from peyotl.collections_store import CollectionsFilepathMapper
 from peyotl.utility import get_logger
 from peyotl.git_storage import get_doc_store_repo_parent
-from peyotl import create_doc_store_wrapper
 import anyjson
 import os
 
@@ -55,6 +54,8 @@ class _TreeCollectionsAPIWrapper(_WSWrapper):
     @property
     def docstore_obj(self):
         if self._docstore_obj is None:
+            # import here to avoid circular import hell
+            from peyotl.git_versioned_doc_store_collection import create_doc_store_wrapper
             if self._src_code == _GET_LOCAL:
                 if self._repo_parent is None:
                     self._repo_parent = get_doc_store_repo_parent()

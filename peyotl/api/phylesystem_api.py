@@ -4,7 +4,7 @@ from peyotl.api.wrapper import _WSWrapper, APIWrapper
 from peyotl.api.study_ref import TreeRef
 from peyotl.nexson_syntax import create_content_spec
 from peyotl.utility import get_logger
-from peyotl import (create_doc_store_wrapper, get_phylesystem_repo_parent)
+from peyotl import get_phylesystem_repo_parent
 import anyjson
 import urllib
 import os
@@ -56,6 +56,8 @@ class _PhylesystemAPIWrapper(_WSWrapper):
     @property
     def phylesystem_obj(self):
         if self._phylesystem_obj is None:
+            # import here to avoid circular import hell
+            from peyotl.git_versioned_doc_store_collection import create_doc_store_wrapper
             if self._src_code == _GET_LOCAL:
                 if self._repo_parent is None:
                     self._repo_parent = get_phylesystem_repo_parent()
