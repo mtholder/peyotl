@@ -324,11 +324,10 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
                                    **kwargs)
         self._growing_shard._determine_next_ott_id()
 
-    def add_new_amendment(self,
-                          json_repr,
-                          auth_info,
-                          commit_msg=''):
+    def add_new_doc(self, json_repr, auth_info, commit_msg='', doc_id=None):
         """Validate and save this JSON. Ensure (and return) a unique amendment id"""
+        if doc_id is not None:
+            raise NotImplementedError("Creating new amendments with pre-assigned IDs is not supported.")
         amendment = self._coerce_json_to_document(json_repr)
         if amendment is None:
             msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
@@ -459,6 +458,8 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
         with self._index_lock:
             self._doc2shard_map[new_amendment_id] = self._growing_shard
         return new_amendment_id, r
+
+    add_new_amendment = add_new_doc
 
     def _build_amendment_id(self, json_repr):
         """Parse the JSON, return a slug in the form '{subtype}-{first ottid}-{last-ottid}'."""

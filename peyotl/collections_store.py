@@ -308,14 +308,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
                            auth_info,
                            collection_id=None,
                            commit_msg=''):
-        """Validate and save this JSON. Ensure (and return) a unique collection id"""
-        collection = self._coerce_json_to_document(json_repr)
-        if collection is None:
-            msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
-            raise ValueError(msg)
-        if not self._is_valid_document_json(collection):
-            msg = "JSON is not a valid collection:\n{j}".format(j=json_repr)
-            raise ValueError(msg)
         if collection_id:
             # try to use this id
             found_owner_id, slug = collection_id.split('/')
@@ -324,39 +316,62 @@ class _TreeCollectionStore(TypeAwareDocStore):
             # extract a working title and "slugify" it
             slug = self._slugify_internal_collection_name(json_repr)
             collection_id = '{i}/{s}'.format(i=owner_id, s=slug)
+        return self.add_new_doc(json_repr,
+                                auth_info=auth_info,
+                                doc_id=collection_id,
+                                commit_msg=commit_msg)
+
+    def add_new_doc(self, json_repr, auth_info, commit_msg='', doc_id=None):
+        """Validate and save this JSON. Ensure (and return) a unique collection id"""
+        collection = self._coerce_json_to_document(json_repr)
+        if collection is None:
+            msg = "File failed to parse as JSON:\n{j}".format(j=json_repr)
+            raise ValueError(msg)
+        if not self._is_valid_document_json(collection):
+            msg = "JSON is not a valid collection:\n{j}".format(j=json_repr)
+            raise ValueError(msg)
+        owner_id = auth_info['login']
+        if doc_id:
+            # try to use this id
+            found_owner_id, slug = doc_id.split('/')
+            assert found_owner_id == owner_id
+        else:
+            # extract a working title and "slugify" it
+            slug = self._slugify_internal_collection_name(json_repr)
+            doc_id = '{i}/{s}'.format(i=owner_id, s=slug)
         # Check the proposed id for uniqueness in any case. Increment until
         # we have a new id, then "reserve" it using a placeholder value.
         with self._index_lock:
-            while collection_id in self._doc2shard_map:
-                collection_id = increment_slug(collection_id)
-            self._doc2shard_map[collection_id] = None
+            while doc_id in self._doc2shard_map:
+                doc_id = increment_slug(doc_id)
+            self._doc2shard_map[doc_id] = None
         # pass the id and collection JSON to a proper git action
-        new_collection_id = None
+        new_doc_id = None
         try:
             # assign the new id to a shard (important prep for commit_and_try_merge2master)
-            gd_id_pair = self.create_git_action_for_new_document(new_doc_id=collection_id)
-            new_collection_id = gd_id_pair[1]
+            gd_id_pair = self.create_git_action_for_new_document(new_doc_id=doc_id)
+            new_doc_id = gd_id_pair[1]
             try:
                 # let's remove the 'url' field; it will be restored when the doc is fetched (via API)
                 del collection['url']
                 # keep it simple (collection is already validated! no annotations needed!)
                 r = self.commit_and_try_merge2master(file_content=collection,
-                                                     doc_id=new_collection_id,
+                                                     doc_id=new_doc_id,
                                                      auth_info=auth_info,
                                                      parent_sha=None,
                                                      commit_msg=commit_msg,
                                                      merged_sha=None)
             except:
-                self._growing_shard.delete_doc_from_index(new_collection_id)
+                self._growing_shard.delete_doc_from_index(new_doc_id)
                 raise
         except:
             with self._index_lock:
-                if new_collection_id in self._doc2shard_map:
-                    del self._doc2shard_map[new_collection_id]
+                if new_doc_id in self._doc2shard_map:
+                    del self._doc2shard_map[new_doc_id]
             raise
         with self._index_lock:
-            self._doc2shard_map[new_collection_id] = self._growing_shard
-        return new_collection_id, r
+            self._doc2shard_map[new_doc_id] = self._growing_shard
+        return new_doc_id, r
 
     def append_include_decision(self, doc_id, include_decision, auth_info, commit_msg):
         """Appends `include_decision` to the collection doc_id"""
@@ -399,7 +414,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
                 'SHA': sha,
                 'decision': "INCLUDED",
                 'comments': comment}
-
 
     def get_markdown_comment(self, document_obj):
         return document_obj.get('description', '')

@@ -563,16 +563,24 @@ class _Phylesystem(TypeAwareDocStore):
     def ingest_new_study(self,
                          new_study_nexson,
                          auth_info,
-                         new_study_id=None):
+                         new_study_id=None,
+                         commit_msg=''):
+        return self.add_new_doc(new_study_nexson,
+                                auth_info=auth_info,
+                                commit_msg=commit_msg,
+                                doc_id=new_study_id)
+
+    def add_new_doc(self, json_repr, auth_info, commit_msg='', doc_id=None):
         placeholder_added = False
-        if new_study_id is not None:
+        if doc_id is not None:
             raise NotImplementedError("Creating new studies with pre-assigned IDs was only supported when "
                                       "Open Tree of Life was still ingesting trees from phylografter.")
+        new_study_nexson = self._coerce_json_to_document(json_repr)
         try:
-            gd, new_study_id = self.create_git_action_for_new_document(new_doc_id=new_study_id)
+            gd, doc_id = self.create_git_action_for_new_document(new_doc_id=doc_id)
             try:
                 nexml = new_study_nexson['nexml']
-                nexml['^ot:studyId'] = new_study_id
+                nexml['^ot:studyId'] = doc_id
                 bundle = validate_and_convert_nexson(new_study_nexson,
                                                      self.document_schema.schema_version,
                                                      allow_invalid=True)
@@ -584,19 +592,20 @@ class _Phylesystem(TypeAwareDocStore):
                                             annotation=annotation,
                                             parent_sha=None,
                                             merged_sha=None,
-                                            git_action=gd)
+                                            git_action=gd,
+                                            commit_msg=commit_msg)
             except:
-                self._growing_shard.delete_doc_from_index(new_study_id)
+                self._growing_shard.delete_doc_from_index(doc_id)
                 raise
         except:
             if placeholder_added:
                 with self._index_lock:
                     if new_study_id in self._doc2shard_map:
-                        del self._doc2shard_map[new_study_id]
+                        del self._doc2shard_map[doc_id]
             raise
         with self._index_lock:
-            self._doc2shard_map[new_study_id] = self._growing_shard
-        return new_study_id, r
+            self._doc2shard_map[doc_id] = self._growing_shard
+        return doc_id, r
 
     # noinspection PyUnboundLocalVariable
     def add_validation_annotation(self, doc_obj, sha):
