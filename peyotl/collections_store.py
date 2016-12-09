@@ -22,8 +22,8 @@ _LOG = get_logger(__name__)
 # noinspection PyMethodMayBeStatic
 class CollectionsFilepathMapper(object):
     id_pattern = re.compile(r'^[a-zA-Z0-9-]+/[a-z0-9-]+$')
-    wip_id_template = r'.*_collection_{i}_[0-9]+',
-    branch_name_template = "{ghu}_collection_{rid}",
+    wip_id_template = r'.*_collection_{i}_[0-9]+'
+    branch_name_template = "{ghu}_collection_{rid}"
     path_to_user_splitter = '_collection_'
     doc_holder_subpath = 'collections-by-owner'
     doc_parent_dir = 'collections-by-owner/'
