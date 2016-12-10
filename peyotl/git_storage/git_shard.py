@@ -169,6 +169,9 @@ class TypeAwareGitShard(GitShard):
             self._known_prefixes = self._diagnose_prefixes()
         return self._known_prefixes
 
+    def _diagnose_prefixes(self):
+        raise NotImplementedError("_diagnose_prefixes must be overridden.")
+
     def can_mint_new_docs(self):
         return True  # phylesystem shards can only mint new IDs if they have a new_doc_prefix file, overridden.
 
