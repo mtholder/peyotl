@@ -585,7 +585,7 @@ class _Phylesystem(TypeAwareDocStore):
                                                      self.document_schema.schema_version,
                                                      allow_invalid=True)
                 nexson, annotation, nexson_adaptor = bundle[0], bundle[1], bundle[3]
-                r = self.annotate_and_write(doc_id=new_study_id,
+                r = self.annotate_and_write(doc_id=doc_id,
                                             document=nexson,
                                             auth_info=auth_info,
                                             adaptor=nexson_adaptor,
@@ -600,7 +600,7 @@ class _Phylesystem(TypeAwareDocStore):
         except:
             if placeholder_added:
                 with self._index_lock:
-                    if new_study_id in self._doc2shard_map:
+                    if doc_id in self._doc2shard_map:
                         del self._doc2shard_map[doc_id]
             raise
         with self._index_lock:
