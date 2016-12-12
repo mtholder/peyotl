@@ -423,6 +423,8 @@ class GitActionBase(object):
                                    doc_id,
                                    parent_sha,
                                    force_branch_name=False):
+        if not parent_sha:
+            parent_sha = self.get_master_sha()
         if force_branch_name:
             # @TEMP deprecated
             branch = self.path_mapper.branch_name_template.format(ghu=gh_user, rid=doc_id)

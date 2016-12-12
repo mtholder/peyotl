@@ -114,6 +114,7 @@ def delete_document(git_action,
                                          prev_file_sha=rs_resp.get('prev_file_sha'))
         new_sha, branch_name, merge_needed = m_resp
     except Exception as e:
+        _LOG.exception("exception in deletion step")
         raise GitWorkflowError("Could not remove %s #%s! Details: %s" % (doctype_display_name, doc_id, e.message))
     finally:
         git_action.release_lock()

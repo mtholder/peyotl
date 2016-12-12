@@ -404,6 +404,8 @@ class TypeAwareDocStore(ShardedDocStore):
                     _shard.delete_doc_from_index(doc_id)
         return ret
 
+    delete_document = delete_doc
+
     def iter_doc_objs(self, **kwargs):
         """Generator that iterates over all detected documents (eg, nexson studies)
         and returns the doc object (deserialized from JSON) for each doc.
