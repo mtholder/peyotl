@@ -30,7 +30,7 @@ load-plugins=
 
 
 [MESSAGES CONTROL]
-disable=C0111,C0103,W0232,W0702,W0231,R0904,W0201,W0703,R0912,W0603,I0011,W0142,W0212,R0921,R0401,C0325,W1202
+disable=C0330,W1201,W0511,C0111,C0103,W0232,W0702,W0231,R0904,W0201,W0703,R0912,W0603,I0011,W0142,W0212,R0921,R0401,C0325,W1202
 
 
 [REPORTS]
@@ -116,7 +116,7 @@ acquired-members=REQUEST,acl_users,aq_parent
 [BASIC]
 
 # Required attributes for module, separated by a comma
-required-attributes=
+# required-attributes=
 
 # Regular expression which should only match functions or classes name which do
 # not require a docstring
@@ -230,7 +230,7 @@ int-import-graph=
 
 # List of interface methods to ignore, separated by a comma. This is used for
 # instance to not check methods defines in Zope's Interface base class.
-ignore-iface-methods=isImplementedBy,deferred,extends,names,namesAndDescriptions,queryDescriptionFor,getBases,getDescriptionFor,getDoc,getName,getTaggedValue,getTaggedValueTags,isEqualOrExtendedBy,setTaggedValue,isImplementedByInstancesOf,adaptWith,is_implemented_by
+#ignore-iface-methods=isImplementedBy,deferred,extends,names,namesAndDescriptions,queryDescriptionFor,getBases,getDescriptionFor,getDoc,getName,getTaggedValue,getTaggedValueTags,isEqualOrExtendedBy,setTaggedValue,isImplementedByInstancesOf,adaptWith,is_implemented_by
 
 # List of method names used to declare (i.e. assign) instance attributes.
 defining-attr-methods=__init__,__new__,setUp
