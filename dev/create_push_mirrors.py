@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import sys
-from peyotl.git_storage.git_versioned_doc_store_collection import clone_mirrors
+from peyotl.git_versioned_doc_store_collection import clone_mirrors
 try:
     repo_parent, remote_url_prefix = sys.argv[1:]
 except:

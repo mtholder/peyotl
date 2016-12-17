@@ -179,5 +179,6 @@ def clone_mirrors(repo_parent, remote_url_prefix, name_set=None):
                     e_msg = 'git clone in mirror bootstrapping did not produce a directory at {}'
                     e = e_msg.format(expected_push_mirror_repo_path)
                     raise ValueError(e)
-                remote_url = remote_url_prefix + '/' + repo_name + '.git'
+                suffix = '' if remote_url_prefix.startswith('/') else '.git'
+                remote_url = remote_url_prefix + '/' + repo_name + suffix
                 GitActionBase.add_remote(expected_push_mirror_repo_path, 'GitHubRemote', remote_url)
