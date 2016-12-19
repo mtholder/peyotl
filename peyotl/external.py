@@ -248,5 +248,10 @@ def import_nexson_from_crossref_metadata(doi=None,
     if meta_publication_url:
         nexml_el[u'^ot:studyPublication'] = {'@href': meta_publication_url}
     if meta_year:
+        try:
+            meta_year = int(meta_year)
+        except:
+            pass
         nexml_el[u'^ot:studyYear'] = meta_year
+
     return nexson
