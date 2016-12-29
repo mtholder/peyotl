@@ -8,8 +8,7 @@ import dateutil.parser
 from peyotl.validation import validate_dict_keys
 from peyotl.validation import SimpleCuratorSchema as _AmendmentCuratorSchema
 from peyotl import (get_logger, doi2url, string_types_tuple, slugify)
-from peyotl.git_storage import (GitShardFilepathMapper,
-                                ShardedDocStoreProxy, TypeAwareDocStore,
+from peyotl.git_storage import (GitShardFilepathMapper, ShardedDocStoreProxy, TypeAwareDocStore,
                                 NonAnnotatingDocValidationAdaptor)
 from peyotl.git_storage.git_shard import TypeAwareGitShard
 from peyotl.git_storage.type_aware_doc_store import SimpleJSONDocSchema
@@ -21,13 +20,16 @@ _LOG = get_logger(__name__)
 ###############################################################################
 # ID <-> Filepath logic
 # noinspection PyMethodMayBeStatic,PyMethodMayBeStatic
-class AmendmentFilepathMapper(GitShardFilepathMapper):
-    # Allow simple slug-ified string with '{known-prefix}-{7-or-8-digit-id}-{7-or-8-digit-id}'
-    # (8-digit ottids are probably years away, but allow them to be safe.)
-    # N.B. currently only the 'additions' prefix is supported!
-    id_pattern = re.compile(r'^(additions|changes|deletions)-[0-9]{7,8}-[0-9]{7,8}$')
+class IllustrationStoreFilepathMapper(GitShardFilepathMapper):
+    id_pattern = re.compile(r'^TODO-[0-9]+$')
+
     def __init__(self):
-        GitShardFilepathMapper.__init__(self, 'amendments')
+        dhspl =  (primary_doc_tag, 'templates', 'style-guides')
+        GitShardFilepathMapper.__init__(self, 'illustrations', doc_holder_subpath_list=dhspl)
+
+    def filepath_for_id(self, repo_dir, doc_id):
+        assert bool(AmendmentFilepathMapper.id_pattern.match(doc_id))
+        return '{r}/illustration/{s}.json'.format(r=repo_dir, s=doc_id)
 
     def prefix_from_doc_id(self, doc_id):
         # The amendment id is in the form '{subtype}-{first ottid}-{last-ottid}'
@@ -43,14 +45,14 @@ class AmendmentFilepathMapper(GitShardFilepathMapper):
             subtype = 'unknown_subtype'  # or perhaps None?
         return subtype
 
-
 # immutable, singleton "FilepathMapper" objects are passed to the GitAction
 #   initialization function as a means of making the mapping of a document ID
 #   to the filepath generic across document type.
-amendment_path_mapper = AmendmentFilepathMapper()
+illustration_path_mapper = IllustrationStoreFilepathMapper()
 
 # End ID <-> Filepath logid
 ###############################################################################
+'''
 # Amendment Schema
 _string_types = string_types_tuple()
 
@@ -487,3 +489,4 @@ def TaxonomicAmendmentStore(repos_dict=None,
 
 def create_taxonomic_amendments_umbrella(shard_mirror_pair_list):
     return _TaxonomicAmendmentStore(shard_mirror_pair_list=shard_mirror_pair_list)
+'''

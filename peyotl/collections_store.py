@@ -10,7 +10,7 @@ from peyotl.utility.input_output import read_as_json
 from peyotl.utility.str_util import is_str_type, string_types_tuple
 from peyotl.utility import get_logger
 from peyotl.utility.str_util import slugify, increment_slug
-from peyotl.git_storage import (TypeAwareDocStore, ShardedDocStoreProxy,
+from peyotl.git_storage import (GitShardFilepathMapper, TypeAwareDocStore, ShardedDocStoreProxy,
                                 NonAnnotatingDocValidationAdaptor)
 from peyotl.validation import SimpleCuratorSchema
 
@@ -20,25 +20,12 @@ _LOG = get_logger(__name__)
 ###############################################################################
 # ID <-> Filepath logic
 # noinspection PyMethodMayBeStatic
-class CollectionsFilepathMapper(object):
+class CollectionsFilepathMapper(GitShardFilepathMapper):
     id_pattern = re.compile(r'^[a-zA-Z0-9-]+/[a-z0-9-]+$')
-    wip_id_template = r'.*_collection_{i}_[0-9]+'
-    branch_name_template = "{ghu}_collection_{rid}"
-    path_to_user_splitter = '_collection_'
-    doc_holder_subpath = 'collections-by-owner'
-    doc_parent_dir = 'collections-by-owner/'
 
-    def filepath_for_id(self, repo_dir, doc_id):
-        assert bool(CollectionsFilepathMapper.id_pattern.match(doc_id))
-        return '{r}/collections-by-owner/{s}.json'.format(r=repo_dir, s=doc_id)
-
-    def id_from_rel_path(self, path):
-        doc_parent_dir = 'collections-by-owner/'
-        if path.startswith(doc_parent_dir):
-            p = path.split(doc_parent_dir)[1]
-            if p.endswith('.json'):
-                return p[:-5]
-            return p
+    def __init__(self):
+        GitShardFilepathMapper.__init__(self, 'collection',
+                                        doc_holder_subpath_list=('collections-by-owner',))
 
     def prefix_from_doc_id(self, doc_id):
         # The collection id is a sort of "path", e.g. '{owner_id}/{collection-name-as-slug}'

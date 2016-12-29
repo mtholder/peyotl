@@ -17,8 +17,9 @@ try:
     from dogpile.cache.api import NO_VALUE
 except:
     pass  # caching is optional
-from peyotl.git_storage import (ShardedDocStore, ShardedDocStoreProxy, TypeAwareDocStore,
-                                get_phylesystem_repo_parent)
+from peyotl.git_storage import (get_phylesystem_repo_parent, GitShardFilepathMapper,
+                                ShardedDocStore, ShardedDocStoreProxy,
+                                TypeAwareDocStore)
 from peyotl.nexson_validation import ot_validate
 from peyotl.nexson_validation._validation_base import NexsonAnnotationAdder, replace_same_agent_annotation
 from peyotl.nexson_syntax import get_empty_nexson
@@ -150,13 +151,10 @@ def validate_and_convert_nexson(nexson, output_version, allow_invalid, **kwargs)
 
 
 # noinspection PyMethodMayBeStatic
-class PhylesystemFilepathMapper(object):
+class PhylesystemFilepathMapper(GitShardFilepathMapper):
     id_pattern = re.compile(r'[a-zA-Z][a-zA-Z]_[0-9]+')
-    wip_id_template = '.*_study_{i}_[0-9]+'
-    branch_name_template = "{ghu}_study_{rid}"
-    path_to_user_splitter = '_study_'
-    doc_holder_subpath = 'study'
-    doc_parent_dir = 'study/'
+    def __init__(self):
+        GitShardFilepathMapper.__init__(self, 'study')
 
     def filepath_for_id(self, repo_dir, study_id):
         assert len(study_id) >= 4

@@ -20,7 +20,7 @@ class FailedShardCreationError(ValueError):
 class GitShard(object):
     """Bare-bones functionality needed by both normal and proxy shards."""
 
-    def __init__(self, name, document_schema=None):
+    def __init__(self, name, document_schema=None, path_mapper=None):
         self._index_lock = Lock()
         self._doc_index = {}
         self.name = name
@@ -29,6 +29,7 @@ class GitShard(object):
         self.has_aliases = False
         self._new_doc_prefix = None
         self.document_schema = document_schema
+        self.path_mapper = path_mapper
 
 
     # pylint: disable=E1101
@@ -68,9 +69,14 @@ class GitShard(object):
 
 class GitShardProxy(GitShard):
     def __init__(self, config, config_key, path_mapper, document_schema):
-        self.path_mapper = path_mapper
-        doc_holder_path = path_mapper.doc_holder_subpath
-        GitShard.__init__(self, config['name'], document_schema=document_schema)
+        if len(path_mapper.doc_holder_subpath_list) != 1:
+            raise NotImplementedError("Cannot create a GitShardProxy around a doc store with" \
+                                      "multiple doctypes")
+        GitShard.__init__(self,
+                          config['name'],
+                          path_mapper=path_mapper,
+                          document_schema=document_schema)
+        dhp = path_mapper.doc_holder_subpath_list[0]
         d = {}
         for obj in config[config_key]:
             kl = obj['keys']
@@ -78,7 +84,7 @@ class GitShardProxy(GitShard):
                 _LOG.warn("aliases not supported in shards")
             for k in kl:
                 complete_path = '{p}/{s}/{r}'.format(p=self.path,
-                                                     s=doc_holder_path,
+                                                     s=dhp,
                                                      r=obj['relpath'])
                 d[k] = (self.name, self.path, complete_path)
         self.doc_index = d
@@ -96,20 +102,20 @@ class TypeAwareGitShard(GitShard):
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                  max_file_size=None,
                  path_mapper=None):
-        GitShard.__init__(self, name, document_schema=document_schema)
-        self.path_mapper = path_mapper
+        GitShard.__init__(self, name, document_schema=document_schema, path_mapper=path_mapper)
         self._doc_counter_lock = Lock()
         self._infrastructure_commit_author = infrastructure_commit_author
         self._master_branch_repo_lock = Lock()
         path = os.path.abspath(path)
-        dot_git = os.path.join(path, '.git')
-        doc_dir = os.path.join(path, path_mapper.doc_holder_subpath)  # type-specific, e.g. 'study'
         if not os.path.isdir(path):
             raise FailedShardCreationError('"{p}" is not a directory'.format(p=path))
+        dot_git = os.path.join(path, '.git')
         if not os.path.isdir(dot_git):
             raise FailedShardCreationError('"{p}" is not a directory'.format(p=dot_git))
-        if not os.path.isdir(doc_dir):
-            raise FailedShardCreationError('"{p}" is not a directory'.format(p=doc_dir))
+        for dhp in path_mapper.doc_holder_subpath_list:  # dhp is type-specific, e.g. 'study'
+            doc_dir = os.path.join(path, dhp)
+            if not os.path.isdir(doc_dir):
+                raise FailedShardCreationError('"{p}" is not a directory'.format(p=doc_dir))
         self.path = path
         self.doc_dir = doc_dir
         with self._index_lock:

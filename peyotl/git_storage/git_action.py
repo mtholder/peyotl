@@ -134,7 +134,7 @@ class GitActionBase(object):
         """
         if fourth_arg is None:
             study_id, branch_name, author = first_arg, sec_arg, third_arg
-            gh_user = branch_name.split(self.path_mapper.path_to_user_splitter)[0]
+            gh_user = self.path_mapper.split_branch_to_user(branch_name)
             parent_sha = self.get_master_sha()
         else:
             gh_user, study_id, parent_sha, author = first_arg, sec_arg, third_arg, fourth_arg
