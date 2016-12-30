@@ -26,6 +26,7 @@ class ShardedDocStore(object):
         self._doc2shard_map = {}
         self._prefix2shard = {}
         self.path_mapper = path_mapper
+        self._growing_shard = None
 
     def get_repo_and_path_fragment(self, doc_id):
         """For `doc_id` returns a list of:
@@ -63,14 +64,12 @@ class ShardedDocStore(object):
             with self._index_lock:
                 return self._doc2shard_map[doc_id]
         except KeyError:
-            # Look up the shard where the doc should be (in case it was
-            #   deleted. This fall back relies on a unique prefix for each shard)
-            pref = self.path_mapper.prefix_from_doc_id(doc_id)
-            try:
-                return self._prefix2shard[pref]
-            except KeyError:
-                # it's a new prefix! return the latest ("growing") shard
-                return self._shards[-1]
+            for s in self._shards:
+                if s.had_doc_id(doc_id):
+                    _LOG.debug('Shard at "{}" had "{}"'.format(s.path, doc_id))
+                    return s
+            _LOG.debug('No shard at "{}" had "{}"'.format(s.path, doc_id))
+            raise
 
     def get_doc_ids(self):
         k = []

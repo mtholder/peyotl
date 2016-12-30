@@ -52,7 +52,6 @@ class TypeAwareDocStore(ShardedDocStore):
         """
         ShardedDocStore.__init__(self, path_mapper=path_mapper)
         _LOG.debug('TypeAwareDocStore(repo_par={}, repos_dict={})'.format(repos_par, repos_dict))
-        self._growing_shard = None
         # TODO should infer doc prefix and hard-code assumed_doc_version to None
         shards = []
         if shard_mirror_pair_list is not None:

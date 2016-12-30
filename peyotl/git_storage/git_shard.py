@@ -187,6 +187,13 @@ class TypeAwareGitShard(GitShard):
                 del self._doc_index[doc_id]
             except:
                 pass
+    def had_doc_id(self, doc_id):
+        with self._index_lock:
+            if doc_id in self._doc_index:
+                return True
+        ga = self.create_git_action()
+        frt_path = ga.path_from_repo_top_for_doc(doc_id)
+        return ga.had_filepath(frt_path)
 
     def create_git_action(self):
         return GitActionBase(doc_type=self.document_type,

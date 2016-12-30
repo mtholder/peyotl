@@ -170,6 +170,10 @@ class GitActionBase(object):
         full_path = self.path_mapper.filepath_for_id(self.repo, doc_id)
         return full_path
 
+    def path_from_repo_top_for_doc(self, doc_id):
+        rp = self.path_mapper.filepath_for_id('', doc_id)
+        return rp[1:] if rp.startswith('/') else rp
+
     def lock(self):
         """ for syntax:
         with git_action.lock():
@@ -187,6 +191,10 @@ class GitActionBase(object):
             if ls:
                 b.append(ls)
         return b
+
+    def had_filepath(self, path_from_repo_top):
+        x = git(self.gitdir, self.gitwd, "log", "--", path_from_repo_top)
+        return len(x) > 0
 
     def current_branch(self):
         """Return the current branch name"""

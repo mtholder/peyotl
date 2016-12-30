@@ -27,22 +27,6 @@ class CollectionsFilepathMapper(GitShardFilepathMapper):
         GitShardFilepathMapper.__init__(self, 'collection',
                                         doc_holder_subpath_list=('collections-by-owner',))
 
-    def prefix_from_doc_id(self, doc_id):
-        # The collection id is a sort of "path", e.g. '{owner_id}/{collection-name-as-slug}'
-        #   EXAMPLES: 'jimallman/trees-about-bees', 'kcranston/interesting-trees-2'
-        # Assume that the owner_id will work as a prefix, esp. by assigning all of a
-        # user's collections to a single shard.for grouping in shards
-        _LOG.debug('> prefix_from_collection_path(), testing this id: {i}'.format(i=doc_id))
-        path_parts = doc_id.split('/')
-        _LOG.debug('> prefix_from_collection_path(), found {} path parts'.format(len(path_parts)))
-        if len(path_parts) > 1:
-            owner_id = path_parts[0]
-        elif path_parts[0] == '':
-            owner_id = 'anonymous'
-        else:
-            owner_id = 'anonymous'  # or perhaps None?
-        return owner_id
-
 
 collections_path_mapper = CollectionsFilepathMapper()
 
