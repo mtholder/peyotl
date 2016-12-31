@@ -176,10 +176,6 @@ class PhylesystemFilepathMapper(GitShardFilepathMapper):
                 return p[:-5]
             return p
 
-    def prefix_from_doc_id(self, doc_id):
-        # TODO: Use something smarter here, splitting on underscore?
-        return doc_id[:3]
-
 
 phylesystem_path_mapper = PhylesystemFilepathMapper()
 
@@ -424,15 +420,6 @@ class PhylesystemShard(TypeAwareGitShard):
                                            commit_msg=content,
                                            is_json=False)
         return c
-
-    def _diagnose_prefixes(self):
-        """Returns a set of all of the prefixes seen in the main document dir
-        """
-        p = set()
-        for name in os.listdir(self.doc_dir):
-            if PhylesystemFilepathMapper.id_pattern.match(name):
-                p.add(name[:3])
-        return p
 
     def _mint_new_study_id(self):
         """Checks out master branch as a side effect"""

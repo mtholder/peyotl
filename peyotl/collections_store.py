@@ -208,16 +208,6 @@ class TreeCollectionsShard(TypeAwareGitShard):
                                    infrastructure_commit_author=infrastructure_commit_author,
                                    path_mapper=collections_path_mapper)
 
-    def _diagnose_prefixes(self):
-        """Returns a set of all of the prefixes seen in the main document dir
-        """
-        p = set()
-        for owner_dirname in os.listdir(self.doc_dir):
-            example_collection_name = "{n}/xxxxx".format(n=owner_dirname)
-            if CollectionsFilepathMapper.id_pattern.match(example_collection_name):
-                p.add(owner_dirname)
-        return p
-
 
 OWNER_ID_PATTERN = re.compile(r'^[a-zA-Z0-9-]+$')
 

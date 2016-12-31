@@ -24,7 +24,6 @@ class ShardedDocStore(object):
         self._index_lock = Lock()
         self._shards = []
         self._doc2shard_map = {}
-        self._prefix2shard = {}
         self.path_mapper = path_mapper
         self._growing_shard = None
 

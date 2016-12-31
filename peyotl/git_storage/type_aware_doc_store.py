@@ -132,12 +132,6 @@ class TypeAwareDocStore(ShardedDocStore):
         self._growing_shard = growing_shards[-1]
         self._document_schema = self._growing_shard.document_schema
         self._shards = shards
-        self._prefix2shard = {}
-        for shard in shards:
-            for prefix in shard.known_prefixes:
-                # we don't currently support multiple shards with the same ID prefix scheme
-                assert prefix not in self._prefix2shard
-                self._prefix2shard[prefix] = shard
         with self._index_lock:
             self._locked_refresh_doc_ids()
     @property

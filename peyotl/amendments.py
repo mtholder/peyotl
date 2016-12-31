@@ -229,13 +229,6 @@ class TaxonomicAmendmentsShard(TypeAwareGitShard):
             else:
                 raise RuntimeError('Stored ottid minting file not found (or invalid)!')
 
-    def _diagnose_prefixes(self):
-        """Returns a set of all of the prefixes seen in the main document dir
-           (This is currently always empty, since we don't use a prefix for
-           naming taxonomic amendments.)
-        """
-        return set()
-
     def _mint_new_ott_ids(self, how_many=1):
         """ ASSUMES the caller holds the _doc_counter_lock !
         Checks the current int value of the next ottid, reserves a block of

@@ -131,7 +131,6 @@ class TypeAwareGitShard(GitShard):
                 m = m.format(max_file_size)
                 raise RuntimeError(m)
         self.max_file_size = max_file_size
-        self._known_prefixes = None
         for prefix_filename in ['new_study_prefix', 'new_doc_prefix']:
             prefix_filepath = os.path.join(path, prefix_filename)
             if os.path.exists(prefix_filepath):
@@ -168,15 +167,6 @@ class TypeAwareGitShard(GitShard):
     def _locked_refresh_doc_index(self):
         d = self._locked_create_id2document_info()
         self._doc_index = d
-
-    @property
-    def known_prefixes(self):
-        if self._known_prefixes is None:
-            self._known_prefixes = self._diagnose_prefixes()
-        return self._known_prefixes
-
-    def _diagnose_prefixes(self):
-        raise NotImplementedError("_diagnose_prefixes must be overridden.")
 
     def can_mint_new_docs(self):
         return True  # phylesystem shards can only mint new IDs if they have a new_doc_prefix file, overridden.
