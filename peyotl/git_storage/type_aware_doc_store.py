@@ -127,7 +127,7 @@ class TypeAwareDocStore(ShardedDocStore):
         #   `new_study_prefix`, so only one shard can generate new IDs. There should only be one shard
         #   with `can_mint_new_docs() set to True
         growing_shards = [i for i in shards if i.can_mint_new_docs()]
-        #_LOG.debug('shards = {} growing_shards = {}'.format(shards, growing_shards))
+        _LOG.debug('shards = {} growing_shards = {}'.format(shards, growing_shards))
         assert len(growing_shards) == 1
         self._growing_shard = growing_shards[-1]
         self._document_schema = self._growing_shard.document_schema
@@ -289,15 +289,18 @@ class TypeAwareDocStore(ShardedDocStore):
         `doc_id` is used to determine which shard should be pushed.
         if `doc_id` is None, all shards are pushed.
         """
-        if doc_id is None:
-            ret = True
-            # @TODO should spawn a thread of each shard...
-            for shard in self._shards:
-                if not shard.push_to_remote(remote_name):
-                    ret = False
-            return ret
-        shard = self.get_shard(doc_id)
-        return shard.push_to_remote(remote_name)
+        sl = self._shards
+        if doc_id:
+            try:
+                sl = [self.get_shard(doc_id)]
+            except:
+                pass
+        ret = True
+        # @TODO should spawn a thread of each shard...
+        for shard in sl:
+            if not shard.push_to_remote(remote_name):
+                ret = False
+        return ret
 
     def commit_and_try_merge2master(self,
                                     file_content,
@@ -318,6 +321,8 @@ class TypeAwareDocStore(ShardedDocStore):
                                            commit_msg,
                                            merged_sha=merged_sha)
         if not resp['merge_needed']:
+            # might need to reregister if this commit merges a deleted doc back to master
+            git_action.shard.reregister_doc_id(git_action, doc_id)
             self._doc_merged_hook(git_action, doc_id)
         return resp
 
@@ -373,31 +378,31 @@ class TypeAwareDocStore(ShardedDocStore):
                                                 merged_sha=merged_sha,
                                                 git_action=git_action)
 
-    def delete_doc(self, doc_id, auth_info, parent_sha, **kwargs):
+    def delete_document(self, doc_id, auth_info, parent_sha, **kwargs):
         git_action = self.create_git_action(doc_id)
-        from peyotl.git_storage.git_workflow import delete_document
+        from peyotl.git_storage.git_workflow import wf_delete_document
         doctype_display_name = kwargs.get('doctype_display_name', None)
-        ret = delete_document(git_action,
-                              doc_id,
-                              auth_info,
-                              parent_sha,
-                              doctype_display_name=doctype_display_name,
-                              **kwargs)
+        ret = wf_delete_document(git_action,
+                                 doc_id,
+                                 auth_info,
+                                 parent_sha,
+                                 doctype_display_name=doctype_display_name,
+                                 **kwargs)
         if not ret['merge_needed']:
             with self._index_lock:
+                msg = "Looking to delete {} 2shardmap = {}".format(doc_id, self._doc2shard_map)
+                _LOG.debug(msg)
                 try:
                     _shard = self._doc2shard_map[doc_id]
                 except KeyError:
-                    pass
+                    msg = "Shard not found for {} in delete_document. Maps not updated."
+                    msg = msg.format(doc_id)
+                    _LOG.warn(msg)
                 else:
-                    try:
-                        del self._doc2shard_map[doc_id]
-                    except KeyError:
-                        pass
                     _shard.delete_doc_from_index(doc_id)
         return ret
 
-    delete_document = delete_doc
+    delete_doc = delete_document
 
     def iter_doc_objs(self, **kwargs):
         """Generator that iterates over all detected documents (eg, nexson studies)

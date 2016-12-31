@@ -376,51 +376,44 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
             # pass the id and amendment JSON to a proper git action
             new_amendment_id = None
             r = None
+            # assign the new id to a shard (important prep for commit_and_try_merge2master)
+            gd_id_pair = self.create_git_action_for_new_document(new_doc_id=amendment_id)
+            new_amendment_id = gd_id_pair[1]
+            # For amendments, the id should not have changed!
             try:
-                # assign the new id to a shard (important prep for commit_and_try_merge2master)
-                gd_id_pair = self.create_git_action_for_new_document(new_doc_id=amendment_id)
-                new_amendment_id = gd_id_pair[1]
-                # For amendments, the id should not have changed!
-                try:
-                    assert new_amendment_id == amendment_id
-                except:
-                    raise KeyError('Amendment id unexpectedly changed from "{o}" to "{n}"!'.format(
-                        o=amendment_id, n=new_amendment_id))
-                try:
-                    # it's already been validated, so keep it simple
-                    r = self.commit_and_try_merge2master(file_content=amendment,
-                                                         doc_id=new_amendment_id,
-                                                         auth_info=auth_info,
-                                                         parent_sha=None,
-                                                         commit_msg=commit_msg,
-                                                         merged_sha=None)
-                except:
-                    self._growing_shard.delete_doc_from_index(new_amendment_id)
-                    raise
-
-                # amendment is now in the repo, so we can safely reserve the ottids
-                first_minted_id, last_minted_id = self._growing_shard._mint_new_ott_ids(
-                    how_many=max(num_taxa_eligible_for_ids, 1))
-                # do a final check for errors!
-                try:
-                    assert first_minted_id == first_new_id
-                except:
-                    raise ValueError('First minted ottid is "{m}", expected "{e}"!'.format(
-                        m=first_minted_id, e=first_new_id))
-                try:
-                    assert last_minted_id == last_new_id
-                except:
-                    raise ValueError('Last minted ottid is "{m}", expected "{e}"!'.format(
-                        m=last_minted_id, e=last_new_id))
-                # Add the tag-to-ottid mapping to the response, so a caller
-                # (e.g. the curation webapp) can provisionally assign them
-                r['tag_to_ottid'] = tag_to_id
+                assert new_amendment_id == amendment_id
             except:
-                with self._index_lock:
-                    if new_amendment_id in self._doc2shard_map:
-                        del self._doc2shard_map[new_amendment_id]
+                raise KeyError('Amendment id unexpectedly changed from "{o}" to "{n}"!'.format(
+                    o=amendment_id, n=new_amendment_id))
+            try:
+                # it's already been validated, so keep it simple
+                r = self.commit_and_try_merge2master(file_content=amendment,
+                                                     doc_id=new_amendment_id,
+                                                     auth_info=auth_info,
+                                                     parent_sha=None,
+                                                     commit_msg=commit_msg,
+                                                     merged_sha=None)
+            except:
+                self._growing_shard.delete_doc_from_index(new_amendment_id)
                 raise
 
+            # amendment is now in the repo, so we can safely reserve the ottids
+            first_minted_id, last_minted_id = self._growing_shard._mint_new_ott_ids(
+                how_many=max(num_taxa_eligible_for_ids, 1))
+            # do a final check for errors!
+            try:
+                assert first_minted_id == first_new_id
+            except:
+                raise ValueError('First minted ottid is "{m}", expected "{e}"!'.format(
+                    m=first_minted_id, e=first_new_id))
+            try:
+                assert last_minted_id == last_new_id
+            except:
+                raise ValueError('Last minted ottid is "{m}", expected "{e}"!'.format(
+                    m=last_minted_id, e=last_new_id))
+            # Add the tag-to-ottid mapping to the response, so a caller
+            # (e.g. the curation webapp) can provisionally assign them
+            r['tag_to_ottid'] = tag_to_id
         with self._index_lock:
             self._doc2shard_map[new_amendment_id] = self._growing_shard
         return new_amendment_id, r

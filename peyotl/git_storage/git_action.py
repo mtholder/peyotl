@@ -106,18 +106,31 @@ class GitActionBase(object):
         git(git_dir_arg, 'remote', 'add', remote_name, remote_url)
 
     def __init__(self,
-                 doc_type,
-                 repo,
+                 repo_path,
+                 shard=None,
+                 doc_type=None,
                  max_file_size=None,
                  path_mapper=None):
-        self.repo = repo
-        self.doc_type = doc_type
-        self.git_dir = os.path.join(repo, '.git')
+        """Creates a low-level git action wrapper for a repo_path.
+
+        doc_type, max_file_size, and path_mapper info is taken from `shard` argument, if one
+            is supplied. Otherwise those 3 args are used (to allow for usage of git actions
+            without a shard).
+        """
+        self.shard = shard
+        self.repo = repo_path
+        if self.shard is None:
+            self.doc_type = doc_type
+            self.max_file_size = max_file_size
+            self.path_mapper = path_mapper
+        else:
+            self.doc_type = shard.document_type
+            self.max_file_size = shard.max_file_size
+            self.path_mapper = shard.path_mapper
+        self.git_dir = os.path.join(repo_path, '.git')
         self._lock_file = os.path.join(self.git_dir, "API_WRITE_LOCK")
         self._lock_timeout = 30  # in seconds
         self._lock = locket.lock_file(self._lock_file, timeout=self._lock_timeout)
-        self.max_file_size = max_file_size
-        self.path_mapper = path_mapper
         if os.path.isdir("{}/.git".format(self.repo)):
             self.gitdir = "--git-dir={}/.git".format(self.repo)
             self.gitwd = "--work-tree={}".format(self.repo)
@@ -193,7 +206,16 @@ class GitActionBase(object):
         return b
 
     def had_filepath(self, path_from_repo_top):
-        x = git(self.gitdir, self.gitwd, "log", "--", path_from_repo_top)
+        try:
+            x = git(self.gitdir, self.gitwd, "log", "--", path_from_repo_top) # .strip()
+            from peyotl.utility import is_str_type
+            if not is_str_type(x):
+                _LOG.debug("had_filepath returning false cause it is still running")
+                return False
+        except:
+            _LOG.exception("I hate sh")
+            return False
+        _LOG.debug("had_filepath response 3 = \"{}\" of type {}".format(x, type(x)))
         return len(x) > 0
 
     def current_branch(self):

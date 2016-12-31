@@ -280,10 +280,6 @@ class PhylesystemShardProxy(GitShardProxy):
     def study_index(self):
         return self.doc_index
 
-    @study_index.setter
-    def study_index(self, val):
-        self._doc_index = val
-
     @property
     def new_study_prefix(self):
         return self.new_doc_prefix
@@ -361,10 +357,6 @@ class PhylesystemShard(TypeAwareGitShard):
     @property
     def study_index(self):
         return self.doc_index
-
-    @study_index.setter
-    def study_index(self, val):
-        self._doc_index = val
 
     @property
     def repo_nexml2json(self):
@@ -556,37 +548,29 @@ class _Phylesystem(TypeAwareDocStore):
                                 doc_id=new_study_id)
 
     def add_new_doc(self, json_repr, auth_info, commit_msg='', doc_id=None):
-        placeholder_added = False
         if doc_id is not None:
             raise NotImplementedError("Creating new studies with pre-assigned IDs was only supported when "
                                       "Open Tree of Life was still ingesting trees from phylografter.")
         new_study_nexson = self._coerce_json_to_document(json_repr)
+        gd, doc_id = self.create_git_action_for_new_document(new_doc_id=doc_id)
         try:
-            gd, doc_id = self.create_git_action_for_new_document(new_doc_id=doc_id)
-            try:
-                nexml = new_study_nexson['nexml']
-                nexml['^ot:studyId'] = doc_id
-                bundle = validate_and_convert_nexson(new_study_nexson,
-                                                     self.document_schema.schema_version,
-                                                     allow_invalid=True)
-                nexson, annotation, nexson_adaptor = bundle[0], bundle[1], bundle[3]
-                r = self.annotate_and_write(doc_id=doc_id,
-                                            document=nexson,
-                                            auth_info=auth_info,
-                                            adaptor=nexson_adaptor,
-                                            annotation=annotation,
-                                            parent_sha=None,
-                                            merged_sha=None,
-                                            git_action=gd,
-                                            commit_msg=commit_msg)
-            except:
-                self._growing_shard.delete_doc_from_index(doc_id)
-                raise
+            nexml = new_study_nexson['nexml']
+            nexml['^ot:studyId'] = doc_id
+            bundle = validate_and_convert_nexson(new_study_nexson,
+                                                 self.document_schema.schema_version,
+                                                 allow_invalid=True)
+            nexson, annotation, nexson_adaptor = bundle[0], bundle[1], bundle[3]
+            r = self.annotate_and_write(doc_id=doc_id,
+                                        document=nexson,
+                                        auth_info=auth_info,
+                                        adaptor=nexson_adaptor,
+                                        annotation=annotation,
+                                        parent_sha=None,
+                                        merged_sha=None,
+                                        git_action=gd,
+                                        commit_msg=commit_msg)
         except:
-            if placeholder_added:
-                with self._index_lock:
-                    if doc_id in self._doc2shard_map:
-                        del self._doc2shard_map[doc_id]
+            self._growing_shard.delete_doc_from_index(doc_id)
             raise
         with self._index_lock:
             self._doc2shard_map[doc_id] = self._growing_shard

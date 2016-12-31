@@ -61,6 +61,7 @@ class GitShard(object):
     def get_doc_ids(self, **kwargs):
         with self._index_lock:
             k = self._doc_index.keys()
+        _LOG.debug("Shard instance {}, docs = {}".format(self, k))
         return list(k)
 
     @property
@@ -87,7 +88,7 @@ class GitShardProxy(GitShard):
                                                      s=dhp,
                                                      r=obj['relpath'])
                 d[k] = (self.name, self.path, complete_path)
-        self.doc_index = d
+        self._doc_index = d
 
 
 class TypeAwareGitShard(GitShard):
@@ -175,8 +176,11 @@ class TypeAwareGitShard(GitShard):
         with self._index_lock:
             try:
                 del self._doc_index[doc_id]
+                msg = "Doc {} de-indexed. For Shard ID {}. Current doc index keys: {}"
+                _LOG.debug(msg.format(doc_id, self, self._doc_index.keys()))
             except:
-                pass
+                _LOG.warn("Doc {} not found in index. Can't delete entry".format(doc_id))
+
     def had_doc_id(self, doc_id):
         with self._index_lock:
             if doc_id in self._doc_index:
@@ -186,16 +190,10 @@ class TypeAwareGitShard(GitShard):
         return ga.had_filepath(frt_path)
 
     def create_git_action(self):
-        return GitActionBase(doc_type=self.document_type,
-                             repo=self.path,
-                             max_file_size=self.max_file_size,
-                             path_mapper=self.path_mapper)
+        return GitActionBase(repo_path=self.path, shard=self)
 
     def create_git_action_for_mirror(self):
-        return GitActionBase(doc_type=self.document_type,
-                             repo=self.push_mirror_repo_path,
-                             max_file_size=self.max_file_size,
-                             path_mapper=self.path_mapper)
+        return GitActionBase(repo_path=self.push_mirror_repo_path, shard=self)
 
     def pull(self, remote='origin', branch_name='master'):
         with self._index_lock:
@@ -209,6 +207,11 @@ class TypeAwareGitShard(GitShard):
         with self._index_lock:
             self._doc_index[doc_id] = (self.name, self.doc_dir, fp)
 
+    def reregister_doc_id(self, ga, doc_id):
+        with self._index_lock:
+            if doc_id in self._doc_index:
+                return
+        self.register_doc_id(ga, doc_id)
 
     def push_to_remote(self, remote_name):
         if self.push_mirror_repo_path is None:

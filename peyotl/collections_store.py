@@ -308,27 +308,21 @@ class _TreeCollectionStore(TypeAwareDocStore):
             self._doc2shard_map[doc_id] = None
         # pass the id and collection JSON to a proper git action
         new_doc_id = None
+        # assign the new id to a shard (important prep for commit_and_try_merge2master)
+        gd_id_pair = self.create_git_action_for_new_document(new_doc_id=doc_id)
+        new_doc_id = gd_id_pair[1]
         try:
-            # assign the new id to a shard (important prep for commit_and_try_merge2master)
-            gd_id_pair = self.create_git_action_for_new_document(new_doc_id=doc_id)
-            new_doc_id = gd_id_pair[1]
-            try:
-                # let's remove the 'url' field; it will be restored when the doc is fetched (via API)
-                del collection['url']
-                # keep it simple (collection is already validated! no annotations needed!)
-                r = self.commit_and_try_merge2master(file_content=collection,
-                                                     doc_id=new_doc_id,
-                                                     auth_info=auth_info,
-                                                     parent_sha=None,
-                                                     commit_msg=commit_msg,
-                                                     merged_sha=None)
-            except:
-                self._growing_shard.delete_doc_from_index(new_doc_id)
-                raise
+            # let's remove the 'url' field; it will be restored when the doc is fetched (via API)
+            del collection['url']
+            # keep it simple (collection is already validated! no annotations needed!)
+            r = self.commit_and_try_merge2master(file_content=collection,
+                                                 doc_id=new_doc_id,
+                                                 auth_info=auth_info,
+                                                 parent_sha=None,
+                                                 commit_msg=commit_msg,
+                                                 merged_sha=None)
         except:
-            with self._index_lock:
-                if new_doc_id in self._doc2shard_map:
-                    del self._doc2shard_map[new_doc_id]
+            self._growing_shard.delete_doc_from_index(new_doc_id)
             raise
         with self._index_lock:
             self._doc2shard_map[new_doc_id] = self._growing_shard

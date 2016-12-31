@@ -89,13 +89,13 @@ def _do_merge2master_commit(git_action,
     return new_sha, branch_name, merge_needed
 
 
-def delete_document(git_action,
-                    doc_id,
-                    auth_info,
-                    parent_sha,
-                    commit_msg=None,
-                    merged_sha=None,
-                    doctype_display_name="document"):  # pylint: disable=W0613
+def wf_delete_document(git_action,
+                       doc_id,
+                       auth_info,
+                       parent_sha,
+                       commit_msg=None,
+                       merged_sha=None,
+                       doctype_display_name="document"):  # pylint: disable=W0613
     author = "{} <{}>".format(auth_info['name'], auth_info['email'])
     gh_user = auth_info['login']
     acquire_lock_raise(git_action,
