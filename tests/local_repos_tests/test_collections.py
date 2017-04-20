@@ -16,6 +16,20 @@ mc = _repos['mini_collections']
 # TODO: filter repo list to just tree-collection shards? or rely on smart (failed) shard creation?
 # _repos = {'mini_collections': mc}
 
+expected_collections = ['TestUserB/fungal-trees',
+                        'TestUserB/my-favorite-trees',
+                        'josephwb/hypocreales',
+                        'kcranston/barnacles',
+                        'mwestneat/reef-fishes',
+                        'opentreeoflife/default',
+                        'opentreeoflife/fungi',
+                        'opentreeoflife/metazoa',
+                        'opentreeoflife/plants',
+                        'opentreeoflife/safe-microbes',
+                        'pcart/cnidaria',
+                        'test-user-a/my-favorite-trees',
+                        'test-user-a/trees-about-bees']
+
 @unittest.skipIf(not os.path.isdir(mc),
                  'Peyotl not configured for maintainer test of mini_collections.'
                  'Skipping this test is normal (for everyone other than maintainers).\n'
@@ -43,9 +57,7 @@ class TestTreeCollections(unittest.TestCase):
         c = _TreeCollectionStore(repos_dict=self.r)
         k = list(c._doc2shard_map.keys())
         k.sort()
-        expected = ['TestUserB/fungal-trees', 'TestUserB/my-favorite-trees',
-                    'test-user-a/my-favorite-trees', 'test-user-a/trees-about-bees']
-        self.assertEqual(k, expected)
+        self.assertEqual(k, expected_collections)
 
     def testURL(self):
         c = _TreeCollectionStore(repos_dict=self.r)
@@ -55,9 +67,7 @@ class TestTreeCollections(unittest.TestCase):
         c = _TreeCollectionStore(repos_dict=self.r)
         k = list(c.get_doc_ids())
         k.sort()
-        expected = ['TestUserB/fungal-trees', 'TestUserB/my-favorite-trees',
-                    'test-user-a/my-favorite-trees', 'test-user-a/trees-about-bees']
-        self.assertEqual(k, expected)
+        self.assertEqual(k, expected_collections)
 
     def testCollectionCreation(self):
         c = _TreeCollectionStore(repos_dict=self.r)
@@ -86,11 +96,24 @@ class TestTreeCollections(unittest.TestCase):
         c.pull()  # get the full git history
         # check for known changed collections in this repo
         changed = c.get_changed_docs('637bb5a35f861d84c115e5e6c11030d1ecec92e0')
-        self.assertEqual({u'TestUserB/fungal-trees.json'}, changed)
+        expected_changed = {u'TestUserB/fungal-trees.json',}
+        changed_later = {     u'josephwb/hypocreales.json',
+                            u'kcranston/barnacles.json',
+                            u'mwestneat/reef-fishes.json',
+                            u'opentreeoflife/default.json',
+                            u'opentreeoflife/fungi.json',
+                            u'opentreeoflife/metazoa.json',
+                            u'opentreeoflife/plants.json',
+                            u'opentreeoflife/safe-microbes.json',
+                            u'pcart/cnidaria.json',
+                           }
+        expected_changed.update(changed_later)
+        self.assertEqual(expected_changed, changed)
         changed = c.get_changed_docs('d17e91ae85e829a4dcc0115d5d33bf0dca179247')
-        self.assertEqual({u'TestUserB/fungal-trees.json'}, changed)
+        self.assertEqual(expected_changed, changed)
         changed = c.get_changed_docs('af72fb2cc060936c9afce03495ec0ab662a783f6')
         expected = {u'test-user-a/my-favorite-trees.json', u'TestUserB/fungal-trees.json'}
+        expected.update(changed_later)
         self.assertEqual(expected, changed)
         # check a doc that changed
         changed = c.get_changed_docs('af72fb2cc060936c9afce03495ec0ab662a783f6',
