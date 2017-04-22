@@ -12,7 +12,8 @@ from peyotl.utility import (get_config_setting,
                             get_config_object,
                             expand_path,
                             get_logger)
-from peyotl.utility.input_output import (download_large_file,
+from peyotl.utility.input_output import (assure_dir_exists,
+                                         download_large_file,
                                          gunzip, gunzip_and_untar,
                                          pretty_dict_str)
 
