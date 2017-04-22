@@ -6,16 +6,19 @@ from peyotl.utility.str_util import is_str_type, StringIO
 import codecs
 import json
 import stat
+import sys
 import os
 
+def assure_dir_exists(d):
+    if not os.path.exists(d):
+        os.makedirs(d)
 
 def open_for_group_write(fp, mode, encoding='utf-8'):
     """Open with mode=mode and permissions '-rw-rw-r--' group writable is
     the default on some systems/accounts, but it is important that it be present on our deployment machine
     """
     d = os.path.split(fp)[0]
-    if not os.path.exists(d):
-        os.makedirs(d)
+    assure_dir_exists(d)
     o = codecs.open(fp, mode, encoding=encoding)
     o.flush()
     os.chmod(fp, stat.S_IRGRP | stat.S_IROTH | stat.S_IRUSR | stat.S_IWGRP | stat.S_IWUSR)
@@ -35,8 +38,7 @@ def write_to_filepath(content, filepath, encoding='utf-8', mode='w', group_write
         writable by the group (on POSIX systems)
     """
     par_dir = os.path.split(filepath)[0]
-    if not os.path.exists(par_dir):
-        os.makedirs(par_dir)
+    assure_dir_exists(par_dir)
     if group_writeable:
         with open_for_group_write(filepath, mode=mode, encoding=encoding) as fo:
             fo.write(content)
@@ -57,6 +59,35 @@ def download(url, encoding='utf-8'):
     response.encoding = encoding
     return response.text
 
+def download_large_file(url, destination_filepath):
+    """
+    See http://stackoverflow.com/questions/16694907/how-to-download-large-file-in-python-with-requests-py
+    by Roman Podlinov
+    """
+    import requests
+    r = requests.get(url, stream=True)
+    par_dir = os.path.split(destination_filepath)[0]
+    assure_dir_exists(par_dir)
+    with open(destination_filepath, 'wb') as f:
+        for chunk in r.iter_content(chunk_size=1024):
+            if chunk:
+                f.write(chunk)
+    return destination_filepath
+
+def gunzip(source, destination):
+    import gzip
+    import shutil
+    with gzip.open(source, 'rb') as f_in, open(destination, 'wb') as f_out:
+        shutil.copyfileobj(f_in, f_out)
+
+def gunzip_and_untar(source, destination):
+    import tarfile
+    mode = 'r:gz' if sys.version_info.major else 'r|gz'
+    t = tarfile.open(source, mode)
+    for n in t.getnames():
+        if n.startswith('..') or n.startswith('/') or n.startswith('~'):
+            raise RuntimeError("untar failing because of dangerous element path: {}".format(n))
+    t.extractall(destination)
 
 def write_as_json(blob, dest, indent=0, sort_keys=True):
     """Writes `blob` as JSON to the filepath `dest` or the filestream `dest` (if it isn't a string)

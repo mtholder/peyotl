@@ -19,7 +19,7 @@
 """
 Path mapping for various test resources.
 """
-from peyotl.utility import pretty_timestamp, get_logger
+from peyotl.utility import pretty_timestamp, get_logger, assure_dir_exists
 
 try:
     import anyjson
@@ -170,8 +170,7 @@ def named_output_path(filename=None, suffix_timestamp=True):
             filename = os.path.sep.join(filename)
         if suffix_timestamp:
             filename = "%s.%s" % (filename, pretty_timestamp(style=1))
-    if not os.path.exists(TESTS_OUTPUT_DIR):
-        os.makedirs(TESTS_OUTPUT_DIR)
+    assure_dir_exists(TESTS_OUTPUT_DIR)
     return os.path.join(TESTS_OUTPUT_DIR, filename)
 
 
@@ -189,7 +188,7 @@ def next_unique_scratch_filepath(fn):
             msg = mf.format(f=frag, c=TESTS_SCRATCH_DIR)
             raise RuntimeError(msg)
     else:
-        os.makedirs(TESTS_SCRATCH_DIR)
+        assure_dir_exists(TESTS_SCRATCH_DIR)
     return next_unique_filepath(frag)
 
 

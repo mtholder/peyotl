@@ -21,7 +21,7 @@ except:
     anyjson.loads = json.loads
 from peyotl.git_storage import ShardedDocStore
 from peyotl.git_storage.git_shard import FailedShardCreationError
-from peyotl.utility import get_logger
+from peyotl.utility import get_logger, assure_dir_exists
 
 _LOG = get_logger(__name__)
 
@@ -78,8 +78,7 @@ class TypeAwareDocStore(ShardedDocStore):
                 push_mirror_repos_par = push_mirror_info['parent_dir']
                 push_mirror_remote_map = push_mirror_info.get('remote_map', {})
                 if push_mirror_repos_par:
-                    if not os.path.exists(push_mirror_repos_par):
-                        os.makedirs(push_mirror_repos_par)
+                    assure_dir_exists(push_mirror_repos_par)
                     if not os.path.isdir(push_mirror_repos_par):
                         e_fmt = 'Specified push_mirror_repos_par, "{}", is not a directory'
                         e = e_fmt.format(push_mirror_repos_par)

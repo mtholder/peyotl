@@ -1,7 +1,7 @@
 """Base class git action manager (subclasses will accommodate each type)"""
 from peyotl.utility.str_util import is_str_type
 from peyotl.nexson_syntax import write_as_json
-from peyotl.utility import get_logger
+from peyotl.utility import get_logger, assure_dir_exists
 import os
 # noinspection PyUnresolvedReferences
 from sh import git  # pylint: disable=E0611
@@ -486,8 +486,7 @@ class GitActionBase(object):
                 parent_sha = self.get_master_sha()
             branch = self.create_or_checkout_branch(gh_user, doc_id, parent_sha, force_branch_name=True)
             # create a document directory if this is a new doc EJM- what if it isn't?
-            if not os.path.isdir(doc_dir):
-                os.makedirs(doc_dir)
+            assure_dir_exists(doc_dir)
             shutil.copy(fc.name, doc_filepath)
             git(self.gitdir, self.gitwd, "add", doc_filepath)
             if commit_msg is None:
@@ -540,9 +539,7 @@ class GitActionBase(object):
             commit_msg = default_commit_msg
 
         # create a doc directory if this is a new document  EJM- what if it isn't?
-        if not os.path.isdir(doc_dir):
-            os.makedirs(doc_dir)
-
+        assure_dir_exists(doc_dir)
         if os.path.exists(doc_filepath):
             prev_file_sha = self.get_blob_sha_for_file(doc_filepath)
         else:

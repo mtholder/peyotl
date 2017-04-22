@@ -75,7 +75,9 @@ peyotl includes the `ez_setup.py` tool from [setuptools](https://pypi.python.org
     interpreter to find the code included in this package for interacting with open tree of life
     data and web services.
 
-
+The large file download function is based on one by Roman Podlinov from:
+   See http://stackoverflow.com/questions/16694907/how-to-download-large-file-in-python-with-requests-py
+    
 
 ****************
 
