@@ -3,11 +3,13 @@
 peyotl.
 """
 from peyotl.utility.str_util import is_str_type, StringIO
+from peyotl.utility.get_logger import get_logger
 import codecs
 import json
 import stat
 import sys
 import os
+_LOG = get_logger(__name__)
 
 def assure_dir_exists(d):
     if not os.path.exists(d):
@@ -80,14 +82,47 @@ def gunzip(source, destination):
     with gzip.open(source, 'rb') as f_in, open(destination, 'wb') as f_out:
         shutil.copyfileobj(f_in, f_out)
 
-def gunzip_and_untar(source, destination):
+def gunzip_and_untar(source, destination, in_dir_mode=True):
+    """If in_dir_mode is True, this function will put all of the contents of 
+    the tarfile in destination, if they are not in top-level directory in the tar.
+    If the tarfile contains one top level directory, then all of its elements will
+    become children of `destination`. Essentially, this papers over whether or not
+    the archive was created as a dir or set of files."""
     import tarfile
+    import tempfile
     mode = 'r:gz' if sys.version_info.major else 'r|gz'
     t = tarfile.open(source, mode)
-    for n in t.getnames():
+    to_safety_check = t.getnames()
+    for n in to_safety_check:
         if n.startswith('..') or n.startswith('/') or n.startswith('~'):
             raise RuntimeError("untar failing because of dangerous element path: {}".format(n))
-    t.extractall(destination)
+    td = tempfile.mkdtemp()
+    dir_to_del = None
+    try:
+        t.extractall(td)
+        assure_dir_exists(destination)
+        ef = os.listdir(td)
+        if len(ef) == 1 and os.path.isdir(os.path.join(td, ef[0])) and in_dir_mode:
+            eff_par = os.path.join(td, ef[0])
+            dir_to_del = eff_par
+            to_move = os.listdir(eff_par)
+        else:
+            eff_par = td
+            to_move = ef
+        for n in to_move:
+            src = os.path.join(eff_par, n)
+            dest = os.path.join(destination, n)
+            os.rename(src, dest)
+    finally:
+        if dir_to_del:
+            try:
+                os.rmdir(dir_to_del)
+            except OSError:
+                _LOG.exception("Could not delete {}".format(os.path.abspath(dir_to_del)))
+        try:
+            os.rmdir(td)
+        except OSError:
+            _LOG.exception("Could not delete {}".format(os.path.abspath(td)))
 
 def write_as_json(blob, dest, indent=0, sort_keys=True):
     """Writes `blob` as JSON to the filepath `dest` or the filestream `dest` (if it isn't a string)
