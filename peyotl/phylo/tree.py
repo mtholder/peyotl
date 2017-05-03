@@ -46,6 +46,10 @@ class Node(object):
         return iter(self._children)
 
     @property
+    def id(self):
+        return self._id
+
+    @property
     def children(self):
         return tuple(self._children)
 

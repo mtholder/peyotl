@@ -76,11 +76,18 @@ def download_large_file(url, destination_filepath):
                 f.write(chunk)
     return destination_filepath
 
+def unzip(source, destination):
+    import zipfile
+    import shutil
+    with zipfile.ZipFile(source, 'r') as z:
+        z.extractall(destination)
+
 def gunzip(source, destination):
     import gzip
     import shutil
     with gzip.open(source, 'rb') as f_in, open(destination, 'wb') as f_out:
         shutil.copyfileobj(f_in, f_out)
+
 
 def gunzip_and_untar(source, destination, in_dir_mode=True):
     """If in_dir_mode is True, this function will put all of the contents of 

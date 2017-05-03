@@ -8,14 +8,16 @@ repositories.
 from __future__ import absolute_import, print_function, division
 
 __version__ = '0.1.4dev'  # sync with setup.py
-from peyotl.utility import (get_config_setting,
+from peyotl.utility import (add_or_append_to_dict,
+                            get_config_setting,
                             get_config_object,
                             expand_path,
                             get_logger)
 from peyotl.utility.input_output import (assure_dir_exists,
                                          download_large_file,
                                          gunzip, gunzip_and_untar,
-                                         pretty_dict_str)
+                                         pretty_dict_str,
+                                         unzip)
 
 from peyotl.collections_store import (collection_to_included_trees,
                                       concatenate_collections,

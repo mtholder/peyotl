@@ -20,6 +20,20 @@ import os
 
 __all__ = ['input_output', 'simple_file_lock', 'str_util', 'get_logger', 'dict_wrapper', 'tokenizer', 'get_config']
 
+def add_or_append_to_dict(d, k, v):
+    """If dict `d` has key `k`, then the new value of that key will be appended
+    onto a list containing the previous values, otherwise d[k] = v.
+    Creates a lightweight multimap, but not safe if v can be None or a list.
+    returns True if the k now maps to >1 value"""
+    ov = d.get(k)
+    if ov is None:
+        d[k] = v
+        return False
+    if isinstance(ov, list):
+        ov.append(v)
+    else:
+        d[k] = [ov, v]
+    return True
 
 def any_early_exit(iterable, predicate):
     """Tests each element in iterable by calling predicate(element). Returns True on first True, or False."""
