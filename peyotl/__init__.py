@@ -71,6 +71,7 @@ def iter_node(tree):
         yield nd
 
 from peyotl.otifacts import (filter_otifacts_by_type,
+                             find_otifacts_json_filepaths,
                              partition_otifacts_by_root_element,
                              read_all_otifacts)
 
