@@ -70,6 +70,10 @@ def iter_node(tree):
     for nd in tree.get('nodeById', {}).items():
         yield nd
 
+from peyotl.otifacts import (filter_otifacts_by_type,
+                             partition_otifacts_by_root_element,
+                             read_all_otifacts)
+
 
 __all__ = ['utility',
            'api',

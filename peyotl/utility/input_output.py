@@ -131,7 +131,7 @@ def gunzip_and_untar(source, destination, in_dir_mode=True):
         except OSError:
             _LOG.exception("Could not delete {}".format(os.path.abspath(td)))
 
-def write_as_json(blob, dest, indent=0, sort_keys=True):
+def write_as_json(blob, dest, indent=0, sort_keys=True, separators=(', ', ': ')):
     """Writes `blob` as JSON to the filepath `dest` or the filestream `dest` (if it isn't a string)
     uses utf-8 encoding if the filepath is given (does not change the encoding if dest is already open).
     """
@@ -142,7 +142,7 @@ def write_as_json(blob, dest, indent=0, sort_keys=True):
     else:
         out = dest
     try:
-        json.dump(blob, out, indent=indent, sort_keys=sort_keys)
+        json.dump(blob, out, indent=indent, sort_keys=sort_keys, separators=separators)
         out.write('\n')
     finally:
         out.flush()
