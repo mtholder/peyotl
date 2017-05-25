@@ -15,6 +15,17 @@ def assure_dir_exists(d):
     if not os.path.exists(d):
         os.makedirs(d)
 
+def shorter_fp_form(p):
+    if os.path.isabs(p):
+        ac = os.path.abspath(os.path.curdir)
+        if p.startswith(ac):
+            r = p[len(ac):]
+            return r if len(r) < len(p) else p
+        return p
+    a = os.path.abspath(p)
+    return a if len(a) < len(p) else p
+
+
 def open_for_group_write(fp, mode, encoding='utf-8'):
     """Open with mode=mode and permissions '-rw-rw-r--' group writable is
     the default on some systems/accounts, but it is important that it be present on our deployment machine
