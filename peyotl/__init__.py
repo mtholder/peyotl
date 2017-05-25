@@ -17,6 +17,7 @@ from peyotl.utility.input_output import (assure_dir_exists,
                                          download_large_file,
                                          gunzip, gunzip_and_untar,
                                          pretty_dict_str,
+                                         shorter_fp_form,
                                          unzip)
 
 from peyotl.collections_store import (collection_to_included_trees,

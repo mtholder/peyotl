@@ -20,6 +20,8 @@ def shorter_fp_form(p):
         ac = os.path.abspath(os.path.curdir)
         if p.startswith(ac):
             r = p[len(ac):]
+            while r.startswith(os.sep):
+                r = r[len(os.sep):]
             return r if len(r) < len(p) else p
         return p
     a = os.path.abspath(p)
