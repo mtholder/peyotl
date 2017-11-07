@@ -33,9 +33,7 @@ def evaluate_tree_rooting(nexson, ott, tree_proxy):
     # _LOG.debug('taxo_nontriv_splits = {}'.format(taxo_nontriv_splits))
     # might want to copy this dict rather than modify in place..
     del taxo_nontriv_splits[taxon_mask]  # root bitmask is trivial
-    _LOG.debug('taxon_mask = {} (which is {} bits)'.format(bin(taxon_mask)[2:], len(bin(taxon_mask)) - 2))
     num_ids = len(id2bit)
-    _LOG.debug('id2bit has length = {}'.format(len(id2bit)))
     # for checking tips of the phylogeny, it is nice to know which leaf OTUs attach
     #   at the base of the taxonomy (no other grouping)
     basal_taxo = set()
@@ -44,8 +42,6 @@ def evaluate_tree_rooting(nexson, ott, tree_proxy):
         if c.is_leaf:
             basal_taxo.add(c._id)
             basal_bits |= id2bit[c._id]
-    _LOG.debug('basal_bits = {}'.format(bin(basal_bits)[2:].zfill(num_ids)))
-    _LOG.debug('# nontrivial taxo splits = {}'.format(len(taxo_nontriv_splits)))
     _EMPTY_SET = frozenset([])
     non_root_pp_preorder = [nd for nd in pruned_phylo.preorder_node_iter()][1:]
     curr_root_incompat_set = set()
@@ -132,8 +128,6 @@ def evaluate_tree_rooting(nexson, ott, tree_proxy):
             if edge._displays is not None:
                 par._displays_contrib_rootward.add(edge._displays)
 
-    _LOG.debug('# root _inc_contrib_rootward = {}'.format(pruned_phylo.root._inc_contrib_rootward))
-    _LOG.debug('# curr_root_incompat_set = {}'.format(curr_root_incompat_set))
     pproot.rooting_here_incompat = _get_cached_set(pproot._inc_contrib_rootward, _taxo_node_id_set_cache)
     pproot.rooting_here_incompat_score = len(pproot.rooting_here_incompat)
     pproot.rooting_here_displays = _get_cached_set(pproot._displays_contrib_rootward, _taxo_node_id_set_cache)
@@ -187,11 +181,6 @@ def evaluate_tree_rooting(nexson, ott, tree_proxy):
             rhd.add(edge._inverted_displays)
         edge.rooting_here_displays = _get_cached_set(rhd, _taxo_node_id_set_cache)
         best_score, best_rootings = _check_for_opt_score(edge, best_score, best_rootings)
-
-    _LOG.debug('best_score = {}'.format(best_score))
-    _LOG.debug('best_rootings = {}'.format(best_rootings))
-    _LOG.debug('current score = {}'.format(pproot.rooting_here_score))
-    _LOG.debug('any_root_incompat_set (size={}) = {}'.format(len(any_root_incompat_set), any_root_incompat_set))
 
 
 def _check_for_opt_score(entity, best, best_list):
