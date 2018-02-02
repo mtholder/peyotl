@@ -20,7 +20,7 @@ from peyotl import (
     shorter_fp_form,
     slugify,
     underscored2camel_case, UNICODE,
-    unzip,
+    # unzip,
     write_as_json,
     write_to_filepath,
    )
@@ -35,7 +35,17 @@ cruft = os.path.join(SCRIPT_DIR, 'cruft')
 my_test_dict = {'a':1, u'b α':2}
 pretty_serialized_test_dict = u'{\n  "a": 1,\n  "b α": 2\n}'
 
-
+def test_shorter_fp():
+    z = os.path.abspath(cruft)
+    s = shorter_fp_form(z)
+    assert len(s) < len(z)
+    assert z.endswith(s)
+    broken = z.split('/')
+    lbmo = len(broken) - 1
+    rel = '/'.join(['..']*lbmo) + '/bogus'
+    abs = shorter_fp_form(rel)
+    assert len(abs) < len(rel)
+    assert abs == '/bogus'
 
 def test_open_for_group_write():
     assure_dir_exists(cruft)

@@ -5,7 +5,7 @@ recursive-include extras *
 include CONTRIBUTORS.txt
 include License.txt
 include Makefile
-include peyotl/default.conf
+include peyotl/default_peyotl.ini
 include README.md
 include requirements.txt
 recursive-include scripts *

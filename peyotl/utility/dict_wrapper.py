@@ -8,7 +8,6 @@ So, changing that dict will have effects on the wrappers, too.
 '''
 from peyotl.utility.get_logger import logger
 
-_LOG = logger('peyotl.utility.dict_wrapper')
 _DANGEROUS_KEYS = frozenset(['items', 'values', 'keys', 'get', 'setdefault'])
 
 
