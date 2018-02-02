@@ -8,6 +8,7 @@ from peyotl import (
     # download, download_large_file,
     expand_path,
     flush_utf_8_writer,
+    get_config_object, get_config_setting,
     get_utf_8_string_io_writer, get_utf_8_value,
     # gunzip, gunzip_and_untar,
     is_str_type, is_int_type, increment_slug,
@@ -31,6 +32,10 @@ import stat
 
 SCRIPT_DIR = os.path.split(__file__)[0]
 cruft = os.path.join(SCRIPT_DIR, 'cruft')
+
+def test_config():
+    assert get_config_object() is not None
+    assert get_config_setting('apis', 'boguskey', 'bogus') == 'bogus'
 
 my_test_dict = {'a':1, u'b α':2}
 pretty_serialized_test_dict = u'{\n  "a": 1,\n  "b α": 2\n}'

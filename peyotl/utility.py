@@ -512,8 +512,11 @@ def get_default_config_filename():
         if _CONFIG_FN is not None:
             return _CONFIG_FN
         env_value = os.environ.get('PEYOTL_CONFIG_FILE')
-        dfn = 'peyotl.ini'
-        cfn = env_value if env_value is not None else os.path.join(opentree_config_dir(), dfn)
+        cfn = env_value
+        if env_value is None:
+            dfn = 'peyotl.ini'
+            cfg_par = opentree_config_dir()[0]
+            cfn = os.path.join(cfg_par, dfn)
         cfn = os.path.abspath(cfn)
         if not os.path.isfile(cfn):
             # noinspection PyProtectedMember

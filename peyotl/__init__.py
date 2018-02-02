@@ -17,6 +17,7 @@ from peyotl.utility import (
     expand_path,
     flush_utf_8_writer,
     get_utf_8_string_io_writer, get_utf_8_value,
+    get_config_setting, get_config_object,
     gunzip,
     gunzip_and_untar,
     is_str_type, is_int_type, increment_slug,
@@ -36,13 +37,6 @@ from peyotl.utility import (
    )
 
 '''
-from peyotl.utility.input_output import (assure_dir_exists,
-                                         download_large_file,
-                                         gunzip, gunzip_and_untar,
-                                         pretty_dict_str,
-                                         shorter_fp_form,
-                                         unzip)
-
 from peyotl.collections_store import (collection_to_included_trees,
                                       concatenate_collections,
                                       tree_is_in_collection)
@@ -55,7 +49,6 @@ from peyotl.nexson_syntax import (can_convert_nexson_forms,
                                   write_obj_as_nexml,
                                   _is_by_id_hbf)
 from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
-from peyotl.utility.str_util import UNICODE, is_str_type
 from peyotl.phylo.entities import OTULabelStyleEnum
 
 
