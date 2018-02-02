@@ -3,23 +3,14 @@ include doc/Makefile
 recursive-include examples *
 recursive-include extras *
 include CONTRIBUTORS.txt
-include ez_setup.py
 include License.txt
+include Makefile
 include peyotl/default.conf
-recursive-include peyotl/test/data *
 include README.md
-include README.rst
 include requirements.txt
 recursive-include scripts *
-include setup.cfg
 include setup.py
-include test.sh
 include tests/*.py
-include tests/*.sh
-include tests/local_repos_tests/*.py
-include tests/output/README.md
-include tests/standalone_tests/*.py
-include tests/ws_tests/*.py
 include TESTING.md
 include THANKS.txt
 recursive-include tutorials *

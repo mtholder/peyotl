@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-from peyotl.utility import get_logger
+from peyotl.utility import logger
 from peyotl.utility.input_output import read_filepath
 from enum import Enum
 import re
 
-_LOG = get_logger(__name__)
+_LOG = logger(__name__)
 _WS = re.compile(r'\s+')
 _PUNC = re.compile(r'[(),:;\[\]]')
 _SINGLE_QUOTED_STR = re.compile(r"([^']*)'")

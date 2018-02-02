@@ -1,5 +1,8 @@
 Several ideas about core package management and utility functions
 were based on Jeet Sukumaran's work in the DendroPy package.
 
+Thanks to http://docs.python-guide.org/en/latest/writing/structure/ for good advice on package
+structure.
+
 Funding was provided by the National Science Foundation's award to the
 Open Tree of Life project.

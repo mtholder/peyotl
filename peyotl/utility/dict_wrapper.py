@@ -5,10 +5,10 @@ used in some API wrappers of peyotl.
 Note that the wrappers (even the frozen forms) hold references to the dict used to initialize them.
 So, changing that dict will have effects on the wrappers, too.
 """
+'''
+from peyotl.utility.get_logger import logger
 
-from peyotl.utility.get_logger import get_logger
-
-_LOG = get_logger('peyotl.utility.dict_wrapper')
+_LOG = logger('peyotl.utility.dict_wrapper')
 _DANGEROUS_KEYS = frozenset(['items', 'values', 'keys', 'get', 'setdefault'])
 
 
@@ -83,3 +83,4 @@ class FrozenDictAttrWrapper(DictAttrWrapper):
 
     def __setitem__(self, key, value):
         raise TypeError('A "frozen" class derived from FrozenDictAttrWrapper does not support rebinding keys')
+'''

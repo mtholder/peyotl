@@ -7,12 +7,35 @@ repositories.
 # Some imports to help our py2 code behave like py3
 from __future__ import absolute_import, print_function, division
 
-__version__ = '0.1.4dev'  # sync with setup.py
-from peyotl.utility import (add_or_append_to_dict,
-                            get_config_setting,
-                            get_config_object,
-                            expand_path,
-                            get_logger)
+__version__ = '0.2.0dev'  # sync with setup.py
+
+from peyotl.utility import (
+    assure_dir_exists,
+    configure_logger,
+    download,
+    download_large_file,
+    expand_path,
+    flush_utf_8_writer,
+    get_utf_8_string_io_writer, get_utf_8_value,
+    gunzip,
+    gunzip_and_untar,
+    is_str_type, is_int_type, increment_slug,
+    open_for_group_write,
+    opentree_config_dir,
+    pretty_dict_str,
+    read_as_json,
+    read_filepath,
+    reverse_dict,
+    shorter_fp_form,
+    slugify,
+    underscored2camel_case, UNICODE,
+    unzip,
+    write_as_json,
+    write_pretty_dict_str,
+    write_to_filepath,
+   )
+
+'''
 from peyotl.utility.input_output import (assure_dir_exists,
                                          download_large_file,
                                          gunzip, gunzip_and_untar,
@@ -93,3 +116,4 @@ __all__ = ['utility',
            'struct_diff',
            'evaluate_tree',
            ]
+'''
