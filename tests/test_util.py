@@ -26,6 +26,7 @@ from peyotl import (
    )
 import logging
 import os
+import stat
 
 
 SCRIPT_DIR = os.path.split(__file__)[0]
@@ -34,8 +35,17 @@ cruft = os.path.join(SCRIPT_DIR, 'cruft')
 my_test_dict = {'a':1, u'b α':2}
 pretty_serialized_test_dict = u'{\n  "a": 1,\n  "b α": 2\n}'
 
+
+
 def test_open_for_group_write():
     assure_dir_exists(cruft)
+    gwf = os.path.join('cruft', '.gw.txt')
+    if os.path.exists(gwf):
+        os.remove(gwf)
+    with open_for_group_write(gwf, 'w') as wp:
+        wp.write(pretty_serialized_test_dict)
+    assert os.path.isfile(gwf)
+    assert bool(os.stat(gwf).st_mode & stat.S_IRGRP)
 
 def test_reads_and_writes():
     assert os.path.isdir(SCRIPT_DIR)
