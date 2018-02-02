@@ -1,6 +1,7 @@
 #!/usr/bin/env pytest
 # -*- coding: utf-8 -*-
 from __future__ import print_function, division
+import pytest
 from peyotl import (
     assure_dir_exists,
     configure_logger,
@@ -21,11 +22,33 @@ from peyotl import (
     underscored2camel_case, UNICODE,
     unzip,
     write_as_json,
-    write_pretty_dict_str,
     write_to_filepath,
    )
 import logging
 import os
+
+
+SCRIPT_DIR = os.path.split(__file__)[0]
+cruft = os.path.join(SCRIPT_DIR, 'cruft')
+
+my_test_dict = {'a':1, u'b α':2}
+pretty_serialized_test_dict = u'{\n  "a": 1,\n  "b α": 2\n}'
+
+def test_open_for_group_write():
+    assure_dir_exists(cruft)
+
+def test_reads_and_writes():
+    assert os.path.isdir(SCRIPT_DIR)
+    assure_dir_exists(cruft)
+    fp = os.path.join(cruft, 'td.json')
+    write_as_json(my_test_dict, fp)
+    b = read_as_json(fp)
+    assert my_test_dict == b
+    write_to_filepath(pretty_serialized_test_dict, fp)
+    assert read_filepath(fp) == pretty_serialized_test_dict
+    write_to_filepath(pretty_serialized_test_dict + 'breaking', fp)
+    with pytest.raises(Exception):
+        read_as_json(fp)
 
 
 def test_assure_dir():
@@ -38,7 +61,7 @@ def test_assure_dir():
             os.rmdir(tmp_dir_name)
 
 def test_pretty_dict():
-    assert pretty_dict_str({'a':1, u'b α':2}) == u'{\n  "a": 1,\n  "b α": 2\n}'
+    assert pretty_dict_str(my_test_dict) == pretty_serialized_test_dict
 
 def test_expand():
     if 'HOME' in os.environ:
