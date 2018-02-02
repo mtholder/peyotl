@@ -11,7 +11,7 @@ __version__ = '0.2.0dev'  # sync with setup.py
 
 from peyotl.utility import (
     assure_dir_exists,
-    configure_logger,
+    configure_logger, ConfigWrapper,
     download,
     download_large_file,
     expand_path,
@@ -21,6 +21,7 @@ from peyotl.utility import (
     gunzip,
     gunzip_and_untar,
     is_str_type, is_int_type, increment_slug,
+    logger,
     open_for_group_write,
     opentree_config_dir,
     pretty_dict_str,
