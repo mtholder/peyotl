@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from peyotl import ConfigWrapper, logger
+from peyotl import ConfigWrapper, logger, get_config_setting
 # from peyotl.ott import OTT
 # import subprocess
 import sys
@@ -33,6 +33,13 @@ def config_command(args):
             cw = ConfigWrapper()
         cw.report(out)
 
+def ott_list_command(args):
+    ott_dir = get_config_setting('ott', 'directory')
+    if ott_dir is None:
+        sys.exit('Did not find info about a local version of OTT. Configure the ' \
+                 '[ott] section and "directory" setting of your config file to point ' 
+                 'to the directory that holds an unpacked version of OTT.\n')
+    out.write('Using OTT in "{}"\n'.format(ott_dir))
 
 #
 # def ott_clear_command(args):
@@ -59,9 +66,12 @@ if __name__ == '__main__':
     config_parser.add_argument('-f', '--filepath', type=str, default=None, required=False)
     config_parser.set_defaults(func=config_command)
     # ott commands
-    # ott_parser = subparsers.add_parser('ott', help='commands that require a local version of ott')
-    # ott_parser.add_argument('--action', choices=['clear-cache'], default='', required=False)
-    # ott_subparsers = ott_parser.add_subparsers(help='ott actions')
+    ott_parser = subparsers.add_parser('ott', help='commands that require a local version of ott')
+    ott_parser.add_argument('--action', choices=['list'], default='', required=False)
+    ott_subparsers = ott_parser.add_subparsers(help='ott actions')
+    ott_list_parser = ott_subparsers.add_parser('list',
+                                            help='reports on the local version of OTT')
+    ott_list_parser.set_defaults(func=ott_list_command)
     # ott_clear_parser = ott_subparsers.add_parser('clear-cache',
     #                                             help='remove the caches used to speed up actions on OTT')
     # @TODO: Restore?
