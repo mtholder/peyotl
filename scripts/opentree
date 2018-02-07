@@ -33,31 +33,35 @@ def config_command(args):
             cw = ConfigWrapper()
         cw.report(out)
 
+def start_command(args):
+    from peyotl.otservices import launch_services
+    launch_services(args.services)
+
 def ott_list_command(args):
     ott_dir = get_config_setting('ott', 'directory')
     if ott_dir is None:
-        sys.exit('Did not find info about a local version of OTT. Configure the ' \
-                 '[ott] section and "directory" setting of your config file to point ' 
+        sys.exit('Did not find info about a local version of OTT. Configure the '
+                 '[ott] section and "directory" setting of your config file to point '
                  'to the directory that holds an unpacked version of OTT.\n')
     out.write('Using OTT in "{}"\n'.format(ott_dir))
 
-#
-# def ott_clear_command(args):
-#    ott = OTT()
-#    ott.remove_caches()
-# def ott_shell_command(args):
-#    ott = OTT()
-#    logger(__name__).info('launching bash in your OTT dir...')
-#    if subprocess.Popen('bash', cwd=ott.ott_dir).wait() != 0:
-#        raise RuntimeError('bash in ott dir failed.')
+
+    #
+    # def ott_clear_command(args):
+    #    ott = OTT()
+    #    ott.remove_caches()
+    # def ott_shell_command(args):
+    #    ott = OTT()
+    #    logger(__name__).info('launching bash in your OTT dir...')
+    #    if subprocess.Popen('bash', cwd=ott.ott_dir).wait() != 0:
+    #        raise RuntimeError('bash in ott dir failed.')
 
 
-# def main():
-if __name__ == '__main__':
-    #    main()
+def main():
     import argcomplete
     import argparse
-    parser = argparse.ArgumentParser(prog='cli-peyotl.py')
+
+    parser = argparse.ArgumentParser(prog='opentree')
     subparsers = parser.add_subparsers(help='available commands')
     # config commands
     config_parser = subparsers.add_parser('config',
@@ -65,12 +69,18 @@ if __name__ == '__main__':
     config_parser.add_argument('-a', '--action', choices=['list'], default='list', required=False)
     config_parser.add_argument('-f', '--filepath', type=str, default=None, required=False)
     config_parser.set_defaults(func=config_command)
+    # Service launcher
+    start_parser = subparsers.add_parser('start',
+                                          help='launches one of the Open Tree services locally')
+    start_parser.add_argument('services', nargs='+', choices=['otcws', 'tnrs'], default=None)
+    start_parser.set_defaults(func=start_command)
+
     # ott commands
     ott_parser = subparsers.add_parser('ott', help='commands that require a local version of ott')
     ott_parser.add_argument('--action', choices=['list'], default='', required=False)
     ott_subparsers = ott_parser.add_subparsers(help='ott actions')
     ott_list_parser = ott_subparsers.add_parser('list',
-                                            help='reports on the local version of OTT')
+                                                help='reports on the local version of OTT')
     ott_list_parser.set_defaults(func=ott_list_command)
     # ott_clear_parser = ott_subparsers.add_parser('clear-cache',
     #                                             help='remove the caches used to speed up actions on OTT')
@@ -86,10 +96,14 @@ if __name__ == '__main__':
         f = args.func
     except:
         sys.exit('A command must be provided (use the -h to see the help).\n')
+    from peyotl import configure_logger
+    configure_logger()
     try:
         f(args)
-    except Exception as x:
-        logger(__name__).exception('terminating do to an exception')
-        raise
+    except Exception:
+        logger(__name__).exception('terminating do to an exception:')
+        sys.exit(1)
 
 
+if __name__ == '__main__':
+    main()

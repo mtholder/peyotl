@@ -93,8 +93,7 @@ def configure_logger(cfg_filepath=None,
         fp, queued = _read_configure_logging_from_fp(filepath=cfg_filepath,
                                                      default_level=default_level)
     log = logger(__name__)
-    for level, msg in queued:
-        log.log(level=level, msg=msg)
+    log_queued(queued)
     return fp
 
 
@@ -115,6 +114,11 @@ def _read_configure_logging_from_fp(filepath, default_level=logging.INFO):
         queued.append((logging.DEBUG, m.format(default_level, filepath)))
         filepath = None
     return filepath, queued
+
+def log_queued(queued_messages):
+    log = logger(__name__)
+    for level, msg in queued_messages:
+        log.log(level=level, msg=msg)
 
 
 ####################################################################################################
@@ -561,7 +565,7 @@ def get_raw_default_config_and_read_file_list():
 read_config = get_raw_default_config_and_read_file_list
 
 
-def _warn_missing_setting(section, param, config_filename, warn_on_none_level=logging.WARN):
+def _missing_setting_message(section, param, config_filename, warn_on_none_level=logging.WARN):
     if warn_on_none_level is None:
         return
     if config_filename:
@@ -573,11 +577,20 @@ def _warn_missing_setting(section, param, config_filename, warn_on_none_level=lo
         f = ' '
     mf = 'Config file {f} does not contain option "{o}"" in section "{s}"'
     msg = mf.format(f=f, o=param, s=section)
+
+def _warn_missing_setting(section, param, config_filename, warn_on_none_level=logging.WARN):
+    msg = _missing_setting_message(section, param, config_filename,
+                                   warn_on_none_level=warn_on_none_level)
     logger(__name__).warn(msg)
 
 
-def _raw_config_setting(config_obj, section, param, default=None, config_filename='',
-                        warn_on_none_level=logging.WARN):
+def _raw_config_setting(config_obj,
+                        section,
+                        param,
+                        default=None,
+                        config_filename='',
+                        warn_on_none_level=logging.WARN,
+                        raise_on_none=False):
     """Read (section, param) from `config_obj`. If not found, return `default`
 
     If the setting is not found and `default` is None, then an warn-level message is logged.
@@ -592,6 +605,9 @@ def _raw_config_setting(config_obj, section, param, default=None, config_filenam
     except:
         if (default is None) and warn_on_none_level is not None:
             _warn_missing_setting(section, param, config_filename, warn_on_none_level)
+        if raise_on_none:
+            msg = _missing_setting_message(section, param, config_filename)
+            raise RuntimeError(msg)
         return default
 
 
@@ -656,7 +672,12 @@ class ConfigWrapper(object):
             assert len(fllist) == 1
             self._config_filename = fllist[0]
 
-    def get_config_setting(self, section, param, default=None, warn_on_none_level=logging.WARN):
+    def get_config_setting(self,
+                           section,
+                           param,
+                           default=None,
+                           warn_on_none_level=logging.WARN,
+                           raise_on_none=False):
         if section in self._override:
             so = self._override[section]
             if param in so:
@@ -667,7 +688,8 @@ class ConfigWrapper(object):
                                    param,
                                    default=default,
                                    config_filename=self._config_filename,
-                                   warn_on_none_level=warn_on_none_level)
+                                   warn_on_none_level=warn_on_none_level,
+                                   raise_on_none=raise_on_none)
 
     def report(self, out):
         # noinspection PyProtectedMember
@@ -734,7 +756,8 @@ def get_config_object():
     with _DEFAULT_CONFIG_WRAPPER_LOCK:
         if _DEFAULT_CONFIG_WRAPPER is not None:
             return _DEFAULT_CONFIG_WRAPPER
-        _DEFAULT_CONFIG_WRAPPER = ConfigWrapper()
+        raw, cfglist = get_raw_default_config_and_read_file_list()
+        _DEFAULT_CONFIG_WRAPPER = ConfigWrapper(raw_config_obj=raw, config_filename=cfglist)
         return _DEFAULT_CONFIG_WRAPPER
 
 

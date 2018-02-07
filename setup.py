@@ -7,8 +7,9 @@ from setuptools import setup, find_packages
 readme = open('README.md').read()
 license = open('License.txt').read()
 reqs = [i.strip() for i in open('requirements.txt').readlines() if i.strip()]
-scripts = ['scripts/clipeyotl.py',
-          ]
+in_scripts_dir = ('opentree', 'otjoblauncher.py')
+scripts = ['scripts/{}'.format(i) for i in in_scripts_dir]
+
 classifiers = ['Development Status :: 3 - Alpha',
                'Intended Audience :: Science/Research',
                'Intended Audience :: Developers',

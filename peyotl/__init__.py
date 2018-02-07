@@ -1,9 +1,4 @@
 #!/usr/bin/env python
-"""
-Small library for conducting operations over the
-entire set of NexSON files in one or more phylesystem
-repositories.
-"""
 # Some imports to help our py2 code behave like py3
 from __future__ import absolute_import, print_function, division
 
