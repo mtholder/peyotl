@@ -23,7 +23,7 @@ _OPENTREE_CONFIG_DIR = None
 _OPENTREE_CONFIG_DIR_IS_SET = False
 
 
-def opentree_config_dir(config_dirpath=None):
+def opentree_config_dir(config_dirpath=None, return_queued=False):
     """Returns filepath to parent of config files and unlogged messages.
 
     The cascade is to return:
@@ -37,7 +37,9 @@ def opentree_config_dir(config_dirpath=None):
     """
     global _OPENTREE_CONFIG_DIR, _OPENTREE_CONFIG_DIR_IS_SET
     if _OPENTREE_CONFIG_DIR_IS_SET:
-        return _OPENTREE_CONFIG_DIR, []
+        if return_queued:
+            return _OPENTREE_CONFIG_DIR, []
+        return _OPENTREE_CONFIG_DIR
     config_dir_env_key = 'OPENTREE_CONFIG_DIR'
     queued_messages = []
     fp = os.environ.get(config_dir_env_key) if config_dirpath is None else config_dirpath
@@ -63,11 +65,12 @@ def opentree_config_dir(config_dirpath=None):
             fp = None
     _OPENTREE_CONFIG_DIR_IS_SET = True,
     _OPENTREE_CONFIG_DIR = fp
-    return _OPENTREE_CONFIG_DIR, queued_messages
-
+    if return_queued:
+        return _OPENTREE_CONFIG_DIR, queued_messages
+    return _OPENTREE_CONFIG_DIR
 
 def _get_default_peyotl_log_ini_filepath(config_dirpath=None):
-    r, queued = opentree_config_dir(config_dirpath=config_dirpath)
+    r, queued = opentree_config_dir(config_dirpath=config_dirpath, return_queued=True)
     if r:
         r = os.path.join(r, 'peyotl_logging.ini')
     return r, queued
@@ -449,6 +452,37 @@ def read_as_json(in_filename, encoding='utf-8'):
 
 """
 
+
+# noinspection PyClassHasNoInit
+class CfgSettingType:
+    EXISTING_DIR, EXISTING_FILE = range(2)
+
+
+def _do_existing_dir_type_check(raw_value, key_list):
+    if os.path.isdir(raw_value):
+        return raw_value
+    m = 'The {} setting "{}" is not an existing directory!'
+    raise RuntimeError(m.format(str_for_setting_list(key_list), raw_value))
+
+
+def _do_existing_file_type_check(raw_value, key_list):
+    if os.path.isdir(raw_value):
+        return raw_value
+    m = 'The {} setting "{}" is not an existing file!'
+    raise RuntimeError(m.format(str_for_setting_list(key_list), raw_value))
+
+
+_CFG_SETTING_TYPE_TO_FN = {
+    CfgSettingType.EXISTING_DIR: _do_existing_dir_type_check,
+    CfgSettingType.EXISTING_FILE: _do_existing_file_type_check,
+}
+
+
+def do_type_check(raw_value, type_code, key_list):
+    fn = _CFG_SETTING_TYPE_TO_FN[type_code]
+    return fn(raw_value, key_list)
+
+
 _CONFIG = None
 _CONFIG_FN = None
 _READ_DEFAULT_FILES = None
@@ -484,7 +518,7 @@ def get_default_config_filename():
         cfn = env_value
         if env_value is None:
             dfn = 'peyotl.yaml'
-            cfg_par = opentree_config_dir()[0]
+            cfg_par = opentree_config_dir()
             cfn = os.path.join(cfg_par, dfn)
         cfn = os.path.abspath(cfn)
         if not os.path.isfile(cfn):
@@ -536,6 +570,10 @@ def get_raw_default_config_and_read_file_list():
 read_config = get_raw_default_config_and_read_file_list
 
 
+def str_for_setting_list(setting_list):
+    return '"{}"'.format('"/"'.join(setting_list))
+
+
 def _missing_setting_message(config_filename, missing_index, setting_list):
     if config_filename:
         if not is_str_type(config_filename):
@@ -545,13 +583,13 @@ def _missing_setting_message(config_filename, missing_index, setting_list):
     else:
         f = ' '
     if missing_index == 0:
-        mf = '{o}The config file {f} does not contain option "{c}"'
+        mf = '{o}The config file {f} does not contain option {c}'
         o = ''
-        c = '"/"'.join(setting_list)
+        c = str_for_setting_list(setting_list)
     else:
         mf = 'The "{o}" element of config file {f} does not contain option "{c}"'
-        o = '"/"'.join(setting_list[:missing_index])
-        c = '"/"'.join(setting_list[missing_index:])
+        o = str_for_setting_list(setting_list[:missing_index])
+        c = str_for_setting_list(setting_list[missing_index:])
     return mf.format(o=o, f=f, c=c)
 
 
@@ -615,32 +653,42 @@ class ConfigWrapper(object):
                     setting_list,
                     default=None,
                     warn_on_none_level=logging.WARN,
-                    raise_on_none=False):
+                    raise_on_none=False,
+                    type_check=None):
         assert not is_str_type(setting_list)
         self._assure_raw()
         return self._get_from_raw_dict(setting_list,
                                        default,
                                        warn_on_none_level,
-                                       raise_on_none)
+                                       raise_on_none,
+                                       type_check=type_check)
 
     def _get_from_raw_dict(self,
                            key_list,
                            default,
                            warn_on_none_level,
-                           raise_on_none):
-        """Read (section, param) from `config_obj`. If not found, return `default`
+                           raise_on_none,
+                           type_check):
+        v = self._get_from_raw_dict_unchecked(key_list,
+                                              default,
+                                              warn_on_none_level,
+                                              raise_on_none)
+        if type_check is not None:
+            return do_type_check(v, type_check, key_list)
+        return v
 
-        If the setting is not found and `default` is None, then an warn-level message is logged.
-        `config_filename` can be None, filepath or list of filepaths - it is only used for logging.
-
-        If warn_on_none_level is None (or lower than the logging level) message for falling through to
-            a `None` default will be suppressed.
+    def _get_from_raw_dict_unchecked(self,
+                                     key_list,
+                                     default,
+                                     warn_on_none_level,
+                                     raise_on_none):
+        """
         """
         # noinspection PyBroadException
         if self._override:
             missing_ind, value = get_missing_ind_or_value_from_nested_dict(self._override, key_list)
             if missing_ind is None:
-                return copy.deepcopy(value)
+                copy.deepcopy(value)
         missing_ind, value = get_missing_ind_or_value_from_nested_dict(self._raw, key_list)
         if missing_ind is None:
             return copy.deepcopy(value)
@@ -712,6 +760,7 @@ def get_config_object():
         _DEFAULT_CONFIG_WRAPPER = ConfigWrapper(raw_config_obj=raw, config_filename=cfglist)
         return _DEFAULT_CONFIG_WRAPPER
 
+
 def get_config_setting(setting_list,
                        default=None,
                        warn_on_none_level=logging.WARN,
@@ -720,6 +769,7 @@ def get_config_setting(setting_list,
                                     default=default,
                                     warn_on_none_level=warn_on_none_level,
                                     raise_on_none=raise_on_none)
+
 
 # end Config
 ####################################################################################################

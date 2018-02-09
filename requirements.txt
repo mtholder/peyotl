@@ -4,6 +4,7 @@ coverage
 elasticsearch
 enum34
 locket>=0.1.1
+psutil
 pytest
 python-dateutil
 PyYAML

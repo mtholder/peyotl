@@ -87,33 +87,28 @@ def pass_signal_to_proc(signum, stack_frame):
     global signal_handling_proc
     p = signal_handling_proc
     if p is not None:
-        p.send_signal(signum)
+        try:
+            p.send_signal(signum)
+        except Exception as x:
+            sys.stderr.write('Exception in signal handling: {}\n'.format(x))
 
 
 def main():
     global signal_handling_proc
-    all_signals = ('SIGABRT', 'SIGALRM',
-                   'SIGBUS',
-                   'SIGCHLD', 'SIGCLD', 'SIGCONT',
-                   'SIGFPE',
-                   'SIGHUP',
-                   'SIGILL', 'SIGINT', 'SIGIO', 'SIGIOT',
-                   # 'SIGKILL',
-                   'SIGPIPE', 'SIGPOLL', 'SIGPROF', 'SIGPWR',
-                   'SIGQUIT',
-                   'SIGRTMAX', 'SIGRTMIN',
-                   'SIGSEGV', 'SIGSTOP', 'SIGSYS',
-                   'SIGTERM', 'SIGTRAP', 'SIGTSTP', 'SIGTTIN', 'SIGTTOU',
-                   'SIGURG', 'SIGUSR1', 'SIGUSR2',
-                   'SIGVTALRM',
-                   'SIGWINCH',
-                   'SIGXCPU', 'SIGXFSZ')
+    all_signals = (signal.SIGABRT, signal.SIGALRM,
+                   signal.SIGBUS,
+                   signal.SIGCHLD, signal.SIGCLD, signal.SIGCONT,
+                   signal.SIGFPE,
+                   signal.SIGHUP,
+                   signal.SIGILL, signal.SIGINT, signal.SIGIO, signal.SIGIOT,
+                   # signal.SIGKILL,
+                   signal.SIGPIPE, signal.SIGPOLL, signal.SIGPROF, signal.SIGPWR,
+                   signal.SIGQUIT,)
     if len(sys.argv) < 6 or (len(sys.argv) > 1 and sys.argv[1] == '-h'):
         sys.exit("""Expecting arguments the following arguments:
       path_to_parent_dir file_with_stdin name_for_stdout name_for_stderr
     followed by the command to invoke.
     """)
-
     wd = sys.argv[1]
     os.chdir(wd)
     stdinpath = sys.argv[2]
@@ -140,7 +135,9 @@ def main():
     write_metadata(metadata_dir, "invocation", "{i}\n".format(i=escaped_invoc))
     try:
         write_metadata(metadata_dir, "launcher_pid", "{e}\n".format(e=os.getpid()))
-        write_metadata(metadata_dir, "env", "{e!r}\n".format(e=os.environ))
+        with codecs.open(os.path.join(metadata_dir, "env"), "w", encoding='utf-8') as eout:
+            for k, v in os.environ.items():
+                eout.write("export {}='{}'\n".format(k, "\'".join(v.split("'"))))
         write_metadata(metadata_dir, "stdioe", "{i}\n{o}\n{e}}\n".format(i=stdinpath,
                                                                          o=stdoutpath,
                                                                          e=stderrpath))

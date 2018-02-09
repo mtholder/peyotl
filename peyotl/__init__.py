@@ -6,7 +6,7 @@ __version__ = '0.2.0dev'  # sync with setup.py
 
 from peyotl.utility import (
     assure_dir_exists,
-    configure_logger, ConfigWrapper,
+    configure_logger, ConfigWrapper, CfgSettingType,
     download,
     download_large_file,
     expand_path,

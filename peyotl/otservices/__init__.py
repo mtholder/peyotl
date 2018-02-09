@@ -1,12 +1,19 @@
 #!/usr/bin/env python
 # Some imports to help our py2 code behave like py3
 from __future__ import absolute_import, print_function, division
-from peyotl import (assure_dir_exists,
+from peyotl import (assure_dir_exists, CfgSettingType,
                     logger, get_config_object, opentree_config_dir)
+from threading import Lock
 import subprocess
+import codecs
+import psutil
+import time
 import os
 
 OTC_TOL_WS = 'otcws'
+_SLEEP_INTERVAL_FOR_LAUNCH = 0.5
+_MAX_SLEEPS = 5
+
 
 def expand_service_nicknames_to_uniq_list(services):
     expansion = {'tnrs': [OTC_TOL_WS, 'ottindexer', ]}
@@ -24,6 +31,22 @@ def expand_service_nicknames_to_uniq_list(services):
                 expanded.append(s)
     return expanded
 
+
+_SERVICE_TO_EXE_NAME = {'otcws': 'otc-tol-ws',
+                        }
+# Keep in sync with otjobloauncher
+_RSTATUS_NAME = ("NOT_LAUNCHED", "NOT_LAUNCHABLE", "RUNNING", "ERROR_EXIT", "COMPLETED", "DELETED")
+
+
+# noinspection PyClassHasNoInit
+class RStatus:
+    NOT_LAUNCHED, NOT_LAUNCHABLE, RUNNING, ERROR_EXIT, COMPLETED, DELETED, CONFLICT = range(7)
+
+    @staticmethod
+    def to_str(x):
+        return _RSTATUS_NAME[x]
+
+
 class ServiceStatusWrapper(object):
     def __init__(self,
                  service_name,
@@ -32,26 +55,176 @@ class ServiceStatusWrapper(object):
         self.service = service_name
         self.just_launched = just_launched
         self.launcher_pid = launcher_pid
+        self._status_dict = None
+        self._status_lock = Lock()
+
+    @property
+    def service_dir(self):
+        return os.path.join(opentree_config_dir(), self.service)
+
+    @property
+    def metadata_dir(self):
+        return os.path.join(self.service_dir, '.process_metadata')
+
+    @property
+    def process_log(self):
+        return os.path.join(self.service_dir, 'log')
+
+    @property
+    def pid_filename(self):
+        return os.path.join(self.metadata_dir, 'pid')
+
+    @property
+    def env_filename(self):
+        return os.path.join(self.metadata_dir, 'env')
+
+    @property
+    def invocation_filename(self):
+        return os.path.join(self.metadata_dir, 'invocation')
+
+    @property
+    def invocation(self):
+        try:
+            return codecs.open(self.invocation_filename, 'r', encoding='utf-8').read().strip()
+        except:
+            return '#UNKNOWN INVOCATION#'
+
+    def _read_pid_or_none(self):
+        try:
+            return int(codecs.open(self.pid_filename, 'r', encoding='utf-8').read().strip())
+        except:
+            return None
+
+    def _diagnose_status(self, check_again=True):
+        d = {}
+        s = os.path.join(self.metadata_dir, 'status')
+        if not os.path.isfile(s):
+            if self.just_launched:
+                for n in range(_MAX_SLEEPS):
+                    time.sleep(_SLEEP_INTERVAL_FOR_LAUNCH)
+                    if os.path.isfile(s):
+                        break
+                if not os.path.isfile(s):
+                    m = "Launch not detected after monitoring for file at {}".format(s)
+                    raise RuntimeError(m)
+
+        content = codecs.open(s, 'r', encoding='utf-8').read().strip()
+        try:
+            status_index = _RSTATUS_NAME.index(content)
+        except ValueError:
+            raise RuntimeError('Unknown status in "{}" in "{}"'.format(content, s))
+        d['status_idx_from_launcher'] = status_index
+        d['status_from_launcher'] = content
+        d['status_idx'] = status_index
+        d['is_running'] = False
+        d['pid'] = None
+        if status_index == RStatus.RUNNING:
+            # Launcher thinks that the process was launched
+            pid = self._read_pid_or_none()
+            d['pid'] = pid
+            if d['pid'] is None:
+                if check_again:
+                    # Might have just failed, check now, but don't recurse and keep checking
+                    # @TODO should check for joblauncher PID and interrogate it everywhere we
+                    #    check_again...
+                    return self._diagnose_status(check_again=False)
+                else:
+                    d['status_idx'] = RStatus.CONFLICT
+                    m = '{} indicated RUNNING but {} does not exist'.format(s, self.pid_filename)
+                    d['reason'] = m
+            else:
+                try:
+                    procw = psutil.Process(d['pid'])
+                except:
+                    if check_again:
+                        return self._diagnose_status(check_again=False)
+                    d['status_idx'] = RStatus.CONFLICT
+                    m = '{} indicated RUNNING but PID {} not detected'.format(s, pid)
+                    d['reason'] = m
+                else:
+                    expected_exe = _SERVICE_TO_EXE_NAME[self.service]
+                    try:
+                        exe = procw.exe()
+                    except:
+                        # Exception if we ask about some root process, sometime...
+                        exe = '<unknown privileged process>'
+                    if not exe.endswith(expected_exe):
+                        if check_again:
+                            return self._diagnose_status(check_again=False)
+                        d['status_idx'] = RStatus.CONFLICT
+                        m = '{} indicated RUNNING but PID {} is {} instead of {}'
+                        d['reason'] = m.format(s, pid, exe, expected_exe)
+                    else:
+                        d['is_running'] = True
+        self._status_dict = d
+
+    def log_diagnosis(self):
+        s = self.status
+        si = s['status_idx']
+        log = logger(__name__)
+        if si == RStatus.CONFLICT:
+            log.warn('internal conflict in {} service status: {}'.format(self.service,
+                                                                         s['reason']))
+        elif si == RStatus.NOT_LAUNCHED:
+            log.warn('{} has not been launched by the job launcher'.format(self.service))
+        elif si == RStatus.NOT_LAUNCHABLE:
+            m = '{} could not be launched. Perhaps the executable is not on the path. ' \
+                'Try:\n    {}\nand see the env in {}'
+            log.error(m.format(self.service, self.invocation, self.env_filename))
+        elif si == RStatus.RUNNING:
+            log.info('{} is running with PID={}'.format(self.service, self.pid))
+        elif si == RStatus.ERROR_EXIT:
+            m = '{} is exited with an error. Check "{}" and "{}"'
+            log.warn(m.format(self.service, self.process_log, self.metadata_dir))
+        elif si == RStatus.COMPLETED:
+            log.warn('{} completed and is no longer running'.format(self.service))
+        elif si == RStatus.DELETED:
+            log.error('Unexpected DELETED status for {}'.format(self.service))
+        else:
+            log.error('Unknown status: {}'.format(s['status_from_launcher']))
+
+    @property
+    def status(self):
+        if self._status_dict is None:
+            with self._status_lock:
+                if self._status_dict is None:
+                    self._diagnose_status()
+        return self._status_dict
+
+    @property
+    def is_running(self):
+        return self.status['is_running']
+
+    @property
+    def pid(self):
+        return self.status['pid']
+
 
 def launch_services(services, restart=False):
     # Support for some aliases, like tnrs-> both ottindexer and otcws
     cfg = get_config_object()
     for service in expand_service_nicknames_to_uniq_list(services):
+        success = True
         if is_running(service, cfg):
             if restart:
-                _restart_service(service, cfg)
+                success = _restart_service(service, cfg)
             else:
                 logger(__name__).info('{} is already running'.format(service))
         else:
-            _launch_service(service, cfg)
+            success =  _launch_service(service, cfg)
+        if not success:
+            raise RuntimeError("Could not launch {}".format(service))
+
 
 def _restart_service(service, cfg):
     logger(__name__).info('Restarting {}'.format(service))
     _stop_service(service, cfg)
-    _launch_service(service, cfg)
+    return _launch_service(service, cfg)
+
 
 def _stop_service(service, cfg):
     raise NotImplementedError('_stop_service')
+
 
 def is_running(service, cfg):
     """Currently just returns True if the <OTConfigDir>/<service>/pid file exists."""
@@ -62,21 +235,24 @@ def is_running(service, cfg):
     pidfile = os.path.join(p, 'pid')
     return os.path.isfile(pidfile)
 
+
 def _launch_service(service, cfg):
+    logger(__name__).info('Starting {}...'.format(service))
     if service == OTC_TOL_WS:
-        launch_otcws(cfg)
+        rc = launch_otcws(cfg)
     else:
         raise NotImplementedError('launch of {}'.format(service))
-    logger(__name__).info('Starting {}...'.format(service))
+    return rc
+
 
 def launch_otcws(cfg):
-    ott_dir = cfg.get_setting(['ott', 'directory'], raise_on_none=True)
-    if not os.path.isdir(ott_dir):
-        raise RuntimeError('ott/directory setting "{}" is not a directory'.format(ott_dir))
-    synth_par = cfg.get_setting(['synthpar', 'directory'], raise_on_none=True)
-    if not os.path.isdir(synth_par):
-        raise RuntimeError('synthpar/directory setting "{}" is not a directory'.format(synth_par))
-    dir = os.path.join(opentree_config_dir()[0], OTC_TOL_WS)
+    ott_dir = cfg.get_setting(['ott', 'directory'],
+                              raise_on_none=True,
+                              type_check=CfgSettingType.EXISTING_DIR)
+    synth_par = cfg.get_setting(['synthpar', 'directory'],
+                                raise_on_none=True,
+                                type_check=CfgSettingType.EXISTING_DIR)
+    otcfgdir = os.path.join(opentree_config_dir(), OTC_TOL_WS)
     otc_settings = cfg.get_setting(['otcws'], raise_on_none=True)
     port_num = otc_settings.get('port', 1984)
     num_threads = otc_settings.get('num_threads', 1)
@@ -85,21 +261,23 @@ def launch_otcws(cfg):
              '--tree-dir={}'.format(os.path.abspath(synth_par)),
              '--port={}'.format(port_num),
              '--num-thread={}'.format(num_threads)
-            ]
-    proc_status = _launch_daemon('otcws', invoc, dir)
+             ]
+    proc_status = _launch_daemon('otcws', invoc, otcfgdir)
     if proc_status.is_running:
         logger(__name__).info('launched otc-tol-ws. PID={}'.format(proc_status.pid))
-    else:
-        proc_status.diagnose()
+        return True
+    proc_status.log_diagnosis()
+    return False
+
 
 def _launch_daemon(service, command, par_dir):
     assure_dir_exists(par_dir)
     logfile = os.path.join(par_dir, 'log')
     invoc = ['otjoblauncher.py',
-               par_dir,
-               '',
-               logfile,
-               logfile,
-            ] + command
+             par_dir,
+             '',
+             logfile,
+             logfile,
+             ] + command
     p = subprocess.Popen(invoc).pid
     return ServiceStatusWrapper(service, just_launched=True, launcher_pid=p)

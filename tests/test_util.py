@@ -143,6 +143,6 @@ def test_underscored_to_cc():
     assert underscored2camel_case('a_12_ch') == 'a12Ch'
 
 def test_opentree_config_dir():
-    d, qm = opentree_config_dir()
+    d, qm = opentree_config_dir(return_queued=True)
     assert is_str_type(d)
     assert isinstance(qm, list)
