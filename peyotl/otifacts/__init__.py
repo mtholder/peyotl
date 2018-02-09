@@ -129,7 +129,7 @@ def partition_otifacts_by_root_element(res_dict):
 
 
 def pull_otifacts(taxalotl_config):
-    dest_dir = get_config_setting('taxalotl', 'resources_dir')
+    dest_dir = get_config_setting(['taxalotl', 'resources_dir'])
     taxalotl_dir = os.path.split(os.path.abspath(dest_dir))[0]
     repo_dir = os.path.split(taxalotl_dir)[0]
     otifacts_dir = os.path.join(repo_dir, 'OTifacts')

@@ -35,7 +35,7 @@ cruft = os.path.join(SCRIPT_DIR, 'cruft')
 
 def test_config():
     assert get_config_object() is not None
-    assert get_config_setting('apis', 'boguskey', 'bogus') == 'bogus'
+    assert get_config_setting(['apis', 'boguskey'], default='bogus') == 'bogus'
 
 my_test_dict = {'a':1, u'b α':2}
 pretty_serialized_test_dict = u'{\n  "a": 1,\n  "b α": 2\n}'

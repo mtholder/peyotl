@@ -573,11 +573,7 @@ def get_missing_ind_or_value_from_nested_dict(d, key_list):
 
 
 class ConfigWrapper(object):
-    """Wrapper to provide a richer get_config_setting(section, param, d) behavior. That function will
-    return a value from the following cascade:
-        1. override[section][param] if section and param are in the resp. dicts
-        2. the value in the config obj for section/param if that setting is in the config
-    Must be treated as immutable!
+    """
     """
 
     def __init__(self,
@@ -620,6 +616,7 @@ class ConfigWrapper(object):
                     default=None,
                     warn_on_none_level=logging.WARN,
                     raise_on_none=False):
+        assert not is_str_type(setting_list)
         self._assure_raw()
         return self._get_from_raw_dict(setting_list,
                                        default,
@@ -643,10 +640,10 @@ class ConfigWrapper(object):
         if self._override:
             missing_ind, value = get_missing_ind_or_value_from_nested_dict(self._override, key_list)
             if missing_ind is None:
-                return value
+                return copy.deepcopy(value)
         missing_ind, value = get_missing_ind_or_value_from_nested_dict(self._raw, key_list)
         if missing_ind is None:
-            return value
+            return copy.deepcopy(value)
         if raise_on_none:
             msg = _missing_setting_message(self._config_filename, missing_ind, key_list)
             raise RuntimeError(msg)
@@ -715,6 +712,14 @@ def get_config_object():
         _DEFAULT_CONFIG_WRAPPER = ConfigWrapper(raw_config_obj=raw, config_filename=cfglist)
         return _DEFAULT_CONFIG_WRAPPER
 
+def get_config_setting(setting_list,
+                       default=None,
+                       warn_on_none_level=logging.WARN,
+                       raise_on_none=False):
+    get_config_object().get_setting(setting_list,
+                                    default=default,
+                                    warn_on_none_level=warn_on_none_level,
+                                    raise_on_none=raise_on_none)
 
 # end Config
 ####################################################################################################

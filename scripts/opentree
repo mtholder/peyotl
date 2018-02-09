@@ -38,7 +38,7 @@ def start_command(args):
     launch_services(args.services)
 
 def ott_list_command(args):
-    ott_dir = get_config_setting('ott', 'directory')
+    ott_dir = get_config_setting(['ott', 'directory'])
     if ott_dir is None:
         sys.exit('Did not find info about a local version of OTT. Configure the '
                  '[ott] section and "directory" setting of your config file to point '
