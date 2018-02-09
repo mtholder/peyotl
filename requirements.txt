@@ -6,6 +6,7 @@ enum34
 locket>=0.1.1
 pytest
 python-dateutil
+PyYAML
 redis
 requests>=2.2.1
 setuptools

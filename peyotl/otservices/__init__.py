@@ -70,15 +70,16 @@ def _launch_service(service, cfg):
     logger(__name__).info('Starting {}...'.format(service))
 
 def launch_otcws(cfg):
-    ott_dir = cfg.get_config_setting('ott', 'directory', raise_on_none=True)
+    ott_dir = cfg.get_setting(['ott', 'directory'], raise_on_none=True)
     if not os.path.isdir(ott_dir):
-        raise RuntimeError('[ott]directory "{}" is not a directory'.format(ott_dir))
-    synth_par = cfg.get_config_setting('synthpar', 'directory', raise_on_none=True)
+        raise RuntimeError('ott/directory setting "{}" is not a directory'.format(ott_dir))
+    synth_par = cfg.get_setting('synthpar', 'directory', raise_on_none=True)
     if not os.path.isdir(synth_par):
-        raise RuntimeError('[synthpar]directory "{}" is not a directory'.format(synth_par))
+        raise RuntimeError('synthpar/directory setting "{}" is not a directory'.format(synth_par))
     dir = os.path.join(opentree_config_dir()[0], OTC_TOL_WS)
-    port_num = cfg.get_config_setting('services', 'otcws_port', 1984)
-    num_threads = cfg.get_config_setting('services', 'otcws_num_threads', 1)
+    otc_settings = cfg.get_setting('otcws', raise_on_none=True)
+    port_num = otc_settings.get('port', 1984)
+    num_threads = otc_settings.get('num_threads', 1)
     invoc = ['otc-tol-ws',
              os.path.abspath(ott_dir),
              '--tree-dir={}'.format(os.path.abspath(synth_par)),
