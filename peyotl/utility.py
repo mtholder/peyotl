@@ -96,7 +96,8 @@ def configure_logger(cfg_filepath=None,
     else:
         fp, queued = _read_configure_logging_from_fp(filepath=cfg_filepath,
                                                      default_level=default_level)
-    log_queued(queued)
+    if os.environ.get('SHOW_PEYOTL_LOGGING_INIT_MESSAGES') == '1':
+        log_queued(queued)
     return fp
 
 

@@ -5,9 +5,11 @@ from peyotl import (assure_dir_exists, CfgSettingType,
                     logger, get_config_object, opentree_config_dir)
 from threading import Lock
 import subprocess
+import logging
 import codecs
 import psutil
 import time
+import sys
 import os
 
 OTC_TOL_WS = 'otcws'
@@ -32,8 +34,12 @@ def expand_service_nicknames_to_uniq_list(services):
     return expanded
 
 
-_SERVICE_TO_EXE_NAME = {'otcws': 'otc-tol-ws',
+_SERVICE_TO_EXE_NAME = {OTC_TOL_WS: 'otc-tol-ws',
                         }
+_ALL_SERVICES = list(_SERVICE_TO_EXE_NAME.keys())
+_ALL_SERVICES.sort()
+_ALL_SERVICES = tuple(_ALL_SERVICES)
+
 # Keep in sync with otjobloauncher
 _RSTATUS_NAME = ("NOT_LAUNCHED", "NOT_LAUNCHABLE", "RUNNING", "ERROR_EXIT", "COMPLETED", "DELETED")
 
@@ -158,30 +164,45 @@ class ServiceStatusWrapper(object):
                         d['is_running'] = True
         self._status_dict = d
 
-    def log_diagnosis(self):
+    def write_diagnosis(self, out=sys.stdout):
+        d = self._gen_diagnosis_message()
+        if out is None:
+            log = logger(__name__)
+            for msg, level in d:
+                log.log(level, msg)
+        else:
+            for p in d:
+                out.write('{}\n'.format(p[0]))
+
+    def _gen_diagnosis_message(self):
+        level = logging.WARN
         s = self.status
         si = s['status_idx']
-        log = logger(__name__)
         if si == RStatus.CONFLICT:
-            log.warn('internal conflict in {} service status: {}'.format(self.service,
-                                                                         s['reason']))
+            msg = 'internal conflict in {} service status: {}'
+            msg = msg.format(self.service, s['reason'])
         elif si == RStatus.NOT_LAUNCHED:
-            log.warn('{} has not been launched by the job launcher'.format(self.service))
+            msg = '{} has not been launched by the job launcher'.format(self.service)
         elif si == RStatus.NOT_LAUNCHABLE:
-            m = '{} could not be launched. Perhaps the executable is not on the path. ' \
-                'Try:\n    {}\nand see the env in {}'
-            log.error(m.format(self.service, self.invocation, self.env_filename))
+            msg = '{} could not be launched. Perhaps the executable is not on the path. ' \
+                  'Try:\n    {}\nand see the env in {}'
+            msg = msg.format(self.service, self.invocation, self.env_filename)
+            level = logging.ERROR
         elif si == RStatus.RUNNING:
-            log.info('{} is running with PID={}'.format(self.service, self.pid))
+            level = logging.INFO
+            msg = '{} is running with PID={}'.format(self.service, self.pid)
         elif si == RStatus.ERROR_EXIT:
-            m = '{} is exited with an error. Check "{}" and "{}"'
-            log.warn(m.format(self.service, self.process_log, self.metadata_dir))
+            msg = '{} is exited with an error. Check "{}" and "{}"'
+            msg = msg.format(self.service, self.process_log, self.metadata_dir)
         elif si == RStatus.COMPLETED:
-            log.warn('{} completed and is no longer running'.format(self.service))
+            msg = '{} completed and is no longer running'.format(self.service)
         elif si == RStatus.DELETED:
-            log.error('Unexpected DELETED status for {}'.format(self.service))
+            level = logging.ERROR
+            msg = 'Unexpected DELETED status for {}'.format(self.service)
         else:
-            log.error('Unknown status: {}'.format(s['status_from_launcher']))
+            level = logging.ERROR
+            msg = 'Unknown status: {}'.format(s['status_from_launcher'])
+        return [(msg, level)]
 
     @property
     def status(self):
@@ -200,6 +221,13 @@ class ServiceStatusWrapper(object):
         return self.status['pid']
 
 
+def service_status(services):
+    if not services:
+        services = _ALL_SERVICES
+    for s in services:
+        ServiceStatusWrapper(s).write_diagnosis(sys.stdout)
+
+
 def launch_services(services, restart=False):
     # Support for some aliases, like tnrs-> both ottindexer and otcws
     cfg = get_config_object()
@@ -211,7 +239,7 @@ def launch_services(services, restart=False):
             else:
                 logger(__name__).info('{} is already running'.format(service))
         else:
-            success =  _launch_service(service, cfg)
+            success = _launch_service(service, cfg)
         if not success:
             raise RuntimeError("Could not launch {}".format(service))
 
@@ -266,7 +294,7 @@ def launch_otcws(cfg):
     if proc_status.is_running:
         logger(__name__).info('launched otc-tol-ws. PID={}'.format(proc_status.pid))
         return True
-    proc_status.log_diagnosis()
+    proc_status.write_diagnosis(out=None)
     return False
 
 

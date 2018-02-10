@@ -37,6 +37,10 @@ def start_command(args):
     from peyotl.otservices import launch_services
     launch_services(args.services)
 
+def status_command(args):
+    from peyotl.otservices import service_status
+    service_status([])
+
 def ott_list_command(args):
     ott_dir = get_config_setting(['ott', 'directory'])
     if ott_dir is None:
@@ -63,19 +67,15 @@ def main():
 
     parser = argparse.ArgumentParser(prog='opentree')
     subparsers = parser.add_subparsers(help='available commands')
-    # config commands
+    ################################################################################################
+    #  config commands
     config_parser = subparsers.add_parser('config',
                                           help='reports information about your peyotl configuration')
     config_parser.add_argument('-a', '--action', choices=['list'], default='list', required=False)
     config_parser.add_argument('-f', '--filepath', type=str, default=None, required=False)
     config_parser.set_defaults(func=config_command)
-    # Service launcher
-    start_parser = subparsers.add_parser('start',
-                                          help='launches one of the Open Tree services locally')
-    start_parser.add_argument('services', nargs='+', choices=['otcws', 'tnrs'], default=None)
-    start_parser.set_defaults(func=start_command)
-
-    # ott commands
+    ################################################################################################
+    #  ott commands
     ott_parser = subparsers.add_parser('ott', help='commands that require a local version of ott')
     ott_parser.add_argument('--action', choices=['list'], default='', required=False)
     ott_subparsers = ott_parser.add_subparsers(help='ott actions')
@@ -89,7 +89,18 @@ def main():
     # ott_shell_parser = ott_subparsers.add_parser('bash',
     #                                            help='execute bash command in the top dir of your copy of OTT')
     # ott_shell_parser.set_defaults(func=ott_shell_command)
-
+    ################################################################################################
+    # Start service command
+    start_parser = subparsers.add_parser('start',
+                                          help='launches one of the Open Tree services locally')
+    start_parser.add_argument('services', nargs='+', choices=['otcws', 'tnrs'], default=None)
+    start_parser.set_defaults(func=start_command)
+    ################################################################################################
+    # Status
+    status_parser = subparsers.add_parser('status',
+                                         help='reports the status of open tree service/artifacts '
+                                              'installation.')
+    status_parser.set_defaults(func=status_command)
     argcomplete.autocomplete(parser)
     args = parser.parse_args(sys.argv[1:])
     try:
