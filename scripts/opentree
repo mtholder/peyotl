@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 from peyotl import ConfigWrapper, logger, get_config_setting
+from peyotl.otservices import (launch_services, service_status, stop_services, ALL_SERVICE_NAMES)
+
 # from peyotl.ott import OTT
 # import subprocess
 import sys
@@ -34,11 +36,12 @@ def config_command(args):
         cw.report(out)
 
 def start_command(args):
-    from peyotl.otservices import launch_services
     launch_services(args.services)
 
+def stop_command(args):
+    stop_services(args.services)
+
 def status_command(args):
-    from peyotl.otservices import service_status
     service_status([])
 
 def ott_list_command(args):
@@ -66,6 +69,10 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(prog='opentree')
+    parser.add_argument("--show-completions",
+                        action="store_true",
+                        default=False,
+                        help="print the list of options for the next word in the command line")
     subparsers = parser.add_subparsers(help='available commands')
     ################################################################################################
     #  config commands
@@ -93,14 +100,22 @@ def main():
     # Start service command
     start_parser = subparsers.add_parser('start',
                                           help='launches one of the Open Tree services locally')
-    start_parser.add_argument('services', nargs='+', choices=['otcws', 'tnrs'], default=None)
+    start_parser.add_argument('services', nargs='+', choices=ALL_SERVICE_NAMES, default=None)
     start_parser.set_defaults(func=start_command)
     ################################################################################################
     # Status
     status_parser = subparsers.add_parser('status',
                                          help='reports the status of open tree service/artifacts '
                                               'installation.')
+    status_parser.add_argument('services', nargs='*', choices=ALL_SERVICE_NAMES, default='all')
     status_parser.set_defaults(func=status_command)
+    ################################################################################################
+    # Start service command
+    stop_parser = subparsers.add_parser('stop',
+                                         help='stops one of the Open Tree services running locally')
+    stop_parser.add_argument('services', nargs='+', choices=ALL_SERVICE_NAMES, default=None)
+    stop_parser.set_defaults(func=stop_command)
+    ################################################################################################
     argcomplete.autocomplete(parser)
     args = parser.parse_args(sys.argv[1:])
     try:

@@ -11,3 +11,4 @@ PyYAML
 redis
 requests>=2.2.1
 setuptools
+sqlalchemy
