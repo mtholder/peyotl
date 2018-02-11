@@ -69,6 +69,7 @@ def opentree_config_dir(config_dirpath=None, return_queued=False):
         return _OPENTREE_CONFIG_DIR, queued_messages
     return _OPENTREE_CONFIG_DIR
 
+
 def _get_default_peyotl_log_ini_filepath(config_dirpath=None):
     r, queued = opentree_config_dir(config_dirpath=config_dirpath, return_queued=True)
     if r:

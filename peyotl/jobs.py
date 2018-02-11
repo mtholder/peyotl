@@ -1,25 +1,38 @@
 #!/usr/bin/env python
 # Some imports to help our py2 code behave like py3
 from __future__ import absolute_import, print_function, division
+
+import os
+import sys
+import time
+import subprocess
+import logging
+from codecs import open
+from threading import Lock
+
+import psutil
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from peyotl import (assure_dir_exists, CfgSettingType,
-                    logger, get_config_object, opentree_config_dir)
-from threading import Lock
-import subprocess
-from codecs import open
-import logging
-from codecs import open
-import psutil
-import time
-import sys
-import os
+from sqlalchemy.orm.exc import NoResultFound
+
+from peyotl import (assure_dir_exists, logger, opentree_config_dir, )
 
 _SLEEP_INTERVAL_FOR_LAUNCH = 0.5
 _MAX_SLEEPS = 5
 
 Base = declarative_base()
+
+OTC_TOL_WS = 'otcws'
+_SERVICE_TO_EXE_NAME = {OTC_TOL_WS: 'otc-tol-ws',
+                        }
+ALL_SERVICES = list(_SERVICE_TO_EXE_NAME.keys())
+ALL_SERVICES.sort()
+ALL_SERVICES = tuple(ALL_SERVICES)
+ALL_SERVICE_NAMES = ('all', OTC_TOL_WS, 'tnrs')
+
+
+# noinspection PyClassHasNoInit
 class Process(Base):
     __tablename__ = 'processes'
 
@@ -34,8 +47,19 @@ class Process(Base):
         t = '<Process(name={n!r}, pid={p!r}, wdir={w!r}, status={s!r}, comment={c!r})>'
         return t.format(n=self.name, p=self.pid, w=self.wdir, s=self.status, c=self.comment)
 
+
+# noinspection PyClassHasNoInit
+class ArchivedProcess(Base):
+    __tablename__ = 'archived_processes'
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    archivedir = Column(String)
+    status = Column(Integer)
+
+
 _engine = None
 _engine_lock = Lock()
+
 
 def _get_db_engine(parent_dir):
     global _engine
@@ -43,7 +67,7 @@ def _get_db_engine(parent_dir):
         return _engine
     with _engine_lock:
         if _engine is None:
-            proc_db_fp = os.path.abspath(os.path.join(parent_dir), 'processes.db')
+            proc_db_fp = os.path.abspath(os.path.join(parent_dir, 'processes.db'))
             initialize = not os.path.isfile(proc_db_fp)
             e = create_engine('sqlite:///{}'.format(proc_db_fp))
             if initialize:
@@ -52,51 +76,177 @@ def _get_db_engine(parent_dir):
     return _engine
 
 
-
-_RSTATUS_NAME = ("NOT_LAUNCHED",
-                 "NOT_LAUNCHABLE",
+_RSTATUS_NAME = ("NOT_LAUNCHED",  # Launch has been requested, but process spawning is not complete
+                 "NOT_LAUNCHABLE",  # Error while trying to launch (e.g. exe not on path)
                  "RUNNING",
                  "ERROR_EXIT",
                  "COMPLETED",
-                 "KILLED",
-                 "KILL_SENT")
+                 "KILLED",  # status had been KILL_SENT, but process is not longer running
+                 "KILL_SENT",  # a wrapper's kill() method has been triggered
+                 "BEING_ARCHIVED",
+                 "MISSING_PRESUMED_ARCHIVED",
+                 "ARCHIVED",
+                 "MISSING_NOT_ARCHIVED",
+                 )
 
 
 # noinspection PyClassHasNoInit
 class RStatus:
-    NOT_LAUNCHED, NOT_LAUNCHABLE, RUNNING, ERROR_EXIT, COMPLETED, KILLED, KILL_SENT = range(7)
+    NOT_LAUNCHED = 0
+    NOT_LAUNCHABLE = 1
+    RUNNING = 2
+    ERROR_EXIT = 3
+    COMPLETED = 4
+    KILLED = 5
+    KILL_SENT = 6
+    BEING_ARCHIVED = 7
+    MISSING_PRESUMED_ARCHIVED = 8
+    ARCHIVED = 9
+    MISSING_NOT_ARCHIVED = 10
 
     @staticmethod
     def to_str(x):
         return _RSTATUS_NAME[x]
 
 
+_active_status_codes = frozenset([RStatus.NOT_LAUNCHED, RStatus.RUNNING, RStatus.KILL_SENT])
+
+
 def shell_escape_arg(s):
     return "\\ ".join(s.split())
 
 
-def launch_job(config_dir, name, stdout_fp, stderr_fp, invocation):
+def get_new_session(config_dir=None):
+    if config_dir is None:
+        config_dir = opentree_config_dir()
     e = _get_db_engine(parent_dir=config_dir)
-    session = sessionmaker(bind=e)
+    return sessionmaker(bind=e)
+
+
+def _do_wait_for_proc_launch(proc_id, session, name):
+    for i in range(_MAX_SLEEPS):
+        try:
+            proc = session.query(Process).filter_by(id=proc_id).one()
+        except NoResultFound:
+            return RStatus.MISSING_PRESUMED_ARCHIVED, None
+        else:
+            if proc.status != RStatus.NOT_LAUNCHED:
+                return proc.status, proc
+        time.sleep(_SLEEP_INTERVAL_FOR_LAUNCH)
+    wt = _MAX_SLEEPS * _SLEEP_INTERVAL_FOR_LAUNCH
+    raise RuntimeError("Launch of {} not detected after {} seconds".format(name, wt))
+
+
+def _verify_status(proc, session):
+    if proc.status in _active_status_codes:
+        while proc.status == RStatus.NOT_LAUNCHED:
+            ns, proc = _do_wait_for_proc_launch(proc.id, session, proc.name)[1]
+            if proc is None:
+                return ns, None
+        if proc.status in _active_status_codes:
+            pid = proc.pid
+            try:
+                procw = psutil.Process(pid)
+            except:
+                if proc.status == RStatus.KILL_SENT:
+                    proc.status = RStatus.KILLED
+                else:
+                    proc.status = RStatus.COMPLETED
+                session.commit()
+                return proc.status
+            expected_exe = _SERVICE_TO_EXE_NAME[proc.name]
+            try:
+                exe = procw.exe()
+            except:
+                # Exception if we ask about some root process, sometime...
+                exe = '<unknown privileged process>'
+            if not exe.endswith(expected_exe):
+                if proc.status == RStatus.KILL_SENT:
+                    proc.status = RStatus.KILLED
+                else:
+                    proc.status = RStatus.COMPLETED
+                session.commit()
+            return proc.status, proc
+    # Might want to check if non-running process have been "ARCHIVED"?
+    return proc.status, proc
+
+
+def _is_active_processdb(proc, session):
+    return _verify_status(proc, session)[0] in _active_status_codes
+
+
+def _archive(proc, session):
+    ap = None
+    if proc.status != RStatus.BEING_ARCHIVED:
+        prev_status = proc.status
+        proc.status = RStatus.BEING_ARCHIVED
+        session.commit()
+        arch_par_dir = os.path.join(opentree_config_dir(), 'service_log_archives', proc.name,
+                                    proc.id)
+        if os.path.isdir(proc.wdir):
+            os.rename(proc.wdir, arch_par_dir)
+            ap = ArchivedProcess(name=proc.name, archivedir=arch_par_dir, status=prev_status)
+            session.add(ap)
+        session.delete(proc)
+        session.commit()
+    return ap
+
+
+def get_processdb_wrapper_for_active(session, name, working_dir=None):
+    to_move = []
+    to_return = []
+    if working_dir:
+        matches = session.query(Process).filter_by(wdir=working_dir).all()
+    else:
+        matches = session.query(Process).filter_by(name=name).all()
+    for proc in matches:
+        if _is_active_processdb(proc, session):
+            to_return.append(proc)
+        else:
+            to_move.append(proc)
+    r = []
+    for proc in to_move:
+        if os.path.isdir(proc.wdir):
+            a = _archive(proc, session)
+            if a is not None:
+                r.append(a)
+    if bool(to_return):
+        r.extend(to_return)
+    return r
+
+
+def get_status_proc_for_pid(session, pid):
+    try:
+        proc = session.query(Process).filter_by(pid=pid).one()
+    except:
+        return RStatus.MISSING_PRESUMED_ARCHIVED, None
+    return _verify_status(proc, session)
+
+
+def launch_job(name, stdout_fp, stderr_fp, invocation):
+    config_dir = opentree_config_dir()
+    session = get_new_session(config_dir)
     # Generate a working dir, which will be the config_dir/name or config_dir/name_1
     working_dir_base = os.path.join(config_dir, name)
     working_dir = working_dir_base
     suffix = 1
     # Dealing with race conditions caused by our desire to have a simple numbering suffix scheme
     while True:
-        while session.query(Process.wdir).filter_by(wdir=working_dir).count() > 0:
+        active_at_dir = get_processdb_wrapper_for_active(session, name, working_dir)
+        while active_at_dir:
             working_dir = '{}_{}'.format(working_dir_base, suffix)
             suffix += 1
+            active_at_dir = get_processdb_wrapper_for_active(session, name, working_dir)
+
         pdb = Process(name=name, pid=-1, wdir=working_dir, status=RStatus.NOT_LAUNCHED, comment='')
         session.add(pdb)
-        if session.query(Process.wdir).filter_by(wdir=working_dir).count() > 1:
+        if session.query(Process).filter_by(wdir=working_dir).count() > 1:
             session.rollback()
         session.commit()
-        if session.query(Process.wdir).filter_by(wdir=working_dir).count() > 1:
+        if session.query(Process).filter_by(wdir=working_dir).count() > 1:
             session.delete(pdb)
         else:
             break
-    launcher_err_stream = None
     try:
         assure_dir_exists(working_dir)
         if stdout_fp is None:
@@ -117,13 +267,11 @@ def launch_job(config_dir, name, stdout_fp, stderr_fp, invocation):
         md = os.path.join(working_dir, ".process_metadata")
         if not os.path.exists(md):
             os.mkdir(md)
-        lem = os.path.join(md, 'launcher_err.txt')
-        launcher_err_stream = open(lem, 'w', encoding='utf-8')
         escaped_invoc = ' '.join([shell_escape_arg(i) for i in invocation])
         with open(os.path.join(md, 'invocation'), 'w', encoding='utf-8') as invout:
             invout.write("{i}\n".format(i=escaped_invoc))
         with open(os.path.join(md, 'stdoe'), 'w', encoding='utf-8') as ioout:
-            ioout.write("{o}\n{e}}\n".format(o=stdout_fp, e=stderr_fp)
+            ioout.write("{o}\n{e}}\n".format(o=stdout_fp, e=stderr_fp))
         with open(os.path.join(md, "env"), "w", encoding='utf-8') as eout:
             for k, v in os.environ.items():
                 eout.write("export {}='{}'\n".format(k, "\'".join(v.split("'"))))
@@ -142,9 +290,8 @@ def launch_job(config_dir, name, stdout_fp, stderr_fp, invocation):
         pdb.status = RStatus.RUNNING
         pdb.pid = proc.pid
         session.commit()
-        #@TODO: only works for very short stdin that won't fill a buffer...
+        # @TODO: only works for very short stdin that won't fill a buffer...
         return proc.pid
-
 
 
 class JobStatusWrapper(object):
@@ -155,9 +302,113 @@ class JobStatusWrapper(object):
         self.service = service_name
         self.just_launched = just_launched
         self.expected_pid = pid
-        self._status_dict = None
+        self._proc_list = None
+        self._session = None
         self._status_lock = Lock()
 
+    @property
+    def is_running(self):
+        pl = self.proc_list
+        return pl and any([i.status in _active_status_codes for i in pl])
+
+    @property
+    def proc_list(self):
+        if self._proc_list is None:
+            with self._status_lock:
+                if self._proc_list is None:
+                    self._diagnose_status()
+        return self._proc_list
+
+    def kill(self):
+        for proc in self.proc_list:
+            if proc.status in [RStatus.RUNNING, RStatus.KILL_SENT]:
+                assert isinstance(proc, Process)
+                if kill_pid_or_false(proc.pid):
+                    proc.status = RStatus.KILL_SENT
+                    self._session.commit()
+                    logger(__name__).info("Sent kill to {}".format(proc._pid))
+                else:
+                    logger(__name__).info("Could not kill {}".format(proc._pid))
+            else:
+                m = "Skipping a non-running instance of {} in kill".format(self.service)
+                logger(__name__).debug(m)
+
+    def _diagnose_status(self):
+        if self._session is None:
+            self._session = get_new_session(None)
+        if self.expected_pid:
+            self._proc_list = [get_status_proc_for_pid(self._session, pid=self.expected_pid)[1]]
+        else:
+            self._proc_list = get_processdb_wrapper_for_active(self._session, name=self.service)
+
+    def write_diagnosis(self, out=sys.stdout):
+        d = self._gen_diagnosis_message()
+        if out is None:
+            log = logger(__name__)
+            for msg, level in d:
+                log.log(level, msg)
+        else:
+            for p in d:
+                out.write('{}\n'.format(p[0]))
+
+    def _gen_diagnosis_message(self):
+        r = []
+        for proc in self.proc_list:
+            r.extend(self._gen_diagnosis_message_for_one(proc))
+        return r
+
+    @staticmethod
+    def invocation(proc):
+        wd = proc.archivedir if isinstance(proc, ArchivedProcess) else proc.wdir
+        return os.path.join(wd, ".process_metadata", 'invocation')
+
+    @staticmethod
+    def env_filename(proc):
+        wd = proc.archivedir if isinstance(proc, ArchivedProcess) else proc.wdir
+        return os.path.join(wd, ".process_metadata", 'env')
+
+    def _gen_diagnosis_message_for_one(self, proc):
+        pstat = proc.status
+        if pstat == RStatus.NOT_LAUNCHABLE:
+            msg = '{} could not be launched. Perhaps the executable is not on the path. ' \
+                  'Try:\n    {}\nand see the env in {}'
+            msg = msg.format(self.service, self.invocation(proc), self.env_filename(proc))
+            level = logging.ERROR
+        elif pstat == RStatus.RUNNING:
+            level = logging.INFO
+            msg = '{} is running with PID={}'.format(self.service, proc.pid)
+        else:
+            if pstat == RStatus.ERROR_EXIT:
+                level = logging.ERROR
+            else:
+                level = logging.WARN
+            if isinstance(proc, ArchivedProcess):
+                msg = _ARCHIVED_MESSAGES[pstat]
+                msg = msg.format(s=self.service, a=proc.archivedir)
+            else:
+                msg = _NONARCHIVED_MESSAGES[pstat]
+                msg = msg.format(s=self.service, w=proc.wdir)
+        return [(msg, level)]
+
+
+_ARCHIVED_MESSAGES = {
+    RStatus.ERROR_EXIT: '{s} is exited with an error. Check "{a}"',
+    RStatus.COMPLETED: '{s} completed and is no longer running. See "{a}"',
+    RStatus.KILLED: '{s} was killed and is no longer running. See "{a}"',
+    RStatus.ARCHIVED: '{s} is no longer running and has been archived at "{a}"',
+}
+_NONARCHIVED_MESSAGES = {
+    RStatus.NOT_LAUNCHED: '{s} has not been launched by the job launcher',
+    RStatus.ERROR_EXIT: '{s} is exited with an error. Check "{w}"',
+    RStatus.COMPLETED: '{s} completed and is no longer running from "{w}"',
+    RStatus.KILLED: '{s} was killed and is no longer running.',
+    RStatus.KILL_SENT: 'A kill message has been sent to {s}, but it is still running',
+    RStatus.BEING_ARCHIVED: '{s} is in the process of being archived',
+    RStatus.MISSING_PRESUMED_ARCHIVED: '{s} is absent, it may have been archived.',
+    RStatus.MISSING_NOT_ARCHIVED: '{s} is not present in the working space or archive',
+}
+
+'''
     @property
     def service_dir(self):
         return os.path.join(opentree_config_dir(), self.service)
@@ -205,140 +456,25 @@ class JobStatusWrapper(object):
         except:
             return None
 
-    def kill(self):
-        s = self.status
-        if s['status_idx'] == RStatus.RUNNING:
-            launcher_pid = s['launcher_pid']
-            if launcher_pid:
-                if kill_pid_or_False(launcher_pid):
-                    logger(__name__).info("Killed job launcher PID={}".format(launcher_pid))
-                    return
-                logger(__name__).info("Could not kill job launcher PID={}".format(launcher_pid))
-            spid = s['pid']
-            if kill_pid_or_False(spid):
-                logger(__name__).info("Killed {} PID={}".format(self.service, spid))
-                return
-            logger(__name__).info("Could not kill {} PID={}".format(self.service, spid))
-        else:
-            logger(__name__).info("{} is not running".format(self.service))
 
-    def _diagnose_status(self, check_again=True):
-        d = {'is_running': False,
-             'pid': None,
-             'launcher_pid': None
-            }
-        if self.just_launched and not os.path.isdir(self.metadata_dir):
-            wait_for_fp_or_raise(self.metadata_dir)
-        if self.just_launched and not os.path.isdir(self.metadata_dir):
-            d['status_idx_from_launcher'] = RStatus.NOT_LAUNCHED
-            d['status_from_launcher'] = 'Lack of metadatadir indicates service has never been launched'
-            d['status_idx'] = RStatus.NOT_LAUNCHED
-        else:
-            s = os.path.join(self.metadata_dir, 'status')
-            if self.just_launched:
-                wait_for_fp_or_raise(s)
-            content = open(s, 'r', encoding='utf-8').read().strip()
-            try:
-                status_index = _RSTATUS_NAME.index(content)
-            except ValueError:
-                raise RuntimeError('Unknown status in "{}" in "{}"'.format(content, s))
-            d['status_idx_from_launcher'] = status_index
-            d['status_from_launcher'] = content
-            d['status_idx'] = status_index
-            d['launcher_pid'] = self._read_launcher_pid_or_none()
-            if status_index == RStatus.RUNNING:
-                # Launcher thinks that the process was launched
-                pid = self._read_pid_or_none()
-                d['pid'] = pid
-                if d['pid'] is None:
-                    if check_again:
-                        # Might have just failed, check now, but don't recurse and keep checking
-                        # @TODO should check for joblauncher PID and interrogate it everywhere we
-                        #    check_again...
-                        return self._diagnose_status(check_again=False)
-                    else:
-                        d['status_idx'] = RStatus.CONFLICT
-                        m = '{} indicated RUNNING but {} does not exist'.format(s, self.pid_filename)
-                        d['reason'] = m
-                else:
-                    try:
-                        procw = psutil.Process(d['pid'])
-                    except:
-                        if check_again:
-                            return self._diagnose_status(check_again=False)
-                        d['status_idx'] = RStatus.CONFLICT
-                        m = '{} indicated RUNNING but PID {} not detected'.format(s, pid)
-                        d['reason'] = m
-                    else:
-                        expected_exe = _SERVICE_TO_EXE_NAME[self.service]
-                        try:
-                            exe = procw.exe()
-                        except:
-                            # Exception if we ask about some root process, sometime...
-                            exe = '<unknown privileged process>'
-                        if not exe.endswith(expected_exe):
-                            if check_again:
-                                return self._diagnose_status(check_again=False)
-                            d['status_idx'] = RStatus.CONFLICT
-                            m = '{} indicated RUNNING but PID {} is {} instead of {}'
-                            d['reason'] = m.format(s, pid, exe, expected_exe)
-                        else:
-                            d['is_running'] = True
-        self._status_dict = d
 
-    def write_diagnosis(self, out=sys.stdout):
-        d = self._gen_diagnosis_message()
-        if out is None:
-            log = logger(__name__)
-            for msg, level in d:
-                log.log(level, msg)
-        else:
-            for p in d:
-                out.write('{}\n'.format(p[0]))
-
-    def _gen_diagnosis_message(self):
-        level = logging.WARN
-        s = self.status
-        si = s['status_idx']
-        if si == RStatus.CONFLICT:
-            msg = 'internal conflict in {} service status: {}'
-            msg = msg.format(self.service, s['reason'])
-        elif si == RStatus.NOT_LAUNCHED:
-            msg = '{} has not been launched by the job launcher'.format(self.service)
-        elif si == RStatus.NOT_LAUNCHABLE:
-            msg = '{} could not be launched. Perhaps the executable is not on the path. ' \
-                  'Try:\n    {}\nand see the env in {}'
-            msg = msg.format(self.service, self.invocation, self.env_filename)
-            level = logging.ERROR
-        elif si == RStatus.RUNNING:
-            level = logging.INFO
-            msg = '{} is running with PID={}'.format(self.service, self.pid)
-        elif si == RStatus.ERROR_EXIT:
-            msg = '{} is exited with an error. Check "{}" and "{}"'
-            msg = msg.format(self.service, self.process_log, self.metadata_dir)
-        elif si == RStatus.COMPLETED:
-            msg = '{} completed and is no longer running'.format(self.service)
-        elif si == RStatus.DELETED:
-            level = logging.ERROR
-            msg = 'Unexpected DELETED status for {}'.format(self.service)
-        else:
-            level = logging.ERROR
-            msg = 'Unknown status: {}'.format(s['status_from_launcher'])
-        return [(msg, level)]
-
-    @property
-    def status(self):
-        if self._status_dict is None:
-            with self._status_lock:
-                if self._status_dict is None:
-                    self._diagnose_status()
-        return self._status_dict
-
-    @property
-    def is_running(self):
-        return self.status['is_running']
 
     @property
     def pid(self):
         return self.status['pid']
 
+'''
+
+
+def kill_pid_or_false(pid):
+    try:
+        proc = psutil.Process(pid)
+    except:
+        logger(__name__).warn('Process PID={} could not be found.'.format(pid))
+        return False
+    try:
+        proc.kill()
+    except:
+        logger(__name__).warn('Could not kill PID={}.'.format(pid))
+        return False
+    return True
