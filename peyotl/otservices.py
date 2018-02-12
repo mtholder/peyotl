@@ -8,7 +8,8 @@ import sys
 from peyotl import (CfgSettingType,
                     logger, get_config_object, opentree_config_dir)
 from peyotl.jobs import launch_job, JobStatusWrapper
-from peyotl.jobs import ALL_SERVICES, OTC_TOL_WS
+from peyotl.jobs import (ALL_SERVICES, ALL_SERVICE_NAMES,
+                         OTC_TOL_WS,)
 
 
 def expand_service_nicknames_to_uniq_list(services):
@@ -33,8 +34,11 @@ def expand_service_nicknames_to_uniq_list(services):
 def service_status(services):
     if not services:
         services = ALL_SERVICES
+    out = sys.stdout
     for s in services:
-        JobStatusWrapper(s).write_diagnosis(sys.stdout)
+        if 0 == JobStatusWrapper(s).write_diagnosis(out):
+            out.write('{} not running\n'.format(s))
+
 
 
 def launch_services(services, restart=False):

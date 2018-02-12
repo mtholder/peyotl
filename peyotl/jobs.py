@@ -120,7 +120,7 @@ def get_new_session(config_dir=None):
     if config_dir is None:
         config_dir = opentree_config_dir()
     e = _get_db_engine(parent_dir=config_dir)
-    return sessionmaker(bind=e)
+    return sessionmaker(bind=e)()
 
 
 def _do_wait_for_proc_launch(proc_id, session, name):
@@ -342,6 +342,9 @@ class JobStatusWrapper(object):
             self._proc_list = get_processdb_wrapper_for_active(self._session, name=self.service)
 
     def write_diagnosis(self, out=sys.stdout):
+        '''Returns the number of messages written (0 if the service does not occur in the checked
+        history).
+        '''
         d = self._gen_diagnosis_message()
         if out is None:
             log = logger(__name__)
@@ -350,6 +353,7 @@ class JobStatusWrapper(object):
         else:
             for p in d:
                 out.write('{}\n'.format(p[0]))
+        return len(d)
 
     def _gen_diagnosis_message(self):
         r = []
