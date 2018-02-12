@@ -153,7 +153,7 @@ def _verify_status(proc, session):
                 else:
                     proc.status = RStatus.COMPLETED
                 session.commit()
-                return proc.status
+                return proc.status, proc
             expected_exe = _SERVICE_TO_EXE_NAME[proc.name]
             try:
                 exe = procw.exe()
@@ -181,8 +181,11 @@ def _archive(proc, session):
         prev_status = proc.status
         proc.status = RStatus.BEING_ARCHIVED
         session.commit()
-        arch_par_dir = os.path.join(opentree_config_dir(), 'service_log_archives', proc.name,
-                                    proc.id)
+        arch_par_dir = os.path.join(opentree_config_dir(),
+                                    'service_log_archives',
+                                    proc.name,
+                                    str(proc.id))
+        assure_dir_exists(os.path.split(arch_par_dir)[0])
         if os.path.isdir(proc.wdir):
             os.rename(proc.wdir, arch_par_dir)
             ap = ArchivedProcess(name=proc.name, archivedir=arch_par_dir, status=prev_status)
@@ -250,12 +253,12 @@ def launch_job(name, stdout_fp, stderr_fp, invocation):
     try:
         assure_dir_exists(working_dir)
         if stdout_fp is None:
-            stdout_fp = os.path.join(working_dir, 'stdout')
+            stdout_fp = os.path.join(working_dir, 'log'.format(name))
         else:
             stdout_fp = os.path.abspath(stdout_fp)
         outf = open(stdout_fp, 'a', encoding='utf-8')
         if stderr_fp is None:
-            stderr_fp = os.path.join(working_dir, 'stderr')
+            stderr_fp = os.path.join(working_dir, 'err'.format(name))
         elif stderr_fp == subprocess.STDOUT:
             stderr_fp = stdout_fp
         else:
@@ -271,7 +274,7 @@ def launch_job(name, stdout_fp, stderr_fp, invocation):
         with open(os.path.join(md, 'invocation'), 'w', encoding='utf-8') as invout:
             invout.write("{i}\n".format(i=escaped_invoc))
         with open(os.path.join(md, 'stdoe'), 'w', encoding='utf-8') as ioout:
-            ioout.write("{o}\n{e}}\n".format(o=stdout_fp, e=stderr_fp))
+            ioout.write("{o}\n{e}\n".format(o=stdout_fp, e=stderr_fp))
         with open(os.path.join(md, "env"), "w", encoding='utf-8') as eout:
             for k, v in os.environ.items():
                 eout.write("export {}='{}'\n".format(k, "\'".join(v.split("'"))))
@@ -307,6 +310,18 @@ class JobStatusWrapper(object):
         self._status_lock = Lock()
 
     @property
+    def log_filepath(self):
+        pl = self.proc_list
+        p = [i for i in  pl if i.status in _active_status_codes]
+        if not p:
+            return None
+        sel_proc = p[0]
+        x = os.path.join(sel_proc.wdir, 'log')
+        if os.path.exists(x):
+            return x
+        return ''
+
+    @property
     def is_running(self):
         pl = self.proc_list
         return pl and any([i.status in _active_status_codes for i in pl])
@@ -320,18 +335,21 @@ class JobStatusWrapper(object):
         return self._proc_list
 
     def kill(self):
+        failed = False
         for proc in self.proc_list:
             if proc.status in [RStatus.RUNNING, RStatus.KILL_SENT]:
                 assert isinstance(proc, Process)
                 if kill_pid_or_false(proc.pid):
                     proc.status = RStatus.KILL_SENT
                     self._session.commit()
-                    logger(__name__).info("Sent kill to {}".format(proc._pid))
+                    logger(__name__).info("Sent kill to {}".format(proc.pid))
                 else:
-                    logger(__name__).info("Could not kill {}".format(proc._pid))
+                    logger(__name__).info("Could not kill {}".format(proc.pid))
+                    failed = True
             else:
                 m = "Skipping a non-running instance of {} in kill".format(self.service)
                 logger(__name__).debug(m)
+        return not failed
 
     def _diagnose_status(self):
         if self._session is None:

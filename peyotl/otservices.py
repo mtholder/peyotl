@@ -4,13 +4,15 @@ from __future__ import absolute_import, print_function, division
 
 import os
 import sys
+from codecs import open
 
 from peyotl import (CfgSettingType,
                     logger, get_config_object, opentree_config_dir)
+from peyotl.utility import reverse_line_reader_gen, is_str_type
 from peyotl.jobs import launch_job, JobStatusWrapper
 from peyotl.jobs import (ALL_SERVICES, ALL_SERVICE_NAMES,
                          OTC_TOL_WS,)
-
+import subprocess
 
 def expand_service_nicknames_to_uniq_list(services):
     expansion = {'tnrs': [OTC_TOL_WS, 'ottindexer', ],
@@ -18,6 +20,8 @@ def expand_service_nicknames_to_uniq_list(services):
                  }
     seen = set()
     expanded = []
+    if is_str_type(services):
+        services = [services]
     for service in services:
         norm = service.lower()
         ex_list = expansion.get(norm, [norm])
@@ -56,6 +60,10 @@ def launch_services(services, restart=False):
         if not success:
             raise RuntimeError("Could not launch {}".format(service))
 
+def write_service_log_tail(out, services, n=10):
+    for service in expand_service_nicknames_to_uniq_list(services):
+        _write_log_tail(out, service, n)
+
 
 def stop_services(services):
     for service in expand_service_nicknames_to_uniq_list(services):
@@ -79,6 +87,15 @@ def _stop_service(service):
     if not success:
         raise RuntimeError("Could not kill {}".format(service))
 
+def _write_log_tail(out, service, n):
+    jsw = JobStatusWrapper(service)
+    tp = []
+    for index, line in enumerate(reverse_line_reader_gen(jsw.log_filepath)):
+        if index >= n:
+            break
+        tp.append('{}\n'.format(line))
+    for line in reversed(tp):
+        out.write(line)
 
 def is_running(service):
     """Currently just returns True if the <OTConfigDir>/<service>/pid file exists."""
@@ -117,7 +134,7 @@ def launch_otcws(cfg):
              ]
     service = 'otcws'
     try:
-        pid = launch_job(service, None, None, invoc)
+        pid = launch_job(service, None, subprocess.STDOUT, invoc)
     except:
         logger(__name__).exception('Error launching {}'.format(service))
         return False

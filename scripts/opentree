@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 from peyotl import logger, get_config_setting, get_config_object, report_on_env
-from peyotl.otservices import (launch_services, service_status, stop_services, ALL_SERVICE_NAMES)
+from peyotl.otservices import (ALL_SERVICE_NAMES,
+                               launch_services,
+                               service_status, stop_services,
+                               write_service_log_tail,
+                               )
 
 # from peyotl.ott import OTT
 # import subprocess
@@ -9,6 +13,10 @@ import os
 
 out = sys.stdout
 
+def tail_command(args):
+    a = args.services if isinstance(args.services, list) else [args.services]
+    for service in a:
+        write_service_log_tail(out, service, n=args.n)
 
 def config_command(args):
     a = args.action if isinstance(args.action, list) else [args.action]
@@ -73,7 +81,7 @@ def main():
     # univ is the set of options that can affect every command
     univ = frozenset([])
     non_service_cmds = ('config', 'ott')
-    service_cmds = ('start', 'status', 'stop')
+    service_cmds = ('start', 'status', 'stop', 'tail')
     all_cmds = non_service_cmds + service_cmds
     ################################################################################################
     #  config commands
@@ -116,6 +124,13 @@ def main():
                                          help='stops one of the Open Tree services running locally')
     stop_parser.add_argument('services', nargs='+', choices=ALL_SERVICE_NAMES, default=None)
     stop_parser.set_defaults(func=stop_command)
+    ################################################################################################
+    # tail service log command
+    tail_parser = subparsers.add_parser('tail', help='writes the last n lines of the log of a service to stdout')
+    tail_parser.add_argument('services', nargs='+', choices=ALL_SERVICE_NAMES, default=None)
+    tail_parser.add_argument('-n', type=int, default=10)
+    tail_parser.set_defaults(func=tail_command)
+
     ################################################################################################
     if "--show-completions" in sys.argv:
         args = sys.argv[1:]
@@ -175,6 +190,14 @@ def main():
                 comp_list.extend([i for i in config_actions if i not in args])
             elif sel_cmd == 'ott':
                 comp_list.extend([i for i in ott_actions if i not in args])
+            if sel_cmd == 'tail':
+                n_arg = False
+                for a in args:
+                    if a.startswith('-n'):
+                        n_arg = True
+                        break
+                if not n_arg:
+                    comp_list.append('-n')
         sys.stdout.write('{}\n'.format(' '.join(comp_list)))
     else:
         args = parser.parse_args(sys.argv[1:])

@@ -1,0 +1,9 @@
+ott:
+  directory : /home/mtholder/Documents/projects/ot/dockerot/ott
+synthpar:
+  directory : /home/mtholder/Documents/projects/ot/dockerot/tree-par
+otcws:
+  port : 1985
+  num_threads : 2
+
+
