@@ -12,6 +12,7 @@ import logging.config
 import threading
 import logging
 import codecs
+from codecs import open
 import copy
 import json
 import stat
@@ -22,7 +23,84 @@ import re
 _OPENTREE_CONFIG_DIR = None
 _OPENTREE_CONFIG_DIR_IS_SET = False
 
+def report_on_env(out, verbose=False):
+    ocde = os.environ.get('OPENTREE_CONFIG_DIR')
+    out.write('OPENTREE_CONFIG_DIR={}\n'.format(ocde if ocde else ''))
+    ocdv = opentree_config_dir()
+    if ocdv == ocde:
+        m = "  # The opentree_config_dir was set by that environmental variable.\n"
+    else:
+        if ocde is None:
+            m = '  # The opentree_config_dir is "{v}" due to that variable not being set.\n'
+        else:
+            m = '  # The opentree_config_dir is "{v}" due to that variable not pointing to a directory.\n'
+    out.write(m.format(v=ocdv))
 
+    pcfe = e = os.environ.get('PEYOTL_CONFIG_FILE')
+    out.write('PEYOTL_CONFIG_FILE={}\n'.format(pcfe if pcfe else ''))
+    pcfv = get_default_config_filename()
+    if pcfv == pcfe:
+        m = "  # The peyotl_config was set by that environmental variable.\n"
+    else:
+        if pcfe is None:
+            m = '  # The peyotl_config is "{v}" due to that variable not being set.\n'
+        else:
+            m = '  # The peyotl_config is "{v}" due to that variable not pointing to a file.\n'
+    out.write(m.format(v=pcfv))
+    if verbose:
+        out.write('# The contents of the file are between the following lines:\n{}\n'.format('#'*80))
+        try:
+            with open(pcfv, 'r', encoding='utf-8') as cfinp:
+                out.write(cfinp.read())
+        except:
+            out.write('ERROR reading {}'.format(pcfv))
+        out.write('\n{}\n'.format('#'*80))
+    out.write('''  # The default peyotl_config cascade is:
+  #   1. ${PEYOTL_CONFIG_FILE} (if set and it exists)
+  #   2. ${opentree_config_dir}/peyotl.yaml (if it exists)
+  #   3. the installed default_peyotl.yaml inside the peyotl package.
+''')
+    plife = os.environ.get('PEYOTL_LOG_INI_FILEPATH')
+    out.write('PEYOTL_LOG_INI_FILEPATH={}\n'.format(plife if plife else ''))
+    lfp = None
+    if plife and os.path.isfile(plife):
+        out.write('  # That location is the location of the logging INI file used.')
+        lfp = plife
+    elif plife:
+        out.write('  # That variable is set but does not refer to a file so the default logging configuration was used.')
+    else:
+        dlf = _get_default_peyotl_log_ini_filepath(config_dirpath=ocdv)[0]
+        if os.path.isfile(dlf):
+            lfp = dlf
+            m = '  # Because that variable is not set the default path in opentree_config_dir is used: {}'
+        else:
+            m = '  # Because that variable is not set and the  default path in opentree_config_dir ' \
+                '({}) does not exist, the basic configuration was used'
+        out.write(m.format(dlf))
+    if verbose and lfp:
+        m = '\n# The contents of the file are between the following lines:\n{}\n'
+        out.write(m.format('#' * 80))
+        try:
+            with open(lfp, 'r', encoding='utf-8') as cfinp:
+                out.write(cfinp.read())
+        except:
+            out.write('ERROR reading {}'.format(lfp))
+        out.write('\n{}'.format('#' * 80))
+
+    splime = os.environ.get('SHOW_PEYOTL_LOGGING_INIT_MESSAGES')
+    out.write('\nSHOW_PEYOTL_LOGGING_INIT_MESSAGES={}\n'.format(splime if splime else ''))
+    if splime == '1':
+        out.write('  # This setting ')
+    else:
+        out.write('  # Setting that variable to "1" ')
+    out.write('causes the logging initialization messages to show up (helping debugging of logging conf).\n')
+
+"""
+
+
+PEYOTL_LOG_INI_FILEPATH  (defaults to $OPENTREE_CONFIG_DIR/peyotl_logging.ini)
+SHOW_PEYOTL_LOGGING_INIT_MESSAGES (set to 1 to see messages associated with the creation of the logger)
+"""
 def opentree_config_dir(config_dirpath=None, return_queued=False):
     """Returns filepath to parent of config files and unlogged messages.
 
@@ -283,7 +361,7 @@ def open_for_group_write(fp, mode, encoding='utf-8'):
     """
     d = os.path.split(fp)[0]
     assure_dir_exists(d)
-    o = codecs.open(fp, mode, encoding=encoding)
+    o = open(fp, mode, encoding=encoding)
     o.flush()
     os.chmod(fp, stat.S_IRGRP | stat.S_IROTH | stat.S_IRUSR | stat.S_IWGRP | stat.S_IWUSR)
     return o
@@ -291,7 +369,7 @@ def open_for_group_write(fp, mode, encoding='utf-8'):
 
 def read_filepath(filepath, encoding='utf-8'):
     """Returns the text content of `filepath`"""
-    with codecs.open(filepath, 'r', encoding=encoding) as fo:
+    with open(filepath, 'r', encoding=encoding) as fo:
         return fo.read()
 
 
@@ -307,7 +385,7 @@ def write_to_filepath(content, filepath, encoding='utf-8', mode='w', group_write
         with open_for_group_write(filepath, mode=mode, encoding=encoding) as fo:
             fo.write(content)
     else:
-        with codecs.open(filepath, mode=mode, encoding=encoding) as fo:
+        with open(filepath, mode=mode, encoding=encoding) as fo:
             fo.write(content)
 
 
@@ -403,7 +481,7 @@ def write_as_json(blob, dest, indent=0, sort_keys=True, separators=(', ', ': '))
     """
     opened_out = False
     if is_str_type(dest):
-        out = codecs.open(dest, mode='w', encoding='utf-8')
+        out = open(dest, mode='w', encoding='utf-8')
         opened_out = True
     else:
         out = dest
@@ -439,7 +517,7 @@ def write_pretty_dict_str(out, obj, indent=2):
 
 
 def read_as_json(in_filename, encoding='utf-8'):
-    with codecs.open(in_filename, 'r', encoding=encoding) as inpf:
+    with open(in_filename, 'r', encoding=encoding) as inpf:
         return json.load(inpf)
 
 
@@ -552,7 +630,7 @@ def get_raw_default_config_and_read_file_list():
         cfn = get_default_config_filename()
         if cfn:
             try:
-                instream = codecs.open(cfn, 'r', encoding='utf-8')
+                instream = open(cfn, 'r', encoding='utf-8')
             except:
                 raise RuntimeError('Could not open a configuration file at "{}"'.format(cfn))
             try:
@@ -635,7 +713,7 @@ class ConfigWrapper(object):
         self._override = overrides
 
     @property
-    def config_filename(self):
+    def config_filename_list(self):
         self._assure_raw()
         return self._config_filename
 
@@ -703,21 +781,8 @@ class ConfigWrapper(object):
 
     def report(self, out):
         # noinspection PyProtectedMember
-        cfn = self.config_filename
-        out.write('# Config read from "{f}"\n'.format(f=cfn))
-        cfenv = os.environ.get('PEYOTL_CONFIG_FILE', '')
-        if cfenv:
-            if os.path.abspath(cfenv) == cfn:
-                emsg = '#  config filepath obtained from $PEYOTL_CONFIG_FILE env var.\n'
-            else:
-                emsg = '#  using packaged default. The filepath from PEYOTL_CONFIG_FILE env. var. did not exist.\n'
-        else:
-            cfhome = os.path.expanduser("~/.peyotl/config")
-            if os.path.abspath(cfhome) == cfn:
-                emsg = "#  config filepath obtained via ~/.peyotl/config convention.\n"
-            else:
-                emsg = '#  using packaged default. PEYOTL_CONFIG_FILE was not set and ~/.peyotl/config was not found.\n'
-        out.write(emsg)
+        cfn = self.config_filename_list
+        out.write('Configuration read from:  "{f}"\n'.format(f='", "'.join(cfn)))
         from_raw = copy.deepcopy(self._raw)
         if self._override:
             merge_into_dict_recursive(from_raw, self._override, out, [], self._config_filename)
@@ -787,7 +852,7 @@ def parse_study_tree_list(fp):
         sl = read_as_json(fp)
     except:
         sl = []
-        with codecs.open(fp, 'rU', encoding='utf-8') as fo:
+        with open(fp, 'rU', encoding='utf-8') as fo:
             for line in fo:
                 frag = line.split('#')[0].strip()
                 if frag:

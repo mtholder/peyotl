@@ -11,7 +11,7 @@ _opentree()
     if test $NUM_ARGS -lt 2 ; then
         opts=$(opentree --show-completions)
     else
-        opts=$(opentree--show-completions ${COMP_WORDS[*]})
+        opts=$(opentree --show-completions ${COMP_WORDS[*]})
     fi
     if [[ ${cur} == * ]] ; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
