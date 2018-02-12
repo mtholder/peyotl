@@ -11,7 +11,8 @@ out = sys.stdout
 
 
 def config_command(args):
-    for action in args.action:
+    a = args.action if isinstance(args.action, list) else [args.action]
+    for action in a:
         if action.lower() == 'list':
             report_on_env(out, verbose=args.verbose)
             cw = get_config_object()
@@ -78,20 +79,17 @@ def main():
     #  config commands
     config_parser = subparsers.add_parser('config',
                                           help='reports information about your peyotl configuration')
-    config_parser.add_argument('action', nargs='+', choices=['list'], default='list')
-    config_parser.add_argument('-f', '--filepath', type=str, default=None, required=False)
+    config_parser.add_argument('action', nargs='*', choices=['list'], default='list')
     config_parser.set_defaults(func=config_command)
-    config_short = ('-f', )
-    config_double = ('--filepath',)
     config_actions = ('list',)
     ################################################################################################
     #  ott commands
     ott_parser = subparsers.add_parser('ott', help='commands that require a local version of ott')
     ott_parser.add_argument('--action', choices=['list'], default='', required=False)
     ott_subparsers = ott_parser.add_subparsers(help='ott actions')
-    ott_list_parser = ott_subparsers.add_parser('list',
-                                                help='reports on the local version of OTT')
+    ott_list_parser = ott_subparsers.add_parser('list', help='reports on the local version of OTT')
     ott_list_parser.set_defaults(func=ott_list_command)
+    ott_actions = ('list',)
     # ott_clear_parser = ott_subparsers.add_parser('clear-cache',
     #                                             help='remove the caches used to speed up actions on OTT')
     # @TODO: Restore?
@@ -120,14 +118,13 @@ def main():
     stop_parser.set_defaults(func=stop_command)
     ################################################################################################
     if "--show-completions" in sys.argv:
-        a = sys.argv[1:]
-        sys.stderr.write('\na = {!r}\n'.format(a))
-        last_word = a[-1] if a else ''
-
+        args = sys.argv[1:]
+        #sys.stderr.write('\na = {!r}\n'.format(a))
+        last_word = args[-1] if args else ''
         sel_cmd = None
         num_cmds = 0
         for c in all_cmds:
-            if c in a:
+            if c in args:
                 if sel_cmd is None:
                     sel_cmd = c
                 num_cmds += 1
@@ -136,7 +133,7 @@ def main():
             comp_list = []
             for u in univ:
                 found = False
-                for arg in a:
+                for arg in args:
                     if arg.startswith(u):
                         found = True
                         break
@@ -145,7 +142,7 @@ def main():
             comp_list.extend(all_cmds)
         else:
             if sel_cmd in service_cmds:
-                comp_list.extend(ALL_SERVICE_NAMES)
+                comp_list.extend([i for i in ALL_SERVICE_NAMES if i not in args])
                 # From Ned Batchelder's answer on http://stackoverflow.com/a/14728477
                 # class ArgumentParserError(Exception):
                 #     pass
@@ -170,35 +167,14 @@ def main():
                 #     pass
 
             if sel_cmd == 'config':
-                if last_word == '-':
-                    comp_list.extend(config_short + config_double)
-                elif last_word.startswith('--'):
-                    comp_list.extend(completions(last_word, config_double))
-                else:
-                    comp_list.extend(config_actions)
-
-            elif sel_cmd == 'partition':
-                # sys.stderr.write(str(a))
-                if '--level' == a[-1] or (len(a) > 1 and '--level' == a[-2]):
-                    comp_list = list(NONTERMINAL_PART_NAMES)
-                elif '--level' not in a:
-                    comp_list.extend(['--level'])
-            elif sel_cmd in ('diagnose-new-separators', 'enforce-new-separators'):
-                # sys.stderr.write(str(a))
-                if '--level' == a[-1] or (len(a) > 1 and '--level' == a[-2]):
-                    comp_list = list(TERMINAL_PART_NAMES)
-                elif '--level' not in a:
-                    comp_list.extend(['--level'])
-            elif sel_cmd == 'clean' and num_cmds == 1:
-                all_cmds.remove('clean')
-                all_cmds.remove('status')
-                comp_list.extend(all_cmds)
-            elif sel_cmd in ['compare-taxonomies']:
-                rw = taxalotl_config.get_terminalized_res_by_id("ott", '')
-                outfn = os.path.join(rw.partitioned_filepath, SEP_NAMES)
-                if os.path.exists(outfn):
-                    comp_list.extend(read_as_json(outfn))
-
+                #if last_word == '-':
+                #    comp_list.extend(config_short + config_double)
+                #elif last_word.startswith('--'):
+                #    comp_list.extend(completions(last_word, config_double))
+                #else:
+                comp_list.extend([i for i in config_actions if i not in args])
+            elif sel_cmd == 'ott':
+                comp_list.extend([i for i in ott_actions if i not in args])
         sys.stdout.write('{}\n'.format(' '.join(comp_list)))
     else:
         args = parser.parse_args(sys.argv[1:])
