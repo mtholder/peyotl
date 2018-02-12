@@ -2,6 +2,7 @@
 # Some imports to help our py2 code behave like py3
 from __future__ import absolute_import, print_function, division
 
+import re
 import os
 import sys
 import time
@@ -302,6 +303,21 @@ def launch_detached_service(name, invocation):
         # @TODO: only works for very short stdin that won't fill a buffer...
         return proc.pid
 
+_OTC_READY_PAT = re.compile(r'.*Service is ready\. PID is [0-9]+')
+def _is_serving(proc):
+    if not proc.status in _active_status_codes:
+        return False
+    if proc.name == OTC_TOL_WS:
+        with open(os.path.join(proc.wdir, 'log'), 'r', encoding='utf-8') as logf:
+            for line in logf:
+                if _OTC_READY_PAT.match(line):
+                    return True
+        return False
+    else:
+        m = "is_serving not implemented for {}".format(proc.name)
+        logger(__name__).format('NotImplementedError: {}'.format(m))
+        raise NotImplementedError(m)
+
 
 class JobStatusWrapper(object):
     def __init__(self,
@@ -404,7 +420,16 @@ class JobStatusWrapper(object):
             level = logging.ERROR
         elif pstat == RStatus.RUNNING:
             level = logging.INFO
-            msg = '{} is running with PID={}'.format(self.service, proc.pid)
+            try:
+                isready = _is_serving(proc)
+            except:
+                msg = '{} is running with PID={}'
+            else:
+                if isready:
+                    msg = '{} is running with PID={} and ready to respond to requests.'
+                else:
+                    msg = '{} is running with PID={} but it is still booting.'
+            msg = msg.format(self.service, proc.pid)
         else:
             if pstat == RStatus.ERROR_EXIT:
                 level = logging.ERROR
