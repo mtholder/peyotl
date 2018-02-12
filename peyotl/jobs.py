@@ -20,6 +20,7 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from peyotl import (assure_dir_exists, logger, opentree_config_dir, )
 
+PROCESS_METADATA = ".process_metadata"
 _SLEEP_INTERVAL_FOR_LAUNCH = 0.5
 _MAX_SLEEPS = 5
 
@@ -270,7 +271,7 @@ def launch_detached_service(name, invocation):
         #    errf = subprocess.STDOUT
         # else:
         #    errf = open(stderr_fp, "a", encoding='utf-8')
-        md = os.path.join(working_dir, ".process_metadata")
+        md = os.path.join(working_dir, PROCESS_METADATA)
         if not os.path.exists(md):
             os.mkdir(md)
         escaped_invoc = ' '.join([shell_escape_arg(i) for i in invocation])
@@ -404,12 +405,12 @@ class JobStatusWrapper(object):
     @staticmethod
     def invocation(proc):
         wd = proc.archivedir if isinstance(proc, ArchivedProcess) else proc.wdir
-        return os.path.join(wd, ".process_metadata", 'invocation')
+        return os.path.join(wd, PROCESS_METADATA, 'invocation')
 
     @staticmethod
     def env_filename(proc):
         wd = proc.archivedir if isinstance(proc, ArchivedProcess) else proc.wdir
-        return os.path.join(wd, ".process_metadata", 'env')
+        return os.path.join(wd, PROCESS_METADATA, 'env')
 
     def _gen_diagnosis_message_for_one(self, proc):
         pstat = proc.status
@@ -461,62 +462,51 @@ _NONARCHIVED_MESSAGES = {
     RStatus.MISSING_NOT_ARCHIVED: '{s} is not present in the working space or archive',
 }
 
-'''
-    @property
-    def service_dir(self):
-        return os.path.join(opentree_config_dir(), self.service)
+def remove_archived(name):
+    session = get_new_session()
+    m = session.query(ArchivedProcess).filter_by(name=name).all()
+    for ap in m:
+        ad = ap.archivedir
+        if os.path.isdir(ad):
+            logger(__name__).info('Removing archive of {} run from {}'.format(name, ad))
+            remove_archived_job_artifacts(ad)
+        session.delete(ap)
+        session.commit()
 
-    @property
-    def metadata_dir(self):
-        return os.path.join(self.service_dir, '.process_metadata')
-
-    @property
-    def process_log(self):
-        return os.path.join(self.service_dir, 'log')
-
-    @property
-    def pid_filename(self):
-        return os.path.join(self.metadata_dir, 'pid')
-
-    @property
-    def pid_filename(self):
-        return os.path.join(self.metadata_dir, 'launcher_pid')
-
-    @property
-    def env_filename(self):
-        return os.path.join(self.metadata_dir, 'env')
-
-    @property
-    def invocation_filename(self):
-        return os.path.join(self.metadata_dir, 'invocation')
-
-    @property
-    def invocation(self):
-        try:
-            return open(self.invocation_filename, 'r', encoding='utf-8').read().strip()
-        except:
-            return '#UNKNOWN INVOCATION#'
-
-    def _read_pid_or_none(self):
-        try:
-            return int(open(self.pid_filename, 'r', encoding='utf-8').read().strip())
-        except:
-            return None
-
-    def _read_launcher_pid_or_none(self):
-        try:
-            return int(open(self.launcher_pid_filename, 'r', encoding='utf-8').read().strip())
-        except:
-            return None
+def remove_archived_job_artifacts(tmp_dir_path):
+    rm_files_and_dir_or_warn(os.path.join(tmp_dir_path, PROCESS_METADATA),
+                             ['env', 'stdoe', 'invocation'])
+    rm_files_and_dir_or_warn(os.path.join(tmp_dir_path, 'logs'),
+                             ['myeasylog.log'])
+    rm_files_and_dir_or_warn(tmp_dir_path, ['log'])
 
 
+def rm_files_and_dir_or_warn(par, filenames):
+    success = True
+    for fn in filenames:
+        success = rm_or_warn(os.path.join(par, fn)) and success
+    if success:
+        return rmdir_or_warn(par)
+    return success
 
+def rmdir_or_warn(fp):
+    try:
+        if os.path.isdir(fp):
+            os.rmdir(fp)
+        return True
+    except:
+        logger(__name__).warn('rmdir of {} failed'.format(fp))
+        return False
 
-    @property
-    def pid(self):
-        return self.status['pid']
+def rm_or_warn(fp):
+    try:
+        if os.path.isfile(fp):
+            os.remove(fp)
+        return True
+    except:
+        logger(__name__).warn('remove of {} failed'.format(fp))
+        return False
 
-'''
 
 
 def kill_pid_or_false(pid):

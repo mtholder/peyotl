@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from peyotl import logger, get_config_setting, get_config_object, report_on_env
-from peyotl.jobs import ALL_SERVICE_NAMES
+from peyotl.jobs import ALL_SERVICE_NAMES, remove_archived
 from peyotl.otservices import (launch_services,
                                service_status, stop_services,
                                write_service_log_tail,
@@ -25,6 +25,12 @@ def config_command(args):
             report_on_env(out, verbose=args.verbose)
             cw = get_config_object()
             cw.report(out)
+
+def rm_command(args):
+    for a in args.artifact:
+        if a.endswith('_history'):
+            service = a[:-len('_history')]
+            remove_archived(name=service)
 
 def start_command(args):
     launch_services(args.services)
@@ -80,7 +86,7 @@ def main():
     subparsers = parser.add_subparsers(help='available commands')
     # univ is the set of options that can affect every command
     univ = frozenset([])
-    non_service_cmds = ('config', 'ott')
+    non_service_cmds = ('config', 'ott', 'rm')
     service_cmds = ('start', 'status', 'stop', 'tail')
     all_cmds = non_service_cmds + service_cmds
     ################################################################################################
@@ -105,6 +111,12 @@ def main():
     # ott_shell_parser = ott_subparsers.add_parser('bash',
     #                                            help='execute bash command in the top dir of your copy of OTT')
     # ott_shell_parser.set_defaults(func=ott_shell_command)
+    ################################################################################################
+    # Start service command
+    rm_parser = subparsers.add_parser('rm', help='removes artifacts')
+    rm_actions = ['{}_history'.format(i) for i in ALL_SERVICE_NAMES]
+    rm_parser.add_argument('artifact', nargs='+', choices=rm_actions, default=None)
+    rm_parser.set_defaults(func=rm_command)
     ################################################################################################
     # Start service command
     start_parser = subparsers.add_parser('start',
@@ -190,7 +202,9 @@ def main():
                 comp_list.extend([i for i in config_actions if i not in args])
             elif sel_cmd == 'ott':
                 comp_list.extend([i for i in ott_actions if i not in args])
-            if sel_cmd == 'tail':
+            elif sel_cmd == 'rm':
+                comp_list.extend(rm_actions)
+            elif sel_cmd == 'tail':
                 n_arg = False
                 for a in args:
                     if a.startswith('-n'):
