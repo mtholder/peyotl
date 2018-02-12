@@ -4,15 +4,13 @@ from __future__ import absolute_import, print_function, division
 
 import os
 import sys
-from codecs import open
 
 from peyotl import (CfgSettingType,
                     logger, get_config_object, opentree_config_dir)
+from peyotl.jobs import (ALL_SERVICES, OTC_TOL_WS, )
+from peyotl.jobs import launch_detached_service, JobStatusWrapper
 from peyotl.utility import reverse_line_reader_gen, is_str_type
-from peyotl.jobs import launch_job, JobStatusWrapper
-from peyotl.jobs import (ALL_SERVICES, ALL_SERVICE_NAMES,
-                         OTC_TOL_WS,)
-import subprocess
+
 
 def expand_service_nicknames_to_uniq_list(services):
     expansion = {'tnrs': [OTC_TOL_WS, 'ottindexer', ],
@@ -44,7 +42,6 @@ def service_status(services):
             out.write('{} not running\n'.format(s))
 
 
-
 def launch_services(services, restart=False):
     # Support for some aliases, like tnrs-> both ottindexer and otcws
     cfg = get_config_object()
@@ -59,6 +56,7 @@ def launch_services(services, restart=False):
             success = _launch_service(service, cfg)
         if not success:
             raise RuntimeError("Could not launch {}".format(service))
+
 
 def write_service_log_tail(out, services, n=10):
     for service in expand_service_nicknames_to_uniq_list(services):
@@ -87,6 +85,7 @@ def _stop_service(service):
     if not success:
         raise RuntimeError("Could not kill {}".format(service))
 
+
 def _write_log_tail(out, service, n):
     jsw = JobStatusWrapper(service)
     tp = []
@@ -96,6 +95,7 @@ def _write_log_tail(out, service, n):
         tp.append('{}\n'.format(line))
     for line in reversed(tp):
         out.write(line)
+
 
 def is_running(service):
     """Currently just returns True if the <OTConfigDir>/<service>/pid file exists."""
@@ -134,7 +134,7 @@ def launch_otcws(cfg):
              ]
     service = 'otcws'
     try:
-        pid = launch_job(service, None, subprocess.STDOUT, invoc)
+        pid = launch_detached_service(service, invoc)
     except:
         logger(__name__).exception('Error launching {}'.format(service))
         return False

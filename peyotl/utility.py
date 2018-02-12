@@ -23,6 +23,7 @@ import re
 _OPENTREE_CONFIG_DIR = None
 _OPENTREE_CONFIG_DIR_IS_SET = False
 
+
 def report_on_env(out, verbose=False):
     ocde = os.environ.get('OPENTREE_CONFIG_DIR')
     out.write('OPENTREE_CONFIG_DIR={}\n'.format(ocde if ocde else ''))
@@ -36,7 +37,7 @@ def report_on_env(out, verbose=False):
             m = '  # The opentree_config_dir is "{v}" due to that variable not pointing to a directory.\n'
     out.write(m.format(v=ocdv))
 
-    pcfe = e = os.environ.get('PEYOTL_CONFIG_FILE')
+    pcfe = os.environ.get('PEYOTL_CONFIG_FILE')
     out.write('PEYOTL_CONFIG_FILE={}\n'.format(pcfe if pcfe else ''))
     pcfv = get_default_config_filename()
     if pcfv == pcfe:
@@ -48,13 +49,14 @@ def report_on_env(out, verbose=False):
             m = '  # The peyotl_config is "{v}" due to that variable not pointing to a file.\n'
     out.write(m.format(v=pcfv))
     if verbose:
-        out.write('# The contents of the file are between the following lines:\n{}\n'.format('#'*80))
+        out.write(
+            '# The contents of the file are between the following lines:\n{}\n'.format('#' * 80))
         try:
             with open(pcfv, 'r', encoding='utf-8') as cfinp:
                 out.write(cfinp.read())
         except:
             out.write('ERROR reading {}'.format(pcfv))
-        out.write('\n{}\n'.format('#'*80))
+        out.write('\n{}\n'.format('#' * 80))
     out.write('''  # The default peyotl_config cascade is:
   #   1. ${PEYOTL_CONFIG_FILE} (if set and it exists)
   #   2. ${opentree_config_dir}/peyotl.yaml (if it exists)
@@ -67,7 +69,8 @@ def report_on_env(out, verbose=False):
         out.write('  # That location is the location of the logging INI file used.')
         lfp = plife
     elif plife:
-        out.write('  # That variable is set but does not refer to a file so the default logging configuration was used.')
+        out.write(
+            '  # That variable is set but does not refer to a file so the default logging configuration was used.')
     else:
         dlf = _get_default_peyotl_log_ini_filepath(config_dirpath=ocdv)[0]
         if os.path.isfile(dlf):
@@ -93,7 +96,9 @@ def report_on_env(out, verbose=False):
         out.write('  # This setting ')
     else:
         out.write('  # Setting that variable to "1" ')
-    out.write('causes the logging initialization messages to show up (helping debugging of logging conf).\n')
+    out.write(
+        'causes the logging initialization messages to show up (helping debugging of logging conf).\n')
+
 
 """
 
@@ -101,6 +106,8 @@ def report_on_env(out, verbose=False):
 PEYOTL_LOG_INI_FILEPATH  (defaults to $OPENTREE_CONFIG_DIR/peyotl_logging.ini)
 SHOW_PEYOTL_LOGGING_INIT_MESSAGES (set to 1 to see messages associated with the creation of the logger)
 """
+
+
 def opentree_config_dir(config_dirpath=None, return_queued=False):
     """Returns filepath to parent of config files and unlogged messages.
 
@@ -874,6 +881,7 @@ def parse_study_tree_list(fp):
             ret.append({'study_id': study_id, 'tree_id': tree_id})
     return ret
 
+
 # reverse_line_reader_gen from
 #   https://stackoverflow.com/a/23646049
 # by StackOverflow users srohde and Andomar
@@ -887,9 +895,9 @@ def reverse_line_reader_gen(filename, buf_size=8192):
         while remaining_size > 0:
             offset = min(file_size, offset + buf_size)
             fh.seek(file_size - offset)
-            buffer = fh.read(min(remaining_size, buf_size))
+            _buffer = fh.read(min(remaining_size, buf_size))
             remaining_size -= buf_size
-            lines = buffer.split('\n')
+            lines = _buffer.split('\n')
             # the first line of the buffer is probably not a complete line so
             # we'll save it and append it to the last line of the next buffer
             # we read
@@ -897,7 +905,7 @@ def reverse_line_reader_gen(filename, buf_size=8192):
                 # if the previous chunk starts right from the beginning of line
                 # do not concact the segment to the last line of new chunk
                 # instead, yield the segment first
-                if buffer[-1] is not '\n':
+                if _buffer[-1] is not '\n':
                     lines[-1] += segment
                 else:
                     yield segment
@@ -908,6 +916,7 @@ def reverse_line_reader_gen(filename, buf_size=8192):
         # Don't yield None if the file was empty
         if segment is not None:
             yield segment
+
 
 '''
 from peyotl.utility.input_output import (assure_dir_exists,

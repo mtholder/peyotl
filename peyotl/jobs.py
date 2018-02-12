@@ -9,6 +9,7 @@ import subprocess
 import logging
 from codecs import open
 from threading import Lock
+from tempfile import mkdtemp
 
 import psutil
 from sqlalchemy import create_engine, Column, Integer, String
@@ -183,12 +184,12 @@ def _archive(proc, session):
         session.commit()
         arch_par_dir = os.path.join(opentree_config_dir(),
                                     'service_log_archives',
-                                    proc.name,
-                                    str(proc.id))
-        assure_dir_exists(os.path.split(arch_par_dir)[0])
+                                    proc.name)
+        assure_dir_exists(arch_par_dir)
+        arch_dir = mkdtemp(dir=arch_par_dir)
         if os.path.isdir(proc.wdir):
-            os.rename(proc.wdir, arch_par_dir)
-            ap = ArchivedProcess(name=proc.name, archivedir=arch_par_dir, status=prev_status)
+            os.rename(proc.wdir, arch_dir)
+            ap = ArchivedProcess(name=proc.name, archivedir=arch_dir, status=prev_status)
             session.add(ap)
         session.delete(proc)
         session.commit()
@@ -226,7 +227,7 @@ def get_status_proc_for_pid(session, pid):
     return _verify_status(proc, session)
 
 
-def launch_job(name, stdout_fp, stderr_fp, invocation):
+def launch_detached_service(name, invocation):
     config_dir = opentree_config_dir()
     session = get_new_session(config_dir)
     # Generate a working dir, which will be the config_dir/name or config_dir/name_1
@@ -252,21 +253,22 @@ def launch_job(name, stdout_fp, stderr_fp, invocation):
             break
     try:
         assure_dir_exists(working_dir)
-        if stdout_fp is None:
-            stdout_fp = os.path.join(working_dir, 'log'.format(name))
-        else:
-            stdout_fp = os.path.abspath(stdout_fp)
+        # if stdout_fp is None:
+        stdout_fp = os.path.join(working_dir, 'log'.format(name))
+        # else:
+        #    stdout_fp = os.path.abspath(stdout_fp)
         outf = open(stdout_fp, 'a', encoding='utf-8')
-        if stderr_fp is None:
-            stderr_fp = os.path.join(working_dir, 'err'.format(name))
-        elif stderr_fp == subprocess.STDOUT:
-            stderr_fp = stdout_fp
-        else:
-            stderr_fp = os.path.abspath(stderr_fp)
-        if stderr_fp == stdout_fp:
-            errf = subprocess.STDOUT
-        else:
-            errf = open(stderr_fp, "a", encoding='utf-8')
+        # if stderr_fp is None:
+        #    stderr_fp = os.path.join(working_dir, 'err'.format(name))
+        # elif stderr_fp == subprocess.STDOUT:
+        errf = subprocess.STDOUT
+        stderr_fp = stdout_fp
+        # else:
+        #    stderr_fp = os.path.abspath(stderr_fp)
+        # if stderr_fp == stdout_fp:
+        #    errf = subprocess.STDOUT
+        # else:
+        #    errf = open(stderr_fp, "a", encoding='utf-8')
         md = os.path.join(working_dir, ".process_metadata")
         if not os.path.exists(md):
             os.mkdir(md)
@@ -284,7 +286,11 @@ def launch_job(name, stdout_fp, stderr_fp, invocation):
         session.commit()
         raise
     try:
-        proc = subprocess.Popen(invocation, stdin=open(os.devnull, 'r'), stdout=outf, stderr=errf)
+        proc = subprocess.Popen(invocation,
+                                stdin=open(os.devnull, 'r'),
+                                stdout=outf,
+                                stderr=errf,
+                                cwd=working_dir)
     except:
         pdb.status = RStatus.NOT_LAUNCHABLE
         session.commit()
@@ -312,7 +318,7 @@ class JobStatusWrapper(object):
     @property
     def log_filepath(self):
         pl = self.proc_list
-        p = [i for i in  pl if i.status in _active_status_codes]
+        p = [i for i in pl if i.status in _active_status_codes]
         if not p:
             return None
         sel_proc = p[0]
@@ -360,9 +366,9 @@ class JobStatusWrapper(object):
             self._proc_list = get_processdb_wrapper_for_active(self._session, name=self.service)
 
     def write_diagnosis(self, out=sys.stdout):
-        '''Returns the number of messages written (0 if the service does not occur in the checked
+        """Returns the number of messages written (0 if the service does not occur in the checked
         history).
-        '''
+        """
         d = self._gen_diagnosis_message()
         if out is None:
             log = logger(__name__)
