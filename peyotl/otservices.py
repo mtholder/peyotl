@@ -7,83 +7,86 @@ import sys
 
 from peyotl import (CfgSettingType,
                     logger, get_config_object, opentree_config_dir)
-from peyotl.jobs import (ALL_SERVICES, OTC_TOL_WS, )
-from peyotl.jobs import launch_detached_service, JobStatusWrapper
+from peyotl.jobs import (ALL_SERVICES, ALL_TRUE_SERVICE_NAMES,
+                         OTC_TOL_WS,
+                         )
+from peyotl.jobs import (expand_service_nicknames_to_uniq_list,
+                         JobStatusWrapper,
+                         launch_detached_service,
+                         )
 from peyotl.utility import reverse_line_reader_gen, is_str_type
-
-
-def expand_service_nicknames_to_uniq_list(services):
-    expansion = {'tnrs': [OTC_TOL_WS, 'ottindexer', ],
-                 'all': [OTC_TOL_WS, 'ottindexer', ],
-                 }
-    seen = set()
-    expanded = []
-    if is_str_type(services):
-        services = [services]
-    for service in services:
-        norm = service.lower()
-        ex_list = expansion.get(norm, [norm])
-        if len(ex_list) > 1 or ex_list[0] != norm:
-            em = 'Service start for "{}" mapped to start for "{}"'
-            em = em.format(service, '", "'.join(ex_list))
-            logger(__name__).info(em)
-        for s in ex_list:
-            if s not in seen:
-                expanded.append(s)
-    return expanded
-
 
 def service_status(services):
     if not services:
-        services = ALL_SERVICES
+        services = ALL_TRUE_SERVICE_NAMES
     out = sys.stdout
-    for s in services:
-        if 0 == JobStatusWrapper(s).write_diagnosis(out):
-            out.write('{} not running\n'.format(s))
-
+    checked = set()
+    for sn in services:
+        for s in expand_service_nicknames_to_uniq_list(sn):
+            if s in checked:
+                continue
+            if 0 == JobStatusWrapper(s).write_diagnosis(out):
+                out.write('{} not running\n'.format(s))
+            checked.add(s)
+    return True
 
 def launch_services(services, restart=False):
     # Support for some aliases, like tnrs-> both ottindexer and otcws
-    cfg = get_config_object()
     for service in expand_service_nicknames_to_uniq_list(services):
         success = True
         if is_running(service):
             if restart:
-                success = _restart_service(service, cfg)
+                success = _restart_service(service)
             else:
                 logger(__name__).info('{} is already running'.format(service))
         else:
-            success = _launch_service(service, cfg)
+            success = _launch_service(service)
         if not success:
             raise RuntimeError("Could not launch {}".format(service))
+    return True
 
 
-def write_service_log_tail(out, services, n=10):
-    for service in expand_service_nicknames_to_uniq_list(services):
+def write_service_log_tail(out, service_nick, n=10):
+    for service in expand_service_nicknames_to_uniq_list(service_nick):
         _write_log_tail(out, service, n)
+
+def test_service(out, service_nick):
+    all_run, all_passed = True, True
+    for service in expand_service_nicknames_to_uniq_list(service_nick):
+        r, p = _test_service(out, service)
+        all_run = all_run and r
+        all_passed = all_passed and p
+    return all_run, all_passed
 
 
 def stop_services(services):
+    success = True
     for service in expand_service_nicknames_to_uniq_list(services):
-        _stop_service(service)
+        success = _stop_service(service) and success
+    return success
 
 
-def _restart_service(service, cfg):
+def _restart_service(service):
     logger(__name__).info('Restarting {}'.format(service))
     _stop_service(service)
-    return _launch_service(service, cfg)
+    return _launch_service(service)
 
 
 def _stop_service(service):
-    success = True
-    ssw = JobStatusWrapper(service)
-    if ssw.is_running:
-        logger(__name__).info('Killing {} ...'.format(service))
-        success = ssw.kill()
-    else:
-        logger(__name__).info('{} is not running'.format(service))
-    if not success:
-        raise RuntimeError("Could not kill {}".format(service))
+    from .api import SERVICE_NAME_TO_WRAPPER
+    wrapper = SERVICE_NAME_TO_WRAPPER.get(service)
+    if wrapper is None:
+        raise NotImplementedError('stop of {}'.format(service))
+    return wrapper().stop_service()
+
+
+def _test_service(out, service):
+    """Returns (all_tests_run, all_test_ran_passed)."""
+    from .api import SERVICE_NAME_TO_WRAPPER
+    wrapper = SERVICE_NAME_TO_WRAPPER.get(service)
+    if wrapper is None:
+        raise NotImplementedError('test of {}'.format(service))
+    wrapper().test(out)
 
 
 def _write_log_tail(out, service, n):
@@ -107,40 +110,12 @@ def is_running(service):
     return os.path.isfile(pidfile)
 
 
-def _launch_service(service, cfg):
+def _launch_service(service):
     logger(__name__).info('Starting {}...'.format(service))
-    if service == OTC_TOL_WS:
-        rc = launch_otcws(cfg)
-    else:
+    from .api import SERVICE_NAME_TO_WRAPPER
+    wrapper = SERVICE_NAME_TO_WRAPPER.get(service)
+    if wrapper is None:
         raise NotImplementedError('launch of {}'.format(service))
-    return rc
+    return wrapper().launch_service()
 
 
-def launch_otcws(cfg):
-    ott_dir = cfg.get_setting(['ott', 'directory'],
-                              raise_on_none=True,
-                              type_check=CfgSettingType.EXISTING_DIR)
-    synth_par = cfg.get_setting(['synthpar', 'directory'],
-                                raise_on_none=True,
-                                type_check=CfgSettingType.EXISTING_DIR)
-    otc_settings = cfg.get_setting(['otcws'], raise_on_none=True)
-    port_num = otc_settings.get('port', 1984)
-    num_threads = otc_settings.get('num_threads', 1)
-    invoc = ['otc-tol-ws',
-             os.path.abspath(ott_dir),
-             '--tree-dir={}'.format(os.path.abspath(synth_par)),
-             '--port={}'.format(port_num),
-             '--num-thread={}'.format(num_threads)
-             ]
-    service = 'otcws'
-    try:
-        pid = launch_detached_service(service, invoc)
-    except:
-        logger(__name__).exception('Error launching {}'.format(service))
-        return False
-    proc_status = JobStatusWrapper(service, pid, just_launched=True)
-    if proc_status.is_running:
-        logger(__name__).info('launched {}. PID={}'.format(service, pid))
-        return True
-    proc_status.write_diagnosis(out=None)
-    return False

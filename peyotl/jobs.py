@@ -18,7 +18,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.exc import NoResultFound
 
-from peyotl import (assure_dir_exists, logger, opentree_config_dir, )
+from peyotl import (assure_dir_exists, logger, opentree_config_dir, is_str_type)
 
 PROCESS_METADATA = ".process_metadata"
 _SLEEP_INTERVAL_FOR_LAUNCH = 0.5
@@ -27,12 +27,35 @@ _MAX_SLEEPS = 5
 Base = declarative_base()
 
 OTC_TOL_WS = 'otcws'
+OTT_NAME_INDEXER = 'ottindexer'
 _SERVICE_TO_EXE_NAME = {OTC_TOL_WS: 'otc-tol-ws',
                         }
 ALL_SERVICES = list(_SERVICE_TO_EXE_NAME.keys())
 ALL_SERVICES.sort()
 ALL_SERVICES = tuple(ALL_SERVICES)
-ALL_SERVICE_NAMES = ('all', OTC_TOL_WS, 'tnrs')
+_SERVICE_SET_NAME_TO_LIST = {
+    'tnrs': [OTC_TOL_WS, OTT_NAME_INDEXER ],
+    'all': [OTC_TOL_WS, OTT_NAME_INDEXER, ],
+}
+ALL_TRUE_SERVICE_NAMES = (OTC_TOL_WS, OTT_NAME_INDEXER, )
+ALL_SERVICE_NAMES = ('all', OTC_TOL_WS, OTT_NAME_INDEXER, 'tnrs', )
+
+def expand_service_nicknames_to_uniq_list(services):
+    seen = set()
+    expanded = []
+    if is_str_type(services):
+        services = [services]
+    for service in services:
+        norm = service.lower()
+        ex_list = _SERVICE_SET_NAME_TO_LIST.get(norm, [norm])
+        if len(ex_list) > 1 or ex_list[0] != norm:
+            em = 'Service start for "{}" mapped to start for "{}"'
+            em = em.format(service, '", "'.join(ex_list))
+            logger(__name__).info(em)
+        for s in ex_list:
+            if s not in seen:
+                expanded.append(s)
+    return expanded
 
 
 # noinspection PyClassHasNoInit
@@ -350,6 +373,13 @@ class JobStatusWrapper(object):
         return pl and any([i.status in _active_status_codes for i in pl])
 
     @property
+    def is_ready_to_respond(self):
+        if not self.is_running:
+            return False
+        pl = self.proc_list
+        return all([_is_serving(proc) for proc in pl])
+
+    @property
     def proc_list(self):
         if self._proc_list is None:
             with self._status_lock:
@@ -465,20 +495,22 @@ _NONARCHIVED_MESSAGES = {
 def remove_archived(name):
     session = get_new_session()
     m = session.query(ArchivedProcess).filter_by(name=name).all()
+    success = True
     for ap in m:
         ad = ap.archivedir
         if os.path.isdir(ad):
             logger(__name__).info('Removing archive of {} run from {}'.format(name, ad))
-            remove_archived_job_artifacts(ad)
+            success = remove_archived_job_artifacts(ad) and True
         session.delete(ap)
         session.commit()
+    return success
 
 def remove_archived_job_artifacts(tmp_dir_path):
-    rm_files_and_dir_or_warn(os.path.join(tmp_dir_path, PROCESS_METADATA),
+    success = rm_files_and_dir_or_warn(os.path.join(tmp_dir_path, PROCESS_METADATA),
                              ['env', 'stdoe', 'invocation'])
-    rm_files_and_dir_or_warn(os.path.join(tmp_dir_path, 'logs'),
-                             ['myeasylog.log'])
-    rm_files_and_dir_or_warn(tmp_dir_path, ['log'])
+    success = rm_files_and_dir_or_warn(os.path.join(tmp_dir_path, 'logs'),
+                                       ['myeasylog.log']) and success
+    return rm_files_and_dir_or_warn(tmp_dir_path, ['log']) and success
 
 
 def rm_files_and_dir_or_warn(par, filenames):
