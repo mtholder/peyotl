@@ -839,10 +839,10 @@ def get_config_setting(setting_list,
                        default=None,
                        warn_on_none_level=logging.WARN,
                        raise_on_none=False):
-    get_config_object().get_setting(setting_list,
-                                    default=default,
-                                    warn_on_none_level=warn_on_none_level,
-                                    raise_on_none=raise_on_none)
+    return get_config_object().get_setting(setting_list,
+                                           default=default,
+                                           warn_on_none_level=warn_on_none_level,
+                                           raise_on_none=raise_on_none)
 
 
 # end Config
