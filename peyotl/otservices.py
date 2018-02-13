@@ -86,7 +86,7 @@ def _test_service(out, service):
     wrapper = SERVICE_NAME_TO_WRAPPER.get(service)
     if wrapper is None:
         raise NotImplementedError('test of {}'.format(service))
-    wrapper().test(out)
+    return wrapper().run_tests(out)
 
 
 def _write_log_tail(out, service, n):

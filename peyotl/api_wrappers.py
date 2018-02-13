@@ -2,7 +2,8 @@
 # Some imports to help our py2 code behave like py3
 from __future__ import absolute_import, print_function, division
 from enum import Enum
-from .utility import logger
+import os
+from .utility import get_config_object, logger
 from .jobs import JobStatusWrapper, launch_detached_service
 
 class WrapperMode(Enum):
@@ -14,6 +15,7 @@ class APIWrapper(object):
     def __init__(self, service):
         self._service = service
         self._mode = None
+        self._cfg = get_config_object()
 
     @property
     def service(self):
@@ -44,6 +46,32 @@ class APIWrapper(object):
             logger(__name__).info('{} is not running'.format(service))
         return True
 
+    def run_tests(self, out):
+        '''Returns (all_tests_run, all_run_tests_passed) tuple'''
+        hca, hcp = self._run_hard_coded_tests(out)
+        setting_address = ['code_repos', 'parent']
+        cr = self._cfg.get_setting(['code_repos', 'parent'])
+        if cr is None:
+            logger(__name__).warn('Tests for {} skipped because the "code_repos" section of the '
+                                  'configuration file is missing. That makes it impossible for'
+                                  'peyotl to find the repositories holding '
+                                  'tFalse, Trueests.'.format(self.service))
+            return False, hcp
+        if not os.path.isdir(cr):
+            setting_address.append(self.service)
+            raise RuntimeError('The {}/{} setting "{}" should be a directory.'.format(*setting_address))
+        sapt_dir = os.path.join(cr, 'shared-api-tests')
+        if not os.path.isdir(sapt_dir):
+            logger(__name__).warn('Tests for {} skipped because the "{}" directory'
+                                  ' was not found.'.format(self.service))
+            return False, hcp
+        a, p = self._run_shared_api_tests(sapt_dir, out)
+        return (a and hca, p and hcp)
+
+    def _run_hard_coded_tests(self, out):
+        return True, True
+
+
     def _assure_not_remote(self, action_str):
         if self.mode == WrapperMode.REMOTE_WS:
             m = "{} unavailable because {} is configured to be a wrapper around " \
@@ -64,6 +92,9 @@ class APIWrapper(object):
             return True
         proc_status.write_diagnosis(out=None)
         return False
+
+    def _run_shared_api_tests(self, repo_dir, out):
+        raise NotImplementedError("_run_shared_api_tests is a pure virtual of APIWrapper")
 
     def _get_local_invocation(self):
         raise NotImplementedError("_get_local_invocation is a pure virtual of APIWrapper")
