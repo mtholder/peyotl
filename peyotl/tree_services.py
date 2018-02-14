@@ -21,6 +21,8 @@ class OTCWrapper(APIWrapper):
             self._mode = WrapperMode.REMOTE_WS
         logger(__name__).debug('OTCWrapper configured to have base_url={}'.format(self.base_url))
 
+    def about(self, include_source_list=False):
+        
     def _get_local_invocation(self):
         cfg = self._cfg
         ott_dir = cfg.get_setting(['ott', 'directory'],
@@ -52,11 +54,30 @@ class OTCWrapper(APIWrapper):
             test_dict = read_as_json(fp)
         except:
             logger(__name__).warn('tests skipped due to missing {}'.format(fp))
-        import json
         for test_name, test_descrip in test_dict.items():
-            func = test_descrip['test_function']
-            outcome = test_descrip['tests']
-            input = test_descrip['test_input']
-            print('{} says that {}({}) ==> {}'.format(test_name, func, input, outcome))
-
+            mapped = self._map_shared_api_test_name_to_method(test_descrip)
+            if mapped is None:
+                all_run = False
+                logger(__name__).info('Skipping {}'.format(test_name))
+            else:
+                outcome = test_descrip['tests']
+                input = test_descrip['test_input']
+                if not self._call_method_from_shared_test(out,
+                                                          test_name,
+                                                          mapped,
+                                                          input,
+                                                          outcome):
+                    all_passed = False
         return all_run, all_passed
+
+    def _map_shared_api_test_name_to_method(self, test_descrip_dict):
+        decorated_method_name = test_descrip_dict['test_function']
+        shared_test_pref = 'tol_'
+        if decorated_method_name.startswith(shared_test_pref):
+            method_name = decorated_method_name[len(shared_test_pref):]
+            try:
+                return self.__dict__[method_name]
+            except KeyError:
+                m = 'method {} missing from {}'.format(method_name, type(self))
+                logger(__name__).exception(m)
+        return None

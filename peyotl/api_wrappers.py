@@ -98,3 +98,22 @@ class APIWrapper(object):
 
     def _get_local_invocation(self):
         raise NotImplementedError("_get_local_invocation is a pure virtual of APIWrapper")
+
+    def _call_method_from_shared_test(self, out, name, bound_method, input, expected_out):
+        pref = '{} test {}'.format(type(self), name)
+        try:
+            result = bound_method(**input)
+        except Exception as x:
+            ee = expected_out.get('parameters_error')
+            if ee:
+                if str(type(x)) == ee[0]:
+                    return True
+                m = '{}. Expected exception of type {} but got {}.\n'.format(pref, ee[0], type(x))
+            else:
+                m = '{}. Expected success, but got exception: {}\n'.format(pref, str(x))
+            out.write(m)
+            return False
+        NotImplementedError('testing of results')
+
+
+
