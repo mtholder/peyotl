@@ -1,0 +1,8 @@
+#!/bin/bash
+dirn="$(dirname $0)"
+adirn="$(realpath \"${dirn}\")"
+export OPENTREE_CONFIG_DIR="${dirn}/peyotl/default.opentreeoflife"
+if ! test -z $PEYOTL_CONFIG_FILE ; then
+    unset PEYOTL_CONFIG_FILE
+fi
+"${dirn}/scripts/opentree" $@
