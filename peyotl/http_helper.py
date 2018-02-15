@@ -82,7 +82,7 @@ def _http_method_summary_str(url, verb, headers, params, data=None):
         ds = _dict_summary(json.loads(data), 'data')
     else:
         ds = _dict_summary(data, 'data')
-    fmt = 'error in HTTP {v} verb call to {u} with {p}, {d} and {h}'
+    fmt = 'error in HTTP {v} verb call to {u} with param={p!r}, data={d!r} and headers={h!r}'
     return fmt.format(v=verb, u=url, p=ps, h=hs, d=ds)
 
 

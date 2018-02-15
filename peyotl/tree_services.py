@@ -26,16 +26,56 @@ class OTCWrapper(APIWrapper):
         d = {'include_source_list': include_source_list}
         return json_http_post_raise(url=self.url_for('tree_of_life/about'), data=d)
 
-    def mrca(self, node_ids=None, ott_ids=None):
+    def _validate_node_ids_or_ott_ids(self, node_ids, ott_ids, method):
         if not node_ids:
             if not ott_ids:
-                raise ValueError("node_ids or ott_ids must be supplied to mrca")
-            d = {'ott_ids': ott_ids}
+                raise ValueError("node_ids or ott_ids must be supplied to {}".format(method))
+            return {'ott_ids': ott_ids}
         elif bool(ott_ids):
-            raise ValueError("Only one of node_ids or ott_ids may be supplied to mrca")
-        else:
-            d = {'node_ids': node_ids}
+            raise ValueError("Only one of node_ids or ott_ids may be supplied to {}".format(method))
+        return {'node_ids': node_ids}
+
+    def _add_label_format_if_valid(self, d, label_format, method):
+        if label_format not in {'name_and_id', 'name', 'id'}:
+            raise ValueError('Unkown label_format "{}" in {} method'.format(label_format, method))
+        d['label_format'] = label_format
+
+    def mrca(self, node_ids=None, ott_ids=None):
+        d = self._validate_node_ids_or_ott_ids(node_ids, ott_ids, 'mrca')
         return json_http_post_raise(url=self.url_for('tree_of_life/mrca'), data=d)
+
+    def induced_subtree(self, node_ids=None, ott_ids=None, label_format="name_and_id"):
+        d = self._validate_node_ids_or_ott_ids(node_ids, ott_ids, 'induced_subtree')
+        self._add_label_format_if_valid(d, label_format, 'induced_subtree')
+        return json_http_post_raise(url=self.url_for('tree_of_life/induced_subtree'), data=d)
+
+    def subtree(self,
+                node_id=None,
+                ott_id=None,
+                format='newick',
+                label_format="name_and_id",
+                height_limit=None):
+        d = {}
+        if node_id is None:
+            if ott_id is None:
+                raise ValueError('node_id or ott_id required by subtree method')
+            d['ott_id'] = ott_id
+        elif ott_id is not None:
+            raise ValueError('only 1 of node_id and ott_id can be given to the subtree method')
+        else:
+            d['node_id'] = node_id
+        if format == 'newick':
+            if height_limit is None:
+                height_limit = -1
+            self._add_label_format_if_valid(d, label_format, 'subtree')
+        elif format == 'arguson':
+            if height_limit is None:
+                height_limit = 3
+        else:
+            raise ValueError('unknown format "{}" in subtree'.format(format))
+        d['height_limit'] = height_limit
+        d['format'] = format
+        return json_http_post_raise(url=self.url_for('tree_of_life/subtree'), data=d)
 
     def _get_local_invocation(self):
         cfg = self._cfg
