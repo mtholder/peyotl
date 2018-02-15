@@ -99,6 +99,14 @@ def report_on_env(out, verbose=False):
     out.write(
         'causes the logging initialization messages to show up (helping debugging of logging conf).\n')
 
+    clf = os.environ.get('PEYOTL_CURL_LOG_FILE')
+    out.write('PEYOTL_CURL_LOG_FILE={}\n'.format(clf if clf else ''))
+    if clf:
+        out.write('  # a curl version of all web-service calls will be written to "{}"'.format(clf))
+    else:
+        out.write('  # if that variable were set to a filepath, then curl versions '
+                  'of all web service calls would be written to that file (for debugging).')
+
 
 """
 

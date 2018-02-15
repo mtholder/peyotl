@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function, division
 import json
 import os
 from codecs import open
+import warnings
 
 import requests
 
@@ -92,6 +93,9 @@ _VERB_TO_METHOD_DICT = {
     'DELETE': requests.delete
 }
 
+_JSON_HEADERS = {'Content-Type': 'application/json',
+                 'Accept': 'application/json', }
+
 
 def _do_http(url, verb, headers, params, data, text=False):  # pylint: disable=R0201
     if CURL_LOGGER is not None:
@@ -112,3 +116,33 @@ def _do_http(url, verb, headers, params, data, text=False):  # pylint: disable=R
     if text:
         return resp.text
     return resp.json()
+
+
+def json_http_post(url,
+                   headers=_JSON_HEADERS,
+                   params=None,
+                   data=None,
+                   text=False):  # pylint: disable=W0102
+    # See https://github.com/kennethreitz/requests/issues/1882 for discussion of warning suppression
+    with warnings.catch_warnings():
+        try:
+            warnings.simplefilter("ignore", ResourceWarning)  # pylint: disable=E0602
+        except NameError:
+            pass  # on py2.7 we don't have ResourceWarning, but we don't need to filter...
+        return _do_http(url,
+                        'POST',
+                        headers=headers,
+                        params=params,
+                        data=json.dumps(data),
+                        text=text)
+
+
+def json_http_post_raise(url,
+                         headers=_JSON_HEADERS,
+                         params=None,
+                         data=None,
+                         text=False):  # pylint: disable=W0102
+    r = json_http_post(url, headers=headers, params=params, data=data, text=text)
+    if 'error' in r:
+        raise ValueError(r['error'])
+    return r

@@ -16,6 +16,12 @@ class APIWrapper(object):
         self._service = service
         self._mode = None
         self._cfg = get_config_object()
+        self.base_url = None
+
+    def url_for(self, method):
+        if self.base_url.endswith('/'):
+            return ''.join([self.base_url, method])
+        return '/'.join([self.base_url, method])
 
     @property
     def service(self):
@@ -106,7 +112,7 @@ class APIWrapper(object):
         except Exception as x:
             ee = expected_out.get('parameters_error')
             if ee:
-                if str(type(x)) == ee[0]:
+                if x.__class__.__name__ == ee[0]:
                     return True
                 m = '{}. Expected exception of type {} but got {}.\n'.format(pref, ee[0], type(x))
             else:

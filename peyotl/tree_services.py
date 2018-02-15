@@ -6,6 +6,7 @@ from .utility import CfgSettingType, read_as_json
 from .api_wrappers import APIWrapper, WrapperMode
 from .jobs import OTC_TOL_WS
 from .utility import logger
+from .http_helper import json_http_post_raise
 
 class OTCWrapper(APIWrapper):
     def __init__(self):
@@ -22,7 +23,20 @@ class OTCWrapper(APIWrapper):
         logger(__name__).debug('OTCWrapper configured to have base_url={}'.format(self.base_url))
 
     def about(self, include_source_list=False):
-        
+        d = {'include_source_list': include_source_list}
+        return json_http_post_raise(url=self.url_for('tree_of_life/about'), data=d)
+
+    def mrca(self, node_ids=None, ott_ids=None):
+        if not node_ids:
+            if not ott_ids:
+                raise ValueError("node_ids or ott_ids must be supplied to mrca")
+            d = {'ott_ids': ott_ids}
+        elif bool(ott_ids):
+            raise ValueError("Only one of node_ids or ott_ids may be supplied to mrca")
+        else:
+            d = {'node_ids': node_ids}
+        return json_http_post_raise(url=self.url_for('tree_of_life/mrca'), data=d)
+
     def _get_local_invocation(self):
         cfg = self._cfg
         ott_dir = cfg.get_setting(['ott', 'directory'],
@@ -76,8 +90,8 @@ class OTCWrapper(APIWrapper):
         if decorated_method_name.startswith(shared_test_pref):
             method_name = decorated_method_name[len(shared_test_pref):]
             try:
-                return self.__dict__[method_name]
-            except KeyError:
+                return getattr(self, method_name)
+            except AttributeError:
                 m = 'method {} missing from {}'.format(method_name, type(self))
                 logger(__name__).exception(m)
         return None
