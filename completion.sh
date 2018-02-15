@@ -20,5 +20,6 @@ _opentree()
 }
 
 complete -F _opentree opentree
+complete -F _opentree defopentree
 
 
