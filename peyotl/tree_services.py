@@ -2,11 +2,12 @@
 # Some imports to help our py2 code behave like py3
 from __future__ import absolute_import, print_function, division
 import os
-from .utility import CfgSettingType, read_as_json
+from .utility import (CfgSettingType, is_str_type, read_as_json)
 from .api_wrappers import APIWrapper, WrapperMode
 from .jobs import OTC_TOL_WS
 from .utility import logger
 from .http_helper import json_http_post_raise
+
 
 class OTCWrapper(APIWrapper):
     def __init__(self):
@@ -26,16 +27,33 @@ class OTCWrapper(APIWrapper):
         d = {'include_source_list': include_source_list}
         return json_http_post_raise(url=self.url_for('tree_of_life/about'), data=d)
 
-    def _validate_node_ids_or_ott_ids(self, node_ids, ott_ids, method):
+    @staticmethod
+    def _validate_node_ids_or_ott_ids(node_ids, ott_ids, method):
         if not node_ids:
             if not ott_ids:
                 raise ValueError("node_ids or ott_ids must be supplied to {}".format(method))
-            return {'ott_ids': ott_ids}
-        elif bool(ott_ids):
-            raise ValueError("Only one of node_ids or ott_ids may be supplied to {}".format(method))
+            return {'node_ids': ['ott{}'.format(i) for i in ott_ids]}
+        if not isinstance(node_ids, list):
+            if is_str_type(node_ids):
+                raise ValueError("Expecting node_ids to be an iterable collection of strings")
+            node_ids = list(node_ids)
+        if ott_ids:
+            node_ids.extend(['ott{}'.format(i) for i in ott_ids])
         return {'node_ids': node_ids}
 
-    def _add_label_format_if_valid(self, d, label_format, method):
+    @staticmethod
+    def _validate_node_id_or_ott_id(node_id, ott_id, method):
+        if node_id is None:
+            if ott_id is None:
+                raise ValueError('node_id or ott_id required by {} method'.format(method))
+            return {'node_id': 'ott{}'.format(ott_id)}
+        if ott_id is not None:
+            raise ValueError(
+                'only 1 of node_id and ott_id can be given to the {} method'.format(method))
+        return {'node_id': node_id}
+
+    @staticmethod
+    def _add_label_format_if_valid(d, label_format, method):
         if label_format not in {'name_and_id', 'name', 'id'}:
             raise ValueError('Unkown label_format "{}" in {} method'.format(label_format, method))
         d['label_format'] = label_format
@@ -49,21 +67,14 @@ class OTCWrapper(APIWrapper):
         self._add_label_format_if_valid(d, label_format, 'induced_subtree')
         return json_http_post_raise(url=self.url_for('tree_of_life/induced_subtree'), data=d)
 
+    # noinspection PyShadowingBuiltins
     def subtree(self,
                 node_id=None,
                 ott_id=None,
                 format='newick',
                 label_format="name_and_id",
                 height_limit=None):
-        d = {}
-        if node_id is None:
-            if ott_id is None:
-                raise ValueError('node_id or ott_id required by subtree method')
-            d['ott_id'] = ott_id
-        elif ott_id is not None:
-            raise ValueError('only 1 of node_id and ott_id can be given to the subtree method')
-        else:
-            d['node_id'] = node_id
+        d = self._validate_node_id_or_ott_id(node_id, ott_id, 'subtree')
         if format == 'newick':
             if height_limit is None:
                 height_limit = -1
@@ -99,7 +110,7 @@ class OTCWrapper(APIWrapper):
             invoc.append('--prefix={}'.format(prefix))
         return invoc
 
-
+    # noinspection PyShadowingBuiltins
     def _run_shared_api_tests(self, repo_dir, out):
         all_run = True
         all_passed = True
@@ -108,6 +119,7 @@ class OTCWrapper(APIWrapper):
             test_dict = read_as_json(fp)
         except:
             logger(__name__).warn('tests skipped due to missing {}'.format(fp))
+            return False, True
         for test_name, test_descrip in test_dict.items():
             mapped = self._map_shared_api_test_name_to_method(test_descrip)
             if mapped is None:

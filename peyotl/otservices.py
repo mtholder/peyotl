@@ -5,16 +5,14 @@ from __future__ import absolute_import, print_function, division
 import os
 import sys
 
-from peyotl import (CfgSettingType,
-                    logger, get_config_object, opentree_config_dir)
-from peyotl.jobs import (ALL_SERVICES, ALL_TRUE_SERVICE_NAMES,
-                         OTC_TOL_WS,
+from peyotl import (logger, opentree_config_dir)
+from peyotl.jobs import (ALL_TRUE_SERVICE_NAMES,
                          )
 from peyotl.jobs import (expand_service_nicknames_to_uniq_list,
                          JobStatusWrapper,
-                         launch_detached_service,
                          )
-from peyotl.utility import reverse_line_reader_gen, is_str_type
+from peyotl.utility import reverse_line_reader_gen
+
 
 def service_status(services):
     if not services:
@@ -29,6 +27,7 @@ def service_status(services):
                 out.write('{} not running\n'.format(s))
             checked.add(s)
     return True
+
 
 def launch_services(services, restart=False):
     # Support for some aliases, like tnrs-> both ottindexer and otcws
@@ -49,6 +48,7 @@ def launch_services(services, restart=False):
 def write_service_log_tail(out, service_nick, n=10):
     for service in expand_service_nicknames_to_uniq_list(service_nick):
         _write_log_tail(out, service, n)
+
 
 def test_service(out, service_nick):
     all_run, all_passed = True, True
@@ -117,5 +117,3 @@ def _launch_service(service):
     if wrapper is None:
         raise NotImplementedError('launch of {}'.format(service))
     return wrapper().launch_service()
-
-

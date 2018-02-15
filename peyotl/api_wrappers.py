@@ -6,10 +6,12 @@ import os
 from .utility import get_config_object, logger
 from .jobs import JobStatusWrapper, launch_detached_service
 
+
 class WrapperMode(Enum):
-    PURE_IMPL = 1 # API is implemented by calls to python code on client machine
+    PURE_IMPL = 1  # API is implemented by calls to python code on client machine
     REMOTE_WS = 2
     LOCAL_WS = 3
+
 
 class APIWrapper(object):
     def __init__(self, service):
@@ -36,7 +38,7 @@ class APIWrapper(object):
         self._assure_not_remote('launch_service')
         if self.mode == WrapperMode.PURE_IMPL:
             return True
-        return self._launch_local_service(self)
+        return self._launch_local_service()
 
     def stop_service(self):
         self._assure_not_remote('stop_service')
@@ -53,7 +55,7 @@ class APIWrapper(object):
         return True
 
     def run_tests(self, out):
-        '''Returns (all_tests_run, all_run_tests_passed) tuple'''
+        """Returns (all_tests_run, all_run_tests_passed) tuple"""
         hca, hcp = self._run_hard_coded_tests(out)
         setting_address = ['code_repos', 'parent']
         cr = self._cfg.get_setting(['code_repos', 'parent'])
@@ -65,18 +67,19 @@ class APIWrapper(object):
             return False, hcp
         if not os.path.isdir(cr):
             setting_address.append(self.service)
-            raise RuntimeError('The {}/{} setting "{}" should be a directory.'.format(*setting_address))
+            raise RuntimeError(
+                'The {}/{} setting "{}" should be a directory.'.format(*setting_address))
         sapt_dir = os.path.join(cr, 'shared-api-tests')
         if not os.path.isdir(sapt_dir):
             logger(__name__).warn('Tests for {} skipped because the "{}" directory'
-                                  ' was not found.'.format(self.service))
+                                  ' was not found.'.format(self.service, sapt_dir))
             return False, hcp
         a, p = self._run_shared_api_tests(sapt_dir, out)
-        return (a and hca, p and hcp)
+        return a and hca, p and hcp
 
+    # noinspection PyMethodMayBeStatic,PyUnusedLocal
     def _run_hard_coded_tests(self, out):
         return True, True
-
 
     def _assure_not_remote(self, action_str):
         if self.mode == WrapperMode.REMOTE_WS:
@@ -105,6 +108,7 @@ class APIWrapper(object):
     def _get_local_invocation(self):
         raise NotImplementedError("_get_local_invocation is a pure virtual of APIWrapper")
 
+    # noinspection PyShadowingBuiltins
     def _call_method_from_shared_test(self, out, name, bound_method, input, expected_out):
         pref = '{} test {}'.format(type(self), name)
         try:
@@ -120,6 +124,3 @@ class APIWrapper(object):
             out.write(m)
             return False
         NotImplementedError('testing of results')
-
-
-

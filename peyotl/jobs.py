@@ -34,11 +34,12 @@ ALL_SERVICES = list(_SERVICE_TO_EXE_NAME.keys())
 ALL_SERVICES.sort()
 ALL_SERVICES = tuple(ALL_SERVICES)
 _SERVICE_SET_NAME_TO_LIST = {
-    'tnrs': [OTC_TOL_WS, OTT_NAME_INDEXER ],
+    'tnrs': [OTC_TOL_WS, OTT_NAME_INDEXER],
     'all': [OTC_TOL_WS, OTT_NAME_INDEXER, ],
 }
-ALL_TRUE_SERVICE_NAMES = (OTC_TOL_WS, OTT_NAME_INDEXER, )
-ALL_SERVICE_NAMES = ('all', OTC_TOL_WS, OTT_NAME_INDEXER, 'tnrs', )
+ALL_TRUE_SERVICE_NAMES = (OTC_TOL_WS, OTT_NAME_INDEXER,)
+ALL_SERVICE_NAMES = ('all', OTC_TOL_WS, OTT_NAME_INDEXER, 'tnrs',)
+
 
 def expand_service_nicknames_to_uniq_list(services):
     seen = set()
@@ -327,9 +328,12 @@ def launch_detached_service(name, invocation):
         # @TODO: only works for very short stdin that won't fill a buffer...
         return proc.pid
 
+
 _OTC_READY_PAT = re.compile(r'.*Service is ready\. PID is [0-9]+')
+
+
 def _is_serving(proc):
-    if not proc.status in _active_status_codes:
+    if proc.status not in _active_status_codes:
         return False
     if proc.name == OTC_TOL_WS:
         with open(os.path.join(proc.wdir, 'log'), 'r', encoding='utf-8') as logf:
@@ -339,7 +343,7 @@ def _is_serving(proc):
         return False
     else:
         m = "is_serving not implemented for {}".format(proc.name)
-        logger(__name__).format('NotImplementedError: {}'.format(m))
+        logger(__name__).error('NotImplementedError: {}'.format(m))
         raise NotImplementedError(m)
 
 
@@ -492,6 +496,7 @@ _NONARCHIVED_MESSAGES = {
     RStatus.MISSING_NOT_ARCHIVED: '{s} is not present in the working space or archive',
 }
 
+
 def remove_archived(name):
     session = get_new_session()
     m = session.query(ArchivedProcess).filter_by(name=name).all()
@@ -505,9 +510,10 @@ def remove_archived(name):
         session.commit()
     return success
 
+
 def remove_archived_job_artifacts(tmp_dir_path):
     success = rm_files_and_dir_or_warn(os.path.join(tmp_dir_path, PROCESS_METADATA),
-                             ['env', 'stdoe', 'invocation'])
+                                       ['env', 'stdoe', 'invocation'])
     success = rm_files_and_dir_or_warn(os.path.join(tmp_dir_path, 'logs'),
                                        ['myeasylog.log']) and success
     return rm_files_and_dir_or_warn(tmp_dir_path, ['log']) and success
@@ -521,6 +527,7 @@ def rm_files_and_dir_or_warn(par, filenames):
         return rmdir_or_warn(par)
     return success
 
+
 def rmdir_or_warn(fp):
     try:
         if os.path.isdir(fp):
@@ -530,6 +537,7 @@ def rmdir_or_warn(fp):
         logger(__name__).warn('rmdir of {} failed'.format(fp))
         return False
 
+
 def rm_or_warn(fp):
     try:
         if os.path.isfile(fp):
@@ -538,7 +546,6 @@ def rm_or_warn(fp):
     except:
         logger(__name__).warn('remove of {} failed'.format(fp))
         return False
-
 
 
 def kill_pid_or_false(pid):
