@@ -102,10 +102,10 @@ def report_on_env(out, verbose=False):
     clf = os.environ.get('PEYOTL_CURL_LOG_FILE')
     out.write('PEYOTL_CURL_LOG_FILE={}\n'.format(clf if clf else ''))
     if clf:
-        out.write('  # a curl version of all web-service calls will be written to "{}"'.format(clf))
+        out.write('  # a curl version of all web-service calls will be written to "{}"\n'.format(clf))
     else:
         out.write('  # if that variable were set to a filepath, then curl versions '
-                  'of all web service calls would be written to that file (for debugging).')
+                  'of all web service calls would be written to that file (for debugging).\n')
 
 
 """
@@ -671,10 +671,7 @@ def str_for_setting_list(setting_list):
 
 def _missing_setting_message(config_filename, missing_index, setting_list):
     if config_filename:
-        if not is_str_type(config_filename):
-            f = ' "{}" '.format('", "'.join(config_filename))
-        else:
-            f = ' "{}" '.format(config_filename)
+        f = ' "{}" '.format(config_filename)
     else:
         f = ' '
     if missing_index == 0:
@@ -711,7 +708,7 @@ class ConfigWrapper(object):
 
     def __init__(self,
                  raw_config_obj=None,
-                 config_filename='<programmatically configured>',
+                 config_filename=None,
                  overrides=None):
         """If `raw_config_obj` is None, the default peyotl cascade for finding a configuration
         file will be used. overrides is a 2-level dictionary of section/param entries that will
@@ -721,6 +718,12 @@ class ConfigWrapper(object):
         value in a get.*setting.*() call
         """
         # noinspection PyProtectedMember
+        if config_filename is None:
+            config_filename = '<programmatically configured>'
+        if isinstance(config_filename, list):
+            assert len(config_filename) == 1
+            config_filename = config_filename[0]
+        assert is_str_type(config_filename)
         self._config_filename = config_filename
         self._raw = raw_config_obj
         if overrides is None:
@@ -728,7 +731,7 @@ class ConfigWrapper(object):
         self._override = overrides
 
     @property
-    def config_filename_list(self):
+    def config_filename(self):
         self._assure_raw()
         return self._config_filename
 
@@ -796,8 +799,8 @@ class ConfigWrapper(object):
 
     def report(self, out):
         # noinspection PyProtectedMember
-        cfn = self.config_filename_list
-        out.write('Configuration read from:  "{f}"\n'.format(f='", "'.join(cfn)))
+        cfn = self.config_filename
+        out.write('Configuration read from:  "{f}"\n'.format(f=cfn))
         from_raw = copy.deepcopy(self._raw)
         if self._override:
             merge_into_dict_recursive(from_raw, self._override, out, [], self._config_filename)

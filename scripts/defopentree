@@ -1,8 +1,17 @@
 #!/bin/bash
-dirn="$(dirname $0)"
-adirn="$(realpath \"${dirn}\")"
-export OPENTREE_CONFIG_DIR="${dirn}/peyotl/default.opentreeoflife"
+dorfp="$(realpath $0)"
+scriptsdir="$(dirname ${dorfp})"
+peyotldir="$(dirname ${scriptsdir})"
+if ! test -d "${peyotldir}/peyotl/default.opentreeoflife" ; then
+    echo "defopentree only works when in the source dir. Did not find: ${peyotldir}/peyotl/default.opentreeoflife"
+    exit 1
+fi
+if test -d "${HOME}/.default.opentreeoflife" ; then
+    export OPENTREE_CONFIG_DIR="${HOME}/.default.opentreeoflife"
+else
+    export OPENTREE_CONFIG_DIR="${peyotldir}/peyotl/default.opentreeoflife"
+fi
 if ! test -z $PEYOTL_CONFIG_FILE ; then
     unset PEYOTL_CONFIG_FILE
 fi
-"${dirn}/scripts/opentree" $@
+"${scriptsdir}/opentree" $@
