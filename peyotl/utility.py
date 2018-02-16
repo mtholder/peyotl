@@ -258,7 +258,8 @@ if sys.version_info.major == 2:
         # noinspection PyCompatibility
         return {v: k for k, v in d.iteritems()}
 else:
-    from io import StringIO  # pylint: disable=E0611,W0403
+    from io import StringIO  # pylint: disable=E0611,Wfrom enum import Enum
+0403
 
     UNICODE = str
 
