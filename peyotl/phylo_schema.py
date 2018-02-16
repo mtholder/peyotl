@@ -225,11 +225,16 @@ class PhyloSchema(object):
             raise NotImplementedError(m.format(c=self.content, d=self.description))
         if src_syntax != PhyloSyntax.NEXSON:
             raise NotImplementedError('Only conversion from NexSON is currently supported')
+        from .nexson.helper import (convert_nexson_format, cull_nonmatching_trees,
+                                    extract_tree_nexson, extract_otus_nexson, extract_otu_nexson,
+                                    strip_to_meta_only,
+                                    _otu_dict_to_otumap)
+
         if self.out_syntax in nexson_syntaxes:
             d = src
             if self.content == PhyloContentType.STUDY:
                 d = convert_nexson_format(src,
-                                          out_syntax=self.out_syntax,
+                                          dest_syntax=self.out_syntax,
                                           src_syntax=src_syntax,
                                           remove_old_structs=True,
                                           pristine_if_invalid=False,
@@ -238,7 +243,7 @@ class PhyloSchema(object):
                 if self.content == PhyloContentType.TREE:
                     d = cull_nonmatching_trees(d, self.content_id, src_syntax=src_syntax)
                     d = convert_nexson_format(d,
-                                              out_nexson_format=self.out_syntax,
+                                              dest_syntax=self.out_syntax,
                                               src_syntax=src_syntax,
                                               remove_old_structs=True,
                                               pristine_if_invalid=False,
@@ -292,12 +297,19 @@ class PhyloSchema(object):
         if output_dest:
             if is_str_type(output_dest):
                 output_dest = open(output_dest, 'w', encoding='utf-8')
-        if self.out_syntax == PhyloSchema.NEXML:
+        if self.out_syntax == PhyloSyntax.NEXML:
+            from .nexson.export import write_obj_as_nexml, convert_to_nexml
             if output_dest:
-                write_obj_as_nexml(src, output_dest, addindent=' ', newl='\n',
+                write_obj_as_nexml(src,
+                                   output_dest,
+                                   addindent=' ',
+                                   newl='\n',
                                    otu_label=self.otu_label_prop)
                 return
-            return convert_to_nexml(src, addindent=' ', newl='\n', otu_label=self.otu_label_prop)
+            return convert_to_nexml(src,
+                                    addindent=' ',
+                                    newl='\n',
+                                    otu_label=self.otu_label_prop)
         elif self.out_syntax in [PhyloSchema.NEXUS, PhyloSchema.NEWICK]:
             if self.content in ('tree', 'subtree'):
                 if isinstance(self.content_id, list) or isinstance(self.content_id, tuple):
@@ -313,3 +325,20 @@ class PhyloSchema(object):
                 output_dest.write('\n')
             return response
         assert False
+
+
+def extract_tree(nexson, tree_id, schema, subtree_id=None):
+    from .nexson.helper import extract_tree_nexson
+    from .nexson.export import convert_tree, convert_trees
+    try:
+        assert schema.out_syntax in [PhyloSyntax.NEWICK, PhyloSyntax.NEXUSs]
+    except:
+        m = 'tip labeling is currently supported in newick/nexus tree export only.'
+        raise ValueError(m)
+    i_t_o_list = extract_tree_nexson(nexson, tree_id, None)
+    if schema.out_syntax == PhyloSyntax.NEWICK:
+        tree_str_list = [convert_tree(i, t, o, schema, subtree_id=subtree_id) for i, t, o in
+                         i_t_o_list]
+        tree_str_list = [i for i in tree_str_list if i is not None]
+        return '\n'.join(tree_str_list)
+    return convert_trees(i_t_o_list, schema, subtree_id=subtree_id)

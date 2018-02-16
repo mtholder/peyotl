@@ -12,6 +12,11 @@ class PhyloSyntax(Enum):
     NEXUS = 6
 
 
+to_nexml2json = {PhyloSyntax.NEXSON_0: '0.0.0',
+                 PhyloSyntax.NEXSON_1_0: '1.0.0',
+                 PhyloSyntax.NEXSON_1_2: '1.2.1',
+                 }
+
 nexson_syntaxes = frozenset([PhyloSyntax.NEXSON_0, PhyloSyntax.NEXSON_1_0, PhyloSyntax.NEXSON_1_2])
 
 
