@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from ..phylo_syntax import PhyloSyntax, nexson_syntaxes
-from ..utility import logger, is_int_type
+from ..utility import logger, is_int_type, UNICODE
+import xml
 import re
 
 _DIRECT_HONEY_BADGERFISH = PhyloSyntax.NEXSON_1_0
@@ -42,6 +43,7 @@ def _index_list_of_values(d, k):
         return v
     return [v]
 
+
 def cull_nonmatching_trees(nexson, tree_id, src_syntax=None):
     """Modifies `nexson` and returns it in version 1.2.1
     with any tree that does not match the ID removed.
@@ -72,12 +74,14 @@ def cull_nonmatching_trees(nexson, tree_id, src_syntax=None):
         del tree_groups[tgid]
     return nexson
 
+
 def nexml_el_of_by_id(nexson, src_syntax=None):
     if src_syntax is None:
         src_syntax = detect_nexson_version(nexson)
     if not _is_by_id_hbf(src_syntax):
         nexson = convert_nexson_format(nexson, _BY_ID_HONEY_BADGERFISH)
     return get_nexml_el(nexson)
+
 
 def extract_otus_nexson(nexson, otus_id, src_syntax=None):
     nexml_el = nexml_el_of_by_id(nexson, src_syntax)
@@ -105,6 +109,7 @@ def extract_otu_nexson(nexson, otu_id, src_syntax=None):
                 return {otu_id: go[otu_id]}
     return None
 
+
 def extract_tree_nexson(nexson, tree_id, src_syntax=None):
     """Returns a list of (id, tree, otus_group) tuples for the
     specified tree_id (all trees if tree_id is None)
@@ -131,9 +136,6 @@ def extract_tree_nexson(nexson, tree_id, src_syntax=None):
                 if tree_id is not None:
                     return tree_obj_otus_group_list
     return tree_obj_otus_group_list
-
-
-
 
 
 def get_nexml_el(blob):
@@ -688,8 +690,115 @@ class Nexson2Nexml(NexsonConverter):
                                             key='meta',
                                             key_order=None)
 
+
 def _nexson_directly_translatable_to_nexml(vers):
     """TEMP: until we refactor nexml writing code to be more general..."""
     return (_is_badgerfish_version(vers)
             or _is_direct_hbf(vers)
             or vers == PhyloSyntax.NEXML)
+
+
+def strip_to_meta_only(blob, src_syntax):
+    if src_syntax is None:
+        src_syntax = detect_nexson_version(blob)
+    nex = get_nexml_el(blob)
+    if _is_by_id_hbf(src_syntax):
+        for otus_group in nex.get('otusById', {}).values():
+            if 'otuById' in otus_group:
+                del otus_group['otuById']
+        for trees_group in nex.get('treesById', {}).values():
+            tree_group = trees_group['treeById']
+            key_list = tree_group.keys()
+            for k in key_list:
+                tree_group[k] = None
+    else:
+        otus = nex['otus']
+        if not isinstance(otus, list):
+            otus = [otus]
+        for otus_group in otus:
+            if 'otu' in otus_group:
+                del otus_group['otu']
+        trees = nex['trees']
+        if not isinstance(trees, list):
+            trees = [trees]
+        for trees_group in trees:
+            tree_list = trees_group.get('tree')
+            if not isinstance(tree_list, list):
+                tree_list = [tree_list]
+            t = [{'id': i.get('@id')} for i in tree_list]
+            trees_group['tree'] = t
+
+
+def _otu_dict_to_otumap(otu_dict):
+    d = {}
+    for v in otu_dict.values():
+        k = v['^ot:originalLabel']
+        mv = d.get(k)
+        if mv is None:
+            mv = {}
+            d[k] = mv
+        elif isinstance(mv, list):
+            mv.append({})
+            mv = mv[-1]
+        else:
+            mv = [mv, {}]
+            mv = mv[-1]
+            d[k] = mv
+        for mk in ['^ot:ottId', '^ot:ottTaxonName']:
+            mvv = v.get(mk)
+            if mvv is not None:
+                mv[mk] = mvv
+    return d
+
+
+def _convert_bf_meta_val_for_xml(blob):
+    if not isinstance(blob, list):
+        blob = [blob]
+    first_blob = blob[0]
+    try:
+        try:
+            if first_blob.get("@xsi:type") == "nex:LiteralMeta":
+                return first_blob["@property"], blob
+        except:
+            pass
+        return first_blob["@rel"], blob
+    except:
+        return "", blob
+
+
+def _create_sub_el(doc, parent, tag, attrib, data=None):
+    """Creates and xml element for the `doc` with the given `parent`
+    and `tag` as the tagName.
+    `attrib` should be a dictionary of string keys to primitives or dicts
+        if the value is a dict, then the keys of the dict are joined with
+        the `attrib` key using a colon. This deals with the badgerfish
+        convention of nesting xmlns: attributes in a @xmnls object
+    If `data` is not None, then it will be written as data. If it is a boolean,
+        the xml true false will be writtten. Otherwise it will be
+        converted to python unicode string, stripped and written.
+    Returns the element created
+    """
+    el = doc.createElement(tag)
+    if attrib:
+        if ('id' in attrib) and ('about' not in attrib):
+            about_val = '#' + attrib['id']
+            el.setAttribute('about', about_val)
+        for att_key, att_value in attrib.items():
+            if isinstance(att_value, dict):
+                for inner_key, inner_val in att_value.items():
+                    rk = ':'.join([att_key, inner_key])
+                    el.setAttribute(rk, inner_val)
+            else:
+                el.setAttribute(att_key, att_value)
+    if parent:
+        parent.appendChild(el)
+    if data is not None:
+        if data is True:
+            el.appendChild(doc.createTextNode('true'))
+        elif data is False:
+            el.appendChild(doc.createTextNode('false'))
+        else:
+            u = UNICODE(data).strip()
+            if u:
+                el.appendChild(doc.createTextNode(u))
+    return el

@@ -26,22 +26,34 @@ class NodeLabelStyle(Enum):
     OTT_NAME = 3
 
 
-def _get_original_label(nd):
-    raise NotImplementedError('labeller')
+# noinspection PyUnusedLocal
+def _get_original_label(nd, otu, unlabelled_counter):
+    o = otu.get('^ot:originalLabel', '<unknown>')
+    label = "'*tip #{n:d} not mapped to OTT. Original label - {o}'"
+    ucv = unlabelled_counter if unlabelled_counter is not None else '?'
+    return label.format(n=ucv, o=o)
 
 
-def _get_ott_id(nd):
-    raise NotImplementedError('labeller')
+def _get_ott_id(nd, otu, unlabelled_counter):
+    o = otu.get('^ot:ottId')
+    return o if o is not None else _get_original_label(nd, otu, unlabelled_counter)
 
 
-def _get_ott_name(nd):
-    raise NotImplementedError('labeller')
+def _get_ott_name(nd, otu, unlabelled_counter):
+    o = otu.get('^ot:ottTaxonName')
+    return o if o is not None else _get_original_label(nd, otu, unlabelled_counter)
 
 
 _label_style_to_labeller = {
     NodeLabelStyle.ORIGINAL_LABEL: _get_original_label,
     NodeLabelStyle.OTT_ID: _get_ott_id,
     NodeLabelStyle.OTT_NAME: _get_ott_name,
+}
+
+_label_style_to_key = {
+    NodeLabelStyle.ORIGINAL_LABEL: 'ot:originalLabel',
+    NodeLabelStyle.OTT_ID: 'ot:ottId',
+    NodeLabelStyle.OTT_NAME: 'ot:ottTaxonName',
 }
 
 _label_style_names = {
@@ -61,9 +73,13 @@ def _parse_otu_label_style(otu_label_style):
             otu_label_style = _label_style_names.get(pls)
             if otu_label_style is None:
                 m = 'otu_label_style must be one of: "{}"'
+                # noinspection PyUnresolvedReferences
                 vlist = [i.name for i in _label_style_to_labeller.keys()]
                 raise ValueError(m.format('", "'.join(vlist)))
-    return otu_label_style, _label_style_to_labeller[otu_label_style]
+    return (otu_label_style,
+            _label_style_to_labeller[otu_label_style],
+            _label_style_to_key.get(otu_label_style)
+            )
 
 
 class PhyloSchema(object):
@@ -145,9 +161,10 @@ class PhyloSchema(object):
                 raise ValueError(m.format(self.content))
         self.otu_label_style = None
         self.otu_labeller = None
+        self.otu_key = None
         if otu_label_style is not None:
-            ls, lf = _parse_otu_label_style(otu_label_style)
-            self.otu_label_style, self.otu_labeller = ls, lf
+            ls, lf, lk = _parse_otu_label_style(otu_label_style)
+            self.otu_label_style, self.otu_labeller, self.otu_key = ls, lf, lk
 
     @property
     def description(self):
@@ -304,13 +321,13 @@ class PhyloSchema(object):
                                    output_dest,
                                    addindent=' ',
                                    newl='\n',
-                                   otu_label=self.otu_label_prop)
+                                   otu_label=self.otu_key)
                 return
             return convert_to_nexml(src,
                                     addindent=' ',
                                     newl='\n',
-                                    otu_label=self.otu_label_prop)
-        elif self.out_syntax in [PhyloSchema.NEXUS, PhyloSchema.NEWICK]:
+                                    otu_label=self.otu_key)
+        elif self.out_syntax in [PhyloSyntax.NEXUS, PhyloSyntax.NEWICK]:
             if self.content in ('tree', 'subtree'):
                 if isinstance(self.content_id, list) or isinstance(self.content_id, tuple):
                     ci, subtree_id = self.content_id

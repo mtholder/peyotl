@@ -1,35 +1,30 @@
 #!/usr/bin/env python
 # Some imports to help our py2 code behave like py3
 from __future__ import absolute_import, print_function, division
-from ..utility import (get_utf_8_string_io_writer, flush_utf_8_writer, get_utf_8_value,
-                       is_str_type)
-from ..nexus import NEXUS_NEEDING_QUOTING, write_nexus_format
+
 from ..newick import NEWICK_NEEDING_QUOTING, quote_newick_name
+from ..nexus import NEXUS_NEEDING_QUOTING, write_nexus_format
+from ..utility import (get_utf_8_string_io_writer, flush_utf_8_writer, get_utf_8_value)
 
 _EMPTY_TUPLE = tuple
 
 
-def _write_newick_leaf_label(out, node, otu_group, label_key, leaf_labels, unlabeled_counter,
+def _write_newick_leaf_label(out,
+                             node,
+                             otu_group,
+                             labeller,
+                             leaf_labels,
+                             unlabeled_counter,
                              needs_quotes_pattern):
     """
-    `label_key` is a string (a key in the otu object) or a callable that takes two arguments: the node, and the otu
+    `labeller` is a string (a key in the otu object) or a callable that takes two arguments: the node, and the otu
     If `leaf_labels` is not None, it shoulr be a (list, dict) pair which will be filled. The list will
         hold the order encountered,
         and the dict will map name to index in the list
     """
     otu_id = node['@otu']
     otu = otu_group[otu_id]
-    if is_str_type(label_key):
-        label = otu.get(label_key)
-        if label is None:
-            unlabeled_counter += 1
-            o = otu.get('^ot:originalLabel', '<unknown>')
-            label = "'*tip #{n:d} not mapped to OTT. Original label - {o}'"
-            label = label.format(n=unlabeled_counter, o=o)
-        else:
-            label = quote_newick_name(label, needs_quotes_pattern)
-    else:
-        label = quote_newick_name(label_key(node, otu), needs_quotes_pattern)
+    label = quote_newick_name(labeller(node, otu, unlabeled_counter), needs_quotes_pattern)
     if leaf_labels is not None:
         if label not in leaf_labels[1]:
             leaf_labels[1][label] = len(leaf_labels[0])
@@ -38,21 +33,16 @@ def _write_newick_leaf_label(out, node, otu_group, label_key, leaf_labels, unlab
     return unlabeled_counter
 
 
-def _write_newick_internal_label(out, node, otu_group, label_key, needs_quotes_pattern):
-    """`label_key` is a string (a key in the otu object) or a callable that takes two arguments:
-        the node, and the otu (which may be None for an internal node)
+def _write_newick_internal_label(out, node, otu_group, labeller, needs_quotes_pattern):
+    """`labeller` is a callable that takes two arguments: the node, and the otu (which may be
+        None for an internal node)
     If `leaf_labels` is not None, it shoulr be a (list, dict) pair which will be filled. The list will
         hold the order encountered,
         and the dict will map name to index in the list
     """
     otu_id = node.get('@otu')
-    if is_str_type(label_key):
-        if otu_id is None:
-            return
-        otu = otu_group[otu_id]
-        label = otu.get(label_key)
-    else:
-        label = label_key(node, None)
+    otu = None if otu_id is None else otu_group[otu_id]
+    label = labeller(node, otu, None)
     if label is not None:
         label = quote_newick_name(label, needs_quotes_pattern)
         out.write(label)
@@ -70,15 +60,15 @@ def nexson_frag_write_newick(out,
                              edges,
                              nodes,
                              otu_group,
-                             label_key,
+                             labeller,
                              leaf_labels,
                              root_id,
                              needs_quotes_pattern=NEWICK_NEEDING_QUOTING,
                              ingroup_id=None,
                              bracket_ingroup=False,
                              with_edge_lengths=True):
-    """`label_key` is a string (a key in the otu object) or a callable that takes two arguments:
-        the node, and the otu (which may be None for an internal node)
+    """`labeller` is a callable that takes two arguments: the node, and the otu (which may be
+            None for an internal node)
     If `leaf_labels` is not None, it shoulr be a (list, dict) pair which will be filled. The list will
         hold the order encountered,
         and the dict will map name to index in the list
@@ -100,7 +90,7 @@ def nexson_frag_write_newick(out,
                 unlabeled_counter = _write_newick_leaf_label(out,
                                                              curr_node,
                                                              otu_group,
-                                                             label_key,
+                                                             labeller,
                                                              leaf_labels,
                                                              unlabeled_counter,
                                                              needs_quotes_pattern)
@@ -131,7 +121,7 @@ def nexson_frag_write_newick(out,
                     _write_newick_internal_label(out,
                                                  curr_node,
                                                  otu_group,
-                                                 label_key,
+                                                 labeller,
                                                  needs_quotes_pattern)
                     if with_edge_lengths:
                         _write_newick_edge_len(out, curr_edge)
@@ -150,12 +140,12 @@ def nexson_frag_write_newick(out,
 
 def convert_tree_to_newick(tree,
                            otu_group,
-                           label_key,
+                           labeller,
                            leaf_labels,
                            needs_quotes_pattern=NEWICK_NEEDING_QUOTING,
                            subtree_id=None,
                            bracket_ingroup=False):
-    """`label_key` is a string (a key in the otu object) or a callable that takes two arguments:
+    """`labeller` is a callable that takes two arguments:
         the node, and the otu (which may be None for an internal node)
     If `leaf_labels` is not None, it shoulr be a (list, dict) pair which will be filled. The list will
         hold the order encountered,
@@ -179,7 +169,7 @@ def convert_tree_to_newick(tree,
                              edges,
                              nodes,
                              otu_group,
-                             label_key,
+                             labeller,
                              leaf_labels,
                              root_id,
                              needs_quotes_pattern=needs_quotes_pattern,
@@ -190,7 +180,6 @@ def convert_tree_to_newick(tree,
 
 
 def convert_tree(tree_id, tree, otu_group, schema, subtree_id=None):
-    label_key = schema.otu_label_prop
     if schema.format_str == 'nexus':
         leaf_labels = ([], {})
         needs_quotes_pattern = NEXUS_NEEDING_QUOTING
@@ -200,7 +189,7 @@ def convert_tree(tree_id, tree, otu_group, schema, subtree_id=None):
         assert schema.format_str == 'newick'
     newick = convert_tree_to_newick(tree,
                                     otu_group,
-                                    label_key,
+                                    schema.otu_labeller,
                                     leaf_labels,
                                     needs_quotes_pattern,
                                     subtree_id=subtree_id,
@@ -212,7 +201,6 @@ def convert_tree(tree_id, tree, otu_group, schema, subtree_id=None):
 
 
 def convert_trees(tid_tree_otus_list, schema, subtree_id=None):
-    label_key = schema.otu_label_prop
     if schema.format_str == 'nexus':
         leaf_labels = ([], {})
         needs_quotes_pattern = NEXUS_NEEDING_QUOTING
@@ -220,7 +208,7 @@ def convert_trees(tid_tree_otus_list, schema, subtree_id=None):
         for tree_id, tree, otu_group in tid_tree_otus_list:
             newick = convert_tree_to_newick(tree,
                                             otu_group,
-                                            label_key,
+                                            schema.otu_labeller,
                                             leaf_labels,
                                             needs_quotes_pattern,
                                             subtree_id=subtree_id,
