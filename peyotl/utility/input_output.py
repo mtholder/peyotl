@@ -81,6 +81,7 @@ def download_large_file(url, destination_filepath):
     """
     import requests
     r = requests.get(url, stream=True)
+    r.raise_for_status()
     par_dir = os.path.split(destination_filepath)[0]
     assure_dir_exists(par_dir)
     with open(destination_filepath, 'wb') as f:
