@@ -4,6 +4,7 @@ peyotl.
 """
 from peyotl.utility.str_util import is_str_type, StringIO
 from peyotl.utility.get_logger import get_logger
+import shutil
 import codecs
 import json
 import stat
@@ -133,7 +134,7 @@ def gunzip_and_untar(source, destination, in_dir_mode=True):
         for n in to_move:
             src = os.path.join(eff_par, n)
             dest = os.path.join(destination, n)
-            os.rename(src, dest)
+            shutil.move(src, dest)
     finally:
         if dir_to_del:
             try:

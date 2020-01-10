@@ -5,6 +5,7 @@ from peyotl.phylesystem.git_actions import get_filepath_for_namespaced_id
 from peyotl import get_logger
 from subprocess import call
 import codecs
+import shutil
 import json
 import sys
 import os
@@ -106,7 +107,7 @@ for f in sl:
             else:
                 if not os.path.isdir(dest_dir):
                     os.makedirs(dest_dir)
-                os.rename(tmp, dest_full)
+                shutil.move(tmp, dest_full)
 if failed:
     m = '\n '.join(failed)
     sys.exit('Conversion of the following studies failed:\n {}'.format(m))
