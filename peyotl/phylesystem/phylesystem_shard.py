@@ -3,30 +3,17 @@ import re
 import json
 import codecs
 from threading import Lock
-from peyotl.utility import get_config_setting
+from peyotl.utility import get_config_setting, get_logger
 from peyotl.git_storage.git_shard import (GitShard,
                                           TypeAwareGitShard,
                                           FailedShardCreationError,
                                           _invert_dict_list_val)
 
-# _LOG = get_logger(__name__)
+_LOG = get_logger(__name__)
 # class PhylesystemShardBase(object):
 
 doc_holder_subpath = 'study'
 
-
-def _get_filtered_study_ids(shard, include_aliases=False):
-    """Optionally filters out aliases from standard doc-id list"""
-    from peyotl.phylesystem.helper import DIGIT_PATTERN
-    k = shard.get_doc_ids()
-    if shard.has_aliases and (not include_aliases):
-        x = []
-        for i in k:
-            if DIGIT_PATTERN.match(i) or ((len(i) > 1) and (i[-2] == '_')):
-                pass
-            else:
-                x.append(i)
-        return x
 
 
 class PhylesystemShardProxy(GitShard):
@@ -40,7 +27,7 @@ class PhylesystemShardProxy(GitShard):
         for study in config['studies']:
             kl = study['keys']
             if len(kl) > 1:
-                self.has_aliases = True
+                _LOG.warn("ID aliases are no longer supported withing the Shards")
             for k in study['keys']:
                 d[k] = (self.name, self.path, self.path + '/study/' + study['relpath'])
         self.study_index = d
@@ -66,12 +53,8 @@ class PhylesystemShardProxy(GitShard):
     def new_study_prefix(self):
         return self.new_doc_prefix
 
-    @new_study_prefix.setter
-    def new_study_prefix(self, val):
-        self.new_doc_prefix = val
-
-    def get_study_ids(self, include_aliases=False):
-        return _get_filtered_study_ids(self, include_aliases)
+    def get_study_ids(self):
+        return self.get_doc_ids()
 
 
 def diagnose_repo_nexml2json(shard):
@@ -86,23 +69,10 @@ def diagnose_repo_nexml2json(shard):
 
 def refresh_study_index(shard, initializing=False):
     from peyotl.phylesystem.helper import create_id2study_info, \
-        diagnose_repo_study_id_convention
+        get_filepath_for_namespaced_id
     d = create_id2study_info(shard.doc_dir, shard.name)
-    rc_dict = diagnose_repo_study_id_convention(shard.path)
-    shard.filepath_for_doc_id_fn = rc_dict['fp_fn']
-    shard.id_alias_list_fn = rc_dict['id2alias_list']
-    if rc_dict['convention'] != 'simple':
-        a = {}
-        for k, v in d.items():
-            alias_list = shard.id_alias_list_fn(k)
-            for alias in alias_list:
-                a[alias] = v
-        d = a
-        shard.has_aliases = True
-        if initializing:
-            shard.infer_study_prefix()
-    else:
-        shard.has_aliases = False
+    shard.filepath_for_doc_id_fn = get_filepath_for_namespaced_id
+    shard.has_aliases = False
     shard.study_index = d
 
 
@@ -119,40 +89,29 @@ class PhylesystemShard(TypeAwareGitShard):
                  pkey=None,
                  git_action_class=PhylesystemGitAction,
                  push_mirror_repo_path=None,
-                 new_study_prefix=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                 **kwargs):
-        self.max_file_size = get_config_setting('phylesystem', 'max_file_size')
+                 max_file_size=None):
+        if max_file_size is None:
+            max_file_size = get_config_setting('phylesystem', 'max_file_size')
         TypeAwareGitShard.__init__(self,
-                                   name,
-                                   path,
-                                   doc_holder_subpath,
-                                   assumed_doc_version,
-                                   diagnose_repo_nexml2json,  # version detection
-                                   refresh_study_index,  # populates 'study_index'
-                                   git_ssh,
-                                   pkey,
-                                   git_action_class,
-                                   push_mirror_repo_path,
-                                   infrastructure_commit_author,
-                                   **kwargs)
+                                   name=name,
+                                   path=path,
+                                   doc_holder_subpath=doc_holder_subpath,
+                                   assumed_doc_version=assumed_doc_version,
+                                   detect_doc_version_fn=diagnose_repo_nexml2json,  # version detection
+                                   refresh_doc_index_fn=refresh_study_index,  # populates 'study_index'
+                                   git_ssh=git_ssh,
+                                   pkey=pkey,
+                                   git_action_class=git_action_class,
+                                   push_mirror_repo_path=push_mirror_repo_path,
+                                   infrastructure_commit_author=infrastructure_commit_author,
+                                   max_file_size=max_file_size)
         self._doc_counter_lock = Lock()
-        self._next_study_id = None
-        self._new_study_prefix = new_study_prefix
-        if self._new_study_prefix is None:
-            prefix_file = os.path.join(path, 'new_study_prefix')
-            if os.path.exists(prefix_file):
-                with open(prefix_file, 'r') as f:
-                    pre_content = f.read().strip()
-                valid_pat = re.compile('^[a-zA-Z0-9]+_$')
-                if len(pre_content) != 3 or not valid_pat.match(pre_content):
-                    raise FailedShardCreationError('Expecting prefix in new_study_prefix file to be two '
-                                                   'letters followed by an underscore')
-                self._new_study_prefix = pre_content
-            else:
-                self._new_study_prefix = 'ot_'  # ot_ is the default if there is no file
         self._id_minting_file = os.path.join(path, 'next_study_id.json')
         self.filepath_for_global_resource_fn = lambda frag: os.path.join(path, frag)
+        self._next_study_id = None
+    def can_mint_new_docs(self):
+        return self._new_doc_prefix is not None
 
     # rename some generic members in the base class, for clarity and backward compatibility
     @property
@@ -179,7 +138,7 @@ class PhylesystemShard(TypeAwareGitShard):
 
     @property
     def new_study_prefix(self):
-        return self._new_study_prefix
+        return self._new_doc_prefix
 
     @property
     def study_index(self):
@@ -197,8 +156,8 @@ class PhylesystemShard(TypeAwareGitShard):
     def repo_nexml2json(self, val):
         self.assumed_doc_version = val
 
-    def get_study_ids(self, include_aliases=False):
-        return _get_filtered_study_ids(self, include_aliases)
+    def get_study_ids(self):
+        return self.get_doc_ids()
 
     # Type-specific configuration for backward compatibility
     # (config is visible to API consumers via /phylesystem_config)
@@ -250,7 +209,7 @@ class PhylesystemShard(TypeAwareGitShard):
         """
         if self._doc_counter_lock is None:
             self._doc_counter_lock = Lock()
-        prefix = self._new_study_prefix
+        prefix = self._new_doc_prefix
         lp = len(prefix)
         n = 0
         # this function holds the lock for quite awhile,
@@ -267,16 +226,14 @@ class PhylesystemShard(TypeAwareGitShard):
                         except:
                             pass
             nsi_contents = self._read_master_branch_resource(self._id_minting_file, is_json=True)
-            if nsi_contents:
+            try:
                 self._next_study_id = nsi_contents['next_study_id']
-                if self._next_study_id <= n:
-                    m = 'next_study_id in {} is set lower than the ID of an existing study!'
-                    m = m.format(self._id_minting_file)
-                    raise RuntimeError(m)
-            else:
-                # legacy support for repo with no next_study_id.json file
-                self._next_study_id = n
-                self._advance_new_study_id()  # this will trigger the creation of the file
+            except:
+                raise RuntimeError("Could not read 'next_study_id' from {}".format(self._id_minting_file))
+            if self._next_study_id <= n:
+                m = 'next_study_id in {} is set lower than the ID of an existing study!'
+                m = m.format(self._id_minting_file)
+                raise RuntimeError(m)
 
     def _advance_new_study_id(self):
         """ ASSUMES the caller holds the _doc_counter_lock !
@@ -305,19 +262,6 @@ class PhylesystemShard(TypeAwareGitShard):
                 p.add(name[:3])
         return p
 
-    def infer_study_prefix(self):
-        prefix_file = os.path.join(self.path, 'new_study_prefix')
-        if os.path.exists(prefix_file):
-            with open(prefix_file, 'rU') as f:
-                pre_content = f.read().strip()
-            valid_pat = re.compile('^[a-zA-Z0-9]+_$')
-            if len(pre_content) != 3 or not valid_pat.match(pre_content):
-                raise FailedShardCreationError('Expecting prefix in new_study_prefix file to be two '
-                                               'letters followed by an underscore')
-            self._new_study_prefix = pre_content
-        else:
-            self._new_study_prefix = 'ot_'  # ot_ is the default if there is no file
-
     def _mint_new_study_id(self):
         """Checks out master branch as a side effect"""
         # studies created by the OpenTree API start with ot_,
@@ -327,7 +271,7 @@ class PhylesystemShard(TypeAwareGitShard):
         # @TODO. This form of incrementing assumes that
         #   this codebase is the only service minting
         #   new study IDs!
-        return "{p}{c:d}".format(p=self._new_study_prefix, c=c)
+        return "{p}{c:d}".format(p=self._new_doc_prefix, c=c)
 
     def create_git_action_for_new_study(self, new_study_id=None):
         """Checks out master branch as a side effect"""

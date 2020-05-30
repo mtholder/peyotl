@@ -11,6 +11,7 @@ __version__ = '0.1.4dev'  # sync with setup.py
 from peyotl.utility import (get_config_setting,
                             get_config_object,
                             expand_path,
+                            expand_abspath,
                             get_logger)
 from peyotl.utility.input_output import pretty_dict_str
 
@@ -28,6 +29,7 @@ from peyotl.nexson_syntax import (can_convert_nexson_forms,
 from peyotl.phylesystem.phylesystem_umbrella import Phylesystem
 from peyotl.utility.str_util import UNICODE, is_str_type
 from peyotl.phylo.entities import OTULabelStyleEnum
+from peyotl.git_storage.git_versioned_doc_store_collection import create_doc_store_wrapper
 
 
 def gen_otu_dict(nex_obj, nexson_version=None):

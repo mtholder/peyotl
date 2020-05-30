@@ -20,19 +20,7 @@
 Path mapping for various test resources.
 """
 from peyotl.utility import pretty_timestamp, get_logger
-
-try:
-    import anyjson
-except:
-    import json
-
-
-    class Wrapper(object):
-        pass
-
-
-    anyjson = Wrapper()
-    anyjson.loads = json.loads
+import anyjson
 import codecs
 import os
 
@@ -70,13 +58,15 @@ def get_test_ot_service_domains():
     from peyotl.api.wrapper import get_domains_obj
     return get_domains_obj()  # We may need to point this at dev instances in some cases.
 
+def get_test_repo_parent():
+    return TEST_PHYLESYSTEM_PAR
 
 def get_test_repos(requested=None):
     """Returns a dict mapping a nicknam (mini_.*) to the full path to that
     testing repository, if that testing repository is an existing directory.
 
     Empty dict if peyotl is not set up for testing"""
-    repo_parent_path = TEST_PHYLESYSTEM_PAR
+    repo_parent_path = get_test_repo_parent()
     _LOG.warn("TESTING repo_parent_path:{}".format(repo_parent_path))
     # NOTE that we want absolute filesystem paths for repos, so that downstream git
     # actions can always find their target files regardless of --work-tree
@@ -95,6 +85,7 @@ def get_test_repos(requested=None):
         except KeyError:
             return {}
     return {k: v for k, v in poss.items() if os.path.isdir(v)}
+
 
 
 def get_test_phylesystem_mirror_parent():

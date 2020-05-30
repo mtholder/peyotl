@@ -3,7 +3,7 @@ from peyotl.phylesystem.git_actions import PhylesystemGitAction
 import unittest
 from peyotl.utility.input_output import read_as_json
 from peyotl.test.support import pathmap
-from peyotl.phylesystem.helper import get_repos
+from peyotl.git_storage import get_repos
 
 try:
     r = get_repos()

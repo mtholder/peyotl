@@ -3,28 +3,31 @@ like PhylesystemProxy by introducing more business rules and differences between
 in the store (eg, Nexson studies in Phylesystem, tree collections in TreeCollectionStore)."""
 import os
 
-try:
-    # noinspection PyCompatibility
-    from cStringIO import StringIO
-except ImportError:
-    from io import StringIO
-import json
-
-try:
-    import anyjson
-except:
-    class Wrapper(object):
-        pass
-
-
-    anyjson = Wrapper()
-    anyjson.loads = json.loads
+from peyotl.utility.imports import StringIO
+import anyjson
 from peyotl.git_storage import ShardedDocStore
+from peyotl.git_storage.helper import get_repos
 from peyotl.git_storage.git_shard import FailedShardCreationError
 from peyotl.utility import get_logger
 
 _LOG = get_logger(__name__)
 
+def parse_mirror_info(mirror_info):
+    push_mirror_repos_par = None
+    push_mirror_remote_map = {}
+    if mirror_info:
+        push_mirror_info = mirror_info.get('push', {})
+        if push_mirror_info:
+            push_mirror_repos_par = push_mirror_info['parent_dir']
+            push_mirror_remote_map = push_mirror_info.get('remote_map', {})
+            if push_mirror_repos_par:
+                if not os.path.exists(push_mirror_repos_par):
+                    os.makedirs(push_mirror_repos_par)
+                if not os.path.isdir(push_mirror_repos_par):
+                    e_fmt = 'Specified push_mirror_repos_par, "{}", is not a directory'
+                    e = e_fmt.format(push_mirror_repos_par)
+                    raise ValueError(e)
+    return push_mirror_repos_par, push_mirror_remote_map
 
 class TypeAwareDocStore(ShardedDocStore):
     def __init__(self,
@@ -38,9 +41,8 @@ class TypeAwareDocStore(ShardedDocStore):
                  git_action_class=None,  # requires a *type-specific* GitActionBase subclass
                  git_shard_class=None,  # requires a *type-specific* GitShard subclass
                  mirror_info=None,
-                 new_doc_prefix=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                 **kwargs):
+                 shard_mirror_pair_list=None):
         """
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
@@ -58,88 +60,93 @@ class TypeAwareDocStore(ShardedDocStore):
             'remote_map' - a dictionary of remote name to prefix (the repo name + '.git' will be
                 appended to create the URL for pushing).
         """
-        from peyotl.phylesystem.helper import get_repos, _get_phylesystem_parent_with_source
         ShardedDocStore.__init__(self,
                                  prefix_from_doc_id=prefix_from_doc_id)
         self.assumed_doc_version = assumed_doc_version
-        if repos_dict is not None:
-            self._filepath_args = 'repos_dict = {}'.format(repr(repos_dict))
-        elif repos_par is not None:
-            self._filepath_args = 'repos_par = {}'.format(repr(repos_par))
-        else:
-            fmt = '<No arg> default phylesystem_parent from {}'
-            a = _get_phylesystem_parent_with_source(**kwargs)[1]
-            self._filepath_args = fmt.format(a)
-        push_mirror_repos_par = None
-        push_mirror_remote_map = {}
-        if mirror_info:
-            push_mirror_info = mirror_info.get('push', {})
-            if push_mirror_info:
-                push_mirror_repos_par = push_mirror_info['parent_dir']
-                push_mirror_remote_map = push_mirror_info.get('remote_map', {})
-                if push_mirror_repos_par:
-                    if not os.path.exists(push_mirror_repos_par):
-                        os.makedirs(push_mirror_repos_par)
-                    if not os.path.isdir(push_mirror_repos_par):
-                        e_fmt = 'Specified push_mirror_repos_par, "{}", is not a directory'
-                        e = e_fmt.format(push_mirror_repos_par)
-                        raise ValueError(e)
-        if repos_dict is None:
-            repos_dict = get_repos(repos_par, **kwargs)
+        self._growing_shard = None
+        #TODO should infer doc prefix and hard-code assumed_doc_version to None
         shards = []
-        repo_name_list = list(repos_dict.keys())
-        repo_name_list.sort()
-        for repo_name in repo_name_list:
-            repo_filepath = repos_dict[repo_name]
-            push_mirror_repo_path = None
-            if push_mirror_repos_par:
-                expected_push_mirror_repo_path = os.path.join(push_mirror_repos_par, repo_name)
-                if os.path.isdir(expected_push_mirror_repo_path):
-                    push_mirror_repo_path = expected_push_mirror_repo_path
-            try:
-                # assumes uniform __init__ arguments for all GitShard subclasses
-                shard = git_shard_class(repo_name,
-                                        repo_filepath,
-                                        assumed_doc_version,
-                                        git_ssh,
-                                        pkey,
-                                        git_action_class,
-                                        push_mirror_repo_path,
-                                        new_doc_prefix,
-                                        infrastructure_commit_author)
-            except FailedShardCreationError as x:
-                f = 'SKIPPING repo "{d}" (not a {c}). Details:\n  {e}'
-                f = f.format(d=repo_filepath, c=git_shard_class.__name__, e=str(x))
-                _LOG.warn(f)
-                continue
-            # if the mirror does not exist, clone it...
-            if push_mirror_repos_par and (push_mirror_repo_path is None):
-                from peyotl.git_storage import GitActionBase
-                GitActionBase.clone_repo(push_mirror_repos_par,
-                                         repo_name,
-                                         repo_filepath)
-                if not os.path.isdir(expected_push_mirror_repo_path):
-                    e_msg = 'git clone in mirror bootstrapping did not produce a directory at {}'
-                    e = e_msg.format(expected_push_mirror_repo_path)
-                    raise ValueError(e)
-                for remote_name, remote_url_prefix in push_mirror_remote_map.items():
-                    if remote_name in ['origin', 'originssh']:
-                        f = '"{}" is a protected remote name in the mirrored repo setup'
-                        m = f.format(remote_name)
-                        raise ValueError(m)
-                    remote_url = remote_url_prefix + '/' + repo_name + '.git'
-                    GitActionBase.add_remote(expected_push_mirror_repo_path, remote_name, remote_url)
-                shard.push_mirror_repo_path = expected_push_mirror_repo_path
-                for remote_name in push_mirror_remote_map.keys():
-                    mga = shard._create_git_action_for_mirror()  # pylint: disable=W0212
-                    mga.fetch(remote_name)
-            shards.append(shard)
-
-        self._shards = shards
-        if len(shards) < 1:
-            self._growing_shard = None
+        if shard_mirror_pair_list is not None:
+            self._filepath_args = 'shard_mirror_pair_list = {}'.format(repr(shard_mirror_pair_list))
+            push_mirror_repos_par, push_mirror_remote_map = None, {}
+            for repo_filepath, push_mirror_repo_path in shard_mirror_pair_list:
+                try:
+                    repo_name = os.path.split(repo_filepath)[1]
+                    # assumes uniform __init__ arguments for all GitShard subclasses
+                    shard = git_shard_class(name=repo_name,
+                                            path=repo_filepath,
+                                            git_action_class=git_action_class,
+                                            push_mirror_repo_path=push_mirror_repo_path)
+                    shards.append(shard)
+                except FailedShardCreationError as x:
+                    f = 'SKIPPING repo "{d}" (not a {c}). Details:\n  {e}'
+                    f = f.format(d=repo_filepath, c=git_shard_class.__name__, e=str(x))
+                    _LOG.warn(f)
         else:
-            self._growing_shard = shards[-1]  # generalize with config...
+            if repos_dict is not None:
+                self._filepath_args = 'repos_dict = {}'.format(repr(repos_dict))
+            elif repos_par is not None:
+                self._filepath_args = 'repos_par = {}'.format(repr(repos_par))
+            else:
+                self._filepath_args = '<No arg> default phylesystem_parent from env/config cascade'
+            push_mirror_repos_par, push_mirror_remote_map = parse_mirror_info(mirror_info=mirror_info)
+
+            if repos_dict is None:
+                repos_dict = get_repos(repos_par)
+            repo_name_list = list(repos_dict.keys())
+            repo_name_list.sort()
+            for repo_name in repo_name_list:
+                repo_filepath = repos_dict[repo_name]
+                push_mirror_repo_path = None
+                if push_mirror_repos_par:
+                    expected_push_mirror_repo_path = os.path.join(push_mirror_repos_par, repo_name)
+                    if os.path.isdir(expected_push_mirror_repo_path):
+                        push_mirror_repo_path = expected_push_mirror_repo_path
+                try:
+                    # assumes uniform __init__ arguments for all GitShard subclasses
+                    shard = git_shard_class(name=repo_name,
+                                            path=repo_filepath,
+                                            assumed_doc_version=assumed_doc_version,
+                                            git_ssh=git_ssh,
+                                            pkey=pkey,
+                                            git_action_class=git_action_class,
+                                            push_mirror_repo_path=push_mirror_repo_path,
+                                            infrastructure_commit_author=infrastructure_commit_author)
+                except FailedShardCreationError as x:
+                    f = 'SKIPPING repo "{d}" (not a {c}). Details:\n  {e}'
+                    f = f.format(d=repo_filepath, c=git_shard_class.__name__, e=str(x))
+                    _LOG.warn(f)
+                    continue
+                # if the mirror does not exist, clone it...
+                if push_mirror_repos_par and (push_mirror_repo_path is None):
+                    from peyotl.git_storage import GitActionBase
+                    GitActionBase.clone_repo(push_mirror_repos_par,
+                                             repo_name,
+                                             repo_filepath)
+                    if not os.path.isdir(expected_push_mirror_repo_path):
+                        e_msg = 'git clone in mirror bootstrapping did not produce a directory at {}'
+                        e = e_msg.format(expected_push_mirror_repo_path)
+                        raise ValueError(e)
+                    for remote_name, remote_url_prefix in push_mirror_remote_map.items():
+                        if remote_name in ['origin', 'originssh']:
+                            f = '"{}" is a protected remote name in the mirrored repo setup'
+                            m = f.format(remote_name)
+                            raise ValueError(m)
+                        remote_url = remote_url_prefix + '/' + repo_name + '.git'
+                        GitActionBase.add_remote(expected_push_mirror_repo_path, remote_name, remote_url)
+                    shard.push_mirror_repo_path = expected_push_mirror_repo_path
+                    for remote_name in push_mirror_remote_map.keys():
+                        mga = shard._create_git_action_for_mirror()  # pylint: disable=W0212
+                        mga.fetch(remote_name)
+                shards.append(shard)
+        assert len(shards) > 0
+        #  New convention: only one shard has a
+        #   `new_study_prefix`, so only one shard can generate new IDs. There should only be one shard
+        #   with `can_mint_new_docs() set to True
+        growing_shards = [i for i in shards if i.can_mint_new_docs()]
+        assert len(growing_shards) == 1
+        self._growing_shard = growing_shards[-1]
+        self._shards = shards
         self._prefix2shard = {}
         for shard in shards:
             for prefix in shard.known_prefixes:
@@ -296,18 +303,11 @@ class TypeAwareDocStore(ShardedDocStore):
                 except KeyError:
                     pass
                 else:
-                    _shard.delete_doc_from_index(doc_id)
                     try:
-                        # complex types use aliases (clean these up)
-                        alias_list = _shard.id_alias_list_fn(doc_id)
-                    except:
-                        # it's a simple type, with no alias list
-                        alias_list = [doc_id]
-                    for alias in alias_list:
-                        try:
-                            del self._doc2shard_map[alias]
-                        except KeyError:
-                            pass
+                        del self._doc2shard_map[doc_id]
+                    except KeyError:
+                        pass
+                    _shard.delete_doc_from_index(doc_id)
         return ret
 
     def iter_doc_objs(self, **kwargs):
@@ -382,8 +382,8 @@ class TypeAwareDocStore(ShardedDocStore):
             return ret
         raise ValueError('No docstore shard returned changed documents for the SHA')
 
-    def get_doc_ids(self, include_aliases=False):
+    def get_doc_ids(self):
         k = []
         for shard in self._shards:
-            k.extend(shard.get_doc_ids(include_aliases=include_aliases))
+            k.extend(shard.get_doc_ids())
         return k

@@ -1,11 +1,13 @@
 """Base class for individual shard (repo) used in a doc store.
    Subclasses will accommodate each type."""
+import re
 import os
 import codecs
 import anyjson
 from threading import Lock
 from peyotl.utility import get_logger, write_to_filepath
 from peyotl.utility.input_output import read_as_json, write_as_json
+
 
 
 class FailedShardCreationError(ValueError):
@@ -23,7 +25,7 @@ class GitShard(object):
         self.path = ' '
         # ' ' mimics place of the abspath of repo in path -> relpath mapping
         self.has_aliases = False
-
+        self._new_doc_prefix = None
     # pylint: disable=E1101
     def get_rel_path_fragment(self, doc_id):
         """For `doc_id` returns the path from the
@@ -48,6 +50,10 @@ class GitShard(object):
             k = self._doc_index.keys()
         return list(k)
 
+    @property
+    def new_doc_prefix(self):
+        return self._new_doc_prefix
+
 
 class TypeAwareGitShard(GitShard):
     """Adds hooks for type-specific behavior in subclasses.
@@ -65,10 +71,9 @@ class TypeAwareGitShard(GitShard):
                  git_action_class=None,
                  push_mirror_repo_path=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                 **kwargs):
+                 max_file_size=None):
         GitShard.__init__(self, name)
         self.filepath_for_doc_id_fn = None  # overwritten in refresh_doc_index_fn
-        self.id_alias_list_fn = None  # overwritten in refresh_doc_index_fn
         self._infrastructure_commit_author = infrastructure_commit_author
         self._locked_refresh_doc_index = refresh_doc_index_fn
         self._master_branch_repo_lock = Lock()
@@ -91,10 +96,9 @@ class TypeAwareGitShard(GitShard):
         self.parent_path = os.path.split(path)[0] + '/'
         self.git_dir = dot_git
         self.push_mirror_repo_path = push_mirror_repo_path
-        if assumed_doc_version is None:
+        if (assumed_doc_version is None) and (detect_doc_version_fn is not None):
             _LOG = get_logger('TypeAwareGitShard')
             try:
-                # pass this shard to a type-specific test
                 assumed_doc_version = detect_doc_version_fn(self)
             except IndexError as x:
                 # no documents in this shard!
@@ -105,32 +109,35 @@ class TypeAwareGitShard(GitShard):
                 _LOG.warn(f)
             except:
                 pass
-        max_file_size = kwargs.get('max_file_size')
-        if max_file_size is None:
-            if max_file_size is not None:
-                try:
-                    max_file_size = int(max_file_size)
-                except:
-                    m = 'Configuration-base value of max_file_size was "{}". Expecting an integer.'
-                    m = m.format(max_file_size)
-                    raise RuntimeError(m)
+        if max_file_size is not None:
+            try:
+                max_file_size = int(max_file_size)
+            except:
+                m = 'Configuration-base value of max_file_size was "{}". Expecting an integer.'
+                m = m.format(max_file_size)
+                raise RuntimeError(m)
         self.max_file_size = max_file_size
         self.assumed_doc_version = assumed_doc_version
         self._known_prefixes = None
+        for prefix_filename in ['new_study_prefix', 'new_doc_prefix']:
+            prefix_filepath = os.path.join(path, prefix_filename)
+            if os.path.exists(prefix_filepath):
+                with open(prefix_filepath, 'r') as f:
+                    pre_content = f.read().strip()
+                valid_pat = re.compile('^[a-zA-Z0-9]+_$')
+                if len(pre_content) != 3 or not valid_pat.match(pre_content):
+                    raise FailedShardCreationError('Expecting prefix in {} file to be two '
+                                                   'letters followed by an underscore'.format(prefix_filename))
+                self._new_doc_prefix = pre_content
+    def can_mint_new_docs(self):
+        return True # phylesystem shards can only mint new IDs if they have a new_doc_prefix file, overridden.
 
     def delete_doc_from_index(self, doc_id):
-        try:
-            # some types use aliases, e.g. '123', 'pg_123'
-            alias_list = self.id_alias_list_fn(doc_id)  # pylint: disable=E1102
-        except:
-            # simpler types don't use aliases
-            alias_list = [doc_id]
         with self._index_lock:
-            for i in alias_list:
-                try:
-                    del self._doc_index[i]
-                except:
-                    pass
+            try:
+                del self._doc_index[doc_id]
+            except:
+                pass
 
     def create_git_action(self):
         return self._ga_class(repo=self.path,
@@ -174,20 +181,6 @@ class TypeAwareGitShard(GitShard):
                            remote=remote_name)
         return True
 
-    def _is_alias(self, doc_id):
-        try:
-            # some types use aliases, e.g. '123', 'pg_123'
-            alias_list = self.id_alias_list_fn(doc_id)  # pylint: disable=E1102
-        except:
-            # simpler types don't use aliases
-            return False
-        # some types use aliases, e.g. '123', 'pg_123'
-        if len(alias_list) > 1:
-            ml = max([len(i) for i in alias_list])
-            if ml > len(doc_id):
-                return True
-        return False
-
     def iter_doc_filepaths(self, **kwargs):  # pylint: disable=W0613
         """Returns a pair: (doc_id, absolute filepath of document file)
         for each document in this repository.
@@ -195,8 +188,7 @@ class TypeAwareGitShard(GitShard):
         """
         with self._index_lock:
             for doc_id, info in self._doc_index.items():
-                if not self._is_alias(doc_id):
-                    yield doc_id, info[-1]
+                yield doc_id, info[-1]
 
     # TODO:type-specific? Where and how is this used?
     def iter_doc_objs(self, **kwargs):
@@ -207,14 +199,13 @@ class TypeAwareGitShard(GitShard):
         _LOG = get_logger('TypeAwareGitShard')
         try:
             for doc_id, fp in self.iter_doc_filepaths(**kwargs):
-                if not self._is_alias(doc_id):
-                    # TODO:hook for type-specific parser?
-                    with codecs.open(fp, 'r', 'utf-8') as fo:
-                        try:
-                            nex_obj = anyjson.loads(fo.read())
-                            yield (doc_id, nex_obj)
-                        except Exception:
-                            pass
+                # TODO:hook for type-specific parser?
+                with codecs.open(fp, 'r', 'utf-8') as fo:
+                    try:
+                        nex_obj = anyjson.loads(fo.read())
+                        yield (doc_id, nex_obj)
+                    except Exception:
+                        pass
         except Exception as x:
             f = 'iter_doc_filepaths FAILED with this error:\n{}'
             f = f.format(str(x))

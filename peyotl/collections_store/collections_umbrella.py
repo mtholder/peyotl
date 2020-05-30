@@ -10,16 +10,7 @@
 from peyotl.utility import get_logger
 from peyotl.utility.str_util import slugify, increment_slug
 import json
-
-try:
-    import anyjson
-except:
-    class Wrapper(object):
-        pass
-
-
-    anyjson = Wrapper()
-    anyjson.loads = json.loads
+import anyjson
 from peyotl.git_storage import ShardedDocStore, TypeAwareDocStore
 from peyotl.collections_store.collections_shard import TreeCollectionsShardProxy, TreeCollectionsShard
 from peyotl.collections_store.validation import validate_collection
@@ -114,7 +105,6 @@ class _TreeCollectionStore(TypeAwareDocStore):
                                    git_action_class=TreeCollectionsGitAction,
                                    git_shard_class=TreeCollectionsShard,
                                    mirror_info=mirror_info,
-                                   new_doc_prefix=None,
                                    infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                                    **kwargs)
 
@@ -312,3 +302,7 @@ def TreeCollectionStore(repos_dict=None,
                                                           mirror_info=mirror_info,
                                                           infrastructure_commit_author=infrastructure_commit_author)
     return _THE_TREE_COLLECTION_STORE
+
+def create_tree_collection_umbrella(shard_mirror_pair_list):
+    return _TreeCollectionStore(shard_mirror_pair_list=shard_mirror_pair_list,
+                                git_action_class=TreeCollectionsGitAction)

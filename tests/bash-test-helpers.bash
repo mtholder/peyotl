@@ -110,6 +110,26 @@ function refresh_and_test_local_git {
     fi
 }
 
+
+function refresh_and_test_local_git_with_mirrors {
+    if ! bash dev/refresh_for_git_tests.sh
+    then
+        echo "Could not run dev/refresh_for_git_tests.sh script!"
+        num_fails=$(expr ${num_fails} + 1)
+        exit 1
+    fi
+    if ! python tests/create_test_repo_mirrors.py
+    then
+        echo "Could not run tests/create_test_repo_mirrors.py mirrors not created!"
+    fi
+    num_checks=$(expr 1 + ${num_checks})
+    if ! python $@
+    then
+        stf=$(expr ${stf} + 1)
+    fi
+}
+
+
 function echo_and_demand_succeeds {
     echo $@
     num_checks=$(expr 1 + ${num_checks})

@@ -3,7 +3,7 @@
 """Simple utility functions that do not depend on any other part of
 peyotl.
 """
-from peyotl.utility.input_output import (download, expand_path, open_for_group_write, parse_study_tree_list,
+from peyotl.utility.input_output import (download, expand_path, expand_abspath, parse_study_tree_list,
                                          write_to_filepath)
 from peyotl.utility.str_util import is_str_type
 import peyotl.utility.get_logger
@@ -78,7 +78,8 @@ def propinquity_fn_to_study_tree(inp_fn, strip_extension=True):
         study_tree = inp_fn
     x = study_tree.split('@')
     if len(x) != 2:
-        msg = 'Currently we are expecting studyID@treeID.<file extension> format. Expected exactly 1 @ in the filename. Got "{}"'
+        msg = 'Currently we are expecting studyID@treeID.<file extension> format. ' \
+              'Expected exactly 1 @ in the filename. Got "{}"'
         msg = msg.format(study_tree)
         raise ValueError(msg)
     return x

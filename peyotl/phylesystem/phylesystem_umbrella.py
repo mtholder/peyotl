@@ -62,9 +62,8 @@ class _Phylesystem(TypeAwareDocStore):
                  pkey=None,
                  git_action_class=PhylesystemGitAction,
                  mirror_info=None,
-                 new_study_prefix=None,
                  infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                 **kwargs):
+                 shard_mirror_pair_list=None):
         """
         Repos can be found by passing in a `repos_par` (a directory that is the parent of the repos)
             or by trusting the `repos_dict` mapping of name to repo filepath.
@@ -81,7 +80,7 @@ class _Phylesystem(TypeAwareDocStore):
             'remote_map' - a dictionary of remote name to prefix (the repo name + '.git' will be
                 appended to create the URL for pushing).
         """
-        self._new_study_prefix = None
+        self._new_doc_prefix = None
         TypeAwareDocStore.__init__(self,
                                    prefix_from_doc_id=prefix_from_study_id,
                                    repos_dict=repos_dict,
@@ -90,13 +89,12 @@ class _Phylesystem(TypeAwareDocStore):
                                    assumed_doc_version=repo_nexml2json,
                                    git_ssh=git_ssh,
                                    pkey=pkey,
-                                   git_action_class=PhylesystemGitAction,
+                                   git_action_class=git_action_class,
                                    git_shard_class=PhylesystemShard,
                                    mirror_info=mirror_info,
-                                   new_doc_prefix=new_study_prefix,
-                                   infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                                   **kwargs)
-        self._new_study_prefix = self._growing_shard._new_study_prefix  # TODO:shard-edits?
+                                   infrastructure_commit_author=infrastructure_commit_author,
+                                   shard_mirror_pair_list=shard_mirror_pair_list)
+        self._new_doc_prefix = self._growing_shard.new_doc_prefix  # TODO:shard-edits?
         self._growing_shard._determine_next_study_id()
         if with_caching:
             self._cache_region = _make_phylesystem_cache_region()
@@ -104,10 +102,10 @@ class _Phylesystem(TypeAwareDocStore):
             self._cache_region = None
         self._cache_hits = 0
 
-    def get_study_ids(self, include_aliases=False):
+    def get_study_ids(self):
         k = []
         for shard in self._shards:
-            k.extend(shard.get_study_ids(include_aliases=include_aliases))
+            k.extend(shard.get_study_ids())
         return k
 
     # rename some generic members in the base class, for clarity and backward compatibility
@@ -133,11 +131,7 @@ class _Phylesystem(TypeAwareDocStore):
 
     @property
     def new_study_prefix(self):
-        return self.new_doc_prefix
-
-    @new_study_prefix.setter
-    def new_study_prefix(self, val):
-        self.new_doc_prefix = val
+        return self._new_doc_prefix
 
     @property
     def get_blob_sha_for_study_id(self):
@@ -174,17 +168,8 @@ class _Phylesystem(TypeAwareDocStore):
                          new_study_id=None):
         placeholder_added = False
         if new_study_id is not None:
-            if new_study_id.startswith(self._new_study_prefix):
-                m = 'Document IDs with the "{}" prefix can only be automatically generated.'
-                m = m.format(self._new_study_prefix)
-                raise ValueError(m)
-            if not STUDY_ID_PATTERN.match(new_study_id):
-                raise ValueError('Document ID does not match the expected pattern of alphabeticprefix_numericsuffix')
-            with self._index_lock:
-                if new_study_id in self._doc2shard_map:
-                    raise ValueError('Document ID is already in use!')
-                self._doc2shard_map[new_study_id] = None
-                placeholder_added = True
+            raise NotImplementedError("Creating new studies with pre-assigned IDs was only supported when "
+                                      "Open Tree of Life was still ingesting trees from phylografter.")
         try:
             gd, new_study_id = self.create_git_action_for_new_study(new_study_id=new_study_id)
             try:
@@ -278,7 +263,7 @@ def Phylesystem(repos_dict=None,
                 pkey=None,
                 git_action_class=PhylesystemGitAction,
                 mirror_info=None,
-                new_study_prefix=None,
+                new_study_prefix=None, # Unused, TEMP deprecated
                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
     """Factory function for a _Phylesystem object.
 
@@ -299,6 +284,9 @@ def Phylesystem(repos_dict=None,
                                         pkey=pkey,
                                         git_action_class=git_action_class,
                                         mirror_info=mirror_info,
-                                        new_study_prefix=new_study_prefix,
                                         infrastructure_commit_author=infrastructure_commit_author)
     return _THE_PHYLESYSTEM
+
+def create_phylesystem_umbrella(shard_mirror_pair_list):
+    return _Phylesystem(shard_mirror_pair_list=shard_mirror_pair_list,
+                        git_action_class=PhylesystemGitAction)

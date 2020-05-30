@@ -8,15 +8,7 @@ from peyotl.utility import get_logger
 from peyotl.utility.str_util import (slugify, increment_slug)
 import json
 
-try:
-    import anyjson
-except:
-    class Wrapper(object):
-        pass
-
-
-    anyjson = Wrapper()
-    anyjson.loads = json.loads
+import anyjson
 from peyotl.git_storage import ShardedDocStore, \
     TypeAwareDocStore
 from peyotl.amendments.amendments_shard import (TaxonomicAmendmentsShardProxy, TaxonomicAmendmentsShard)
@@ -108,7 +100,6 @@ class _TaxonomicAmendmentStore(TypeAwareDocStore):
                                    git_action_class=TaxonomicAmendmentsGitAction,
                                    git_shard_class=TaxonomicAmendmentsShard,
                                    mirror_info=mirror_info,
-                                   new_doc_prefix=None,
                                    infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
                                    **kwargs)
         self._growing_shard._determine_next_ott_id()
@@ -377,3 +368,8 @@ def TaxonomicAmendmentStore(repos_dict=None,
                                                                   mirror_info=mirror_info,
                                                                   infrastructure_commit_author=infrastructure_commit_author)
     return _THE_TAXONOMIC_AMENDMENT_STORE
+
+
+def create_taxonomic_amendments_umbrella(shard_mirror_pair_list):
+    return _TaxonomicAmendmentStore(shard_mirror_pair_list=shard_mirror_pair_list,
+                                    git_action_class=TaxonomicAmendmentsGitAction)

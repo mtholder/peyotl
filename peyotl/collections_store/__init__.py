@@ -27,7 +27,7 @@ from peyotl.collections_store.collections_umbrella import (TreeCollectionStore,
                                                            COLLECTION_ID_PATTERN)
 from peyotl.utility.input_output import read_as_json
 from peyotl.utility.str_util import is_str_type
-import copy
+
 
 
 def collection_to_included_trees(collection):

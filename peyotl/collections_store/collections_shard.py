@@ -30,7 +30,7 @@ class TreeCollectionsShardProxy(GitShard):
         for collection in config['collections']:
             kl = collection['keys']
             if len(kl) > 1:
-                self.has_aliases = True
+                _LOG.warn("aliases not supported in shards")
             for k in collection['keys']:
                 complete_path = '{p}/{s}/{r}'.format(p=self.path, s=doc_holder_subpath, r=collection['relpath'])
                 d[k] = (self.name, self.path, complete_path)
@@ -55,7 +55,6 @@ def create_id2collection_info(path, tag):
 
 def refresh_collection_index(shard, initializing=False):
     d = create_id2collection_info(shard.doc_dir, shard.name)
-    shard.has_aliases = False
     shard._doc_index = d
 
 
@@ -72,23 +71,19 @@ class TreeCollectionsShard(TypeAwareGitShard):
                  pkey=None,
                  git_action_class=PhylesystemGitAction,
                  push_mirror_repo_path=None,
-                 new_doc_prefix=None,  # IGNORED in this shard type
-                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>',
-                 **kwargs):
-        self.max_file_size = get_config_setting('phylesystem', 'max_file_size')
+                 infrastructure_commit_author='OpenTree API <api@opentreeoflife.org>'):
         TypeAwareGitShard.__init__(self,
-                                   name,
-                                   path,
-                                   doc_holder_subpath,
-                                   assumed_doc_version,
-                                   None,  # version detection
-                                   refresh_collection_index,  # populates _doc_index
-                                   git_ssh,
-                                   pkey,
-                                   git_action_class,
-                                   push_mirror_repo_path,
-                                   infrastructure_commit_author,
-                                   **kwargs)
+                                   name=name,
+                                   path=path,
+                                   doc_holder_subpath=doc_holder_subpath,
+                                   assumed_doc_version=assumed_doc_version,
+                                   detect_doc_version_fn=None,  # version detection
+                                   refresh_doc_index_fn=refresh_collection_index,  # populates _doc_index
+                                   git_ssh=git_ssh,
+                                   pkey=pkey,
+                                   git_action_class=git_action_class,
+                                   push_mirror_repo_path=push_mirror_repo_path,
+                                   infrastructure_commit_author=infrastructure_commit_author)
         self.filepath_for_doc_id_fn = filepath_for_collection_id
         self._doc_counter_lock = Lock()
         self.filepath_for_global_resource_fn = lambda frag: os.path.join(path, frag)

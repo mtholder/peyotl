@@ -10,12 +10,7 @@ out = sys.stdout
 
 
 def parse_config_file(fp):
-    try:
-        # noinspection PyCompatibility
-        from ConfigParser import SafeConfigParser
-    except ImportError:
-        # noinspection PyCompatibility
-        from configparser import ConfigParser as SafeConfigParser
+    from peyotl.utility.imports import SafeConfigParser
     if not os.path.exists(fp):
         raise RuntimeError('The config filepath "{fp}" does not exist.'.format(fp=fp))
     config_obj = SafeConfigParser()

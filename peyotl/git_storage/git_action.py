@@ -7,6 +7,7 @@ import os
 from sh import git  # pylint: disable=E0611
 import shutil
 import sh
+import re
 import locket
 import codecs
 import tempfile  # @TEMPORARY for deprecated write_study
@@ -62,6 +63,24 @@ class RepoLock(object):
     def __exit__(self, _type, value, traceb):
         self._lock.release()
 
+def read_remotes_config(repo_dir):
+    git_dir = os.path.join(repo_dir, '.git')
+    out = git('--git-dir={}'.format(git_dir), "remote", "-v")
+    remote_line_pat = re.compile(r'^(\S+)\s+(\S.*\S)\s+[(]([a-zA-Z]+)[)]$')
+    d = {}
+    for line in out.split('\n'):
+        ls = line.strip()
+        if not ls:
+            continue
+        m = remote_line_pat.match(ls)
+        if not m:
+            raise RuntimeError("Unexpected line in git remove -v call:\n{}\n".format(ls))
+        rem_name = m.group(1)
+        path = m.group(2)
+        action = m.group(3)
+        a2p = d.setdefault(rem_name, {})
+        a2p[action] = path
+    return d
 
 class GitActionBase(object):
     @staticmethod
@@ -352,6 +371,13 @@ class GitActionBase(object):
         if `doc_ids_to_check` is passed in, it should be an iterable list of
             IDs. Only IDs in this list will be returned.
         """
+        _LOG.debug("CMD: {}".format(' '.join([self.gitdir,
+                    self.gitwd,
+                    "diff-tree",
+                    "--name-only",
+                    "-r",
+                    ancestral_commit_sha,
+                    "master"])))
         try:
             x = git(self.gitdir,
                     self.gitwd,
